@@ -210,12 +210,52 @@ const OPERATIONS: ReadonlyArray<Operation> = [
   },
 ];
 
-function bodySchema(schema: Schema.Schema.AnyNoContext): Record<string, unknown> {
+// Named schemas, registered once under `components/schemas` and referenced by `$ref` everywhere — the
+// standard, deduplicated shape that client codegen turns into named types.
+const SCHEMAS: ReadonlyArray<readonly [string, Schema.Schema.AnyNoContext]> = [
+  ["Organization", Organization],
+  ["Product", Product],
+  ["ApiKey", ApiKey],
+  ["CreatedApiKey", CreatedApiKey],
+  ["AlertRule", AlertRule],
+  ["Notification", Notification],
+  ["Webhook", Webhook],
+  ["WebhookDelivery", WebhookDelivery],
+  ["NewOrganization", NewOrganizationBody],
+  ["NewProduct", NewProductBody],
+  ["NewApiKey", NewApiKeyBody],
+  ["NewAlertRule", NewAlertRuleBody],
+  ["NewNotification", NewNotificationBody],
+  ["NewWebhook", NewWebhookBody],
+  ["Enabled", EnabledBody],
+];
+
+const SCHEMA_NAME = new Map<Schema.Schema.AnyNoContext, string>(
+  SCHEMAS.map(([name, schema]) => [schema, name] as const),
+);
+
+function jsonSchema(schema: Schema.Schema.AnyNoContext): Record<string, unknown> {
   // JSONSchema.make emits a `$schema` meta key; drop it so the value is a clean inline JSON Schema.
   const full = JSONSchema.make(schema) as unknown as Record<string, unknown>;
   const { $schema, ...rest } = full;
   void $schema;
   return rest;
+}
+
+function ref(schema: Schema.Schema.AnyNoContext): Record<string, unknown> {
+  const name = SCHEMA_NAME.get(schema);
+  if (name === undefined) {
+    throw new Error("openapi: schema is not registered in SCHEMAS");
+  }
+  return { $ref: `#/components/schemas/${name}` };
+}
+
+function componentSchemas(): Record<string, unknown> {
+  const schemas: Record<string, unknown> = {};
+  for (const [name, schema] of SCHEMAS) {
+    schemas[name] = jsonSchema(schema);
+  }
+  return schemas;
 }
 
 function operationObject(op: Operation): Record<string, unknown> {
@@ -237,11 +277,10 @@ function operationObject(op: Operation): Record<string, unknown> {
     if (op.response === undefined) {
       return { type: "object" };
     }
-    const item = bodySchema(op.response.schema);
     if (op.response.array === true) {
-      return { type: "array", items: item };
+      return { type: "array", items: ref(op.response.schema) };
     }
-    return item;
+    return ref(op.response.schema);
   })();
   const successStatus = op.created === true ? "201" : "200";
   const operation: Record<string, unknown> = {
@@ -265,7 +304,7 @@ function operationObject(op: Operation): Record<string, unknown> {
   if (op.body !== undefined) {
     operation.requestBody = {
       required: true,
-      content: { "application/json": { schema: bodySchema(op.body) } },
+      content: { "application/json": { schema: ref(op.body) } },
     };
   }
   return operation;
@@ -296,6 +335,7 @@ export const openApiDocument: Record<string, unknown> = {
     securitySchemes: {
       bearerAuth: { type: "http", scheme: "bearer", description: "API key as a bearer token." },
     },
+    schemas: componentSchemas(),
   },
   tags: [
     { name: "Organizations" },

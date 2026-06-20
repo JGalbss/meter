@@ -27,8 +27,10 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
   hand-mirroring, no drift from validation); served + tested. **Typed responses, all resources**: every
   control-plane repo response type is now Schema-first (organizations, products, API keys, alert rules,
   notifications, webhooks, webhook-deliveries), so the doc fully describes 200/201 bodies — typed arrays
-  for lists, `201 Created` for creates, `CreatedApiKey` with the one-time token. Typed **client codegen**
-  off the spec + the protobuf engine⇄control-plane contract remain.
+  for lists, `201 Created` for creates, `CreatedApiKey` with the one-time token. Schemas are **named
+  under `components/schemas` and `$ref`'d** (codegen-ready), a checked-in `apps/control-plane/openapi.json`
+  is emitted by `openapi:emit`, and a test fails if it drifts from the served doc. Typed **client
+  codegen** off the spec + the protobuf engine⇄control-plane contract remain.
 - [ ] Wire-protocol versioning policy
 
 ## EPIC 02 — Engine schemas & migrations (Postgres, sqlx)

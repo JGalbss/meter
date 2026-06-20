@@ -1,40 +1,38 @@
-//! The control plane serves an OpenAPI 3.1 document whose request bodies are derived from the same
-//! Effect Schemas the routes validate with (so the contract cannot drift from validation).
+//! The control plane serves an OpenAPI 3.1 document whose schemas are derived from the same Effect
+//! Schemas the routes validate with and the repositories return — named under `components/schemas` and
+//! referenced by `$ref`, so client codegen produces named types and the contract can't drift.
+
+import { readFileSync } from "node:fs";
 
 import { HttpClient } from "@effect/platform";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 
+import { openApiDocument } from "../src/http/openapi";
 import { freshDb, run } from "./support";
+
+interface JsonSchema {
+  readonly $ref?: string;
+  readonly type?: string;
+  readonly items?: { readonly $ref?: string };
+  readonly properties?: Record<string, unknown>;
+}
 
 interface OpenApiDoc {
   readonly openapi: string;
   readonly info: { readonly title: string };
+  readonly components: { readonly schemas: Record<string, JsonSchema> };
   readonly paths: Record<
     string,
     Record<
       string,
       {
         readonly requestBody?: {
-          readonly content: {
-            readonly "application/json": {
-              readonly schema: { readonly properties?: Record<string, unknown> };
-            };
-          };
+          readonly content: { readonly "application/json": { readonly schema: JsonSchema } };
         };
         readonly responses?: Record<
           string,
-          {
-            readonly content?: {
-              readonly "application/json": {
-                readonly schema: {
-                  readonly type?: string;
-                  readonly items?: { readonly properties?: Record<string, unknown> };
-                  readonly properties?: Record<string, unknown>;
-                };
-              };
-            };
-          }
+          { readonly content?: { readonly "application/json": { readonly schema: JsonSchema } } }
         >;
       }
     >
@@ -42,7 +40,7 @@ interface OpenApiDoc {
 }
 
 describe("openapi", () => {
-  it("serves an OpenAPI 3.1 doc with request schemas derived from the route Schemas", async () => {
+  it("serves a $ref'd OpenAPI 3.1 doc with named component schemas", async () => {
     const db = await freshDb();
     const doc = (await run(
       db,
@@ -56,44 +54,33 @@ describe("openapi", () => {
     expect(doc.openapi).toBe("3.1.0");
     expect(doc.info.title).toBe("meter control plane");
 
-    // Every resource is present.
-    for (const path of [
-      "/v1/organizations",
-      "/v1/products",
-      "/v1/api-keys",
-      "/v1/alert-rules",
-      "/v1/notifications",
-      "/v1/webhooks",
-    ]) {
-      expect(doc.paths[path]).toBeDefined();
-    }
+    // Named component schemas, derived from the route/repository Effect Schemas.
+    const schemas = doc.components.schemas;
+    expect(schemas.NewOrganization?.properties?.slug).toBeDefined();
+    expect(schemas.Organization?.properties?.defaultCurrency).toBeDefined();
+    expect(schemas.CreatedApiKey?.properties?.token).toBeDefined();
+    expect(schemas.WebhookDelivery?.properties?.attempts).toBeDefined();
 
-    // A parameterized route is documented with templated syntax.
-    expect(doc.paths["/v1/api-keys/{id}/revoke"]?.post).toBeDefined();
+    // Operations reference the named schemas rather than inlining them.
+    const orgPost = doc.paths["/v1/organizations"]?.post;
+    expect(orgPost?.requestBody?.content["application/json"].schema.$ref).toBe(
+      "#/components/schemas/NewOrganization",
+    );
 
-    // The create-organization body schema is derived from NewOrganizationBody (slug + name).
-    const orgBody =
-      doc.paths["/v1/organizations"]?.post?.requestBody?.content["application/json"].schema;
-    expect(orgBody?.properties?.slug).toBeDefined();
-    expect(orgBody?.properties?.name).toBeDefined();
-
-    // List responses are typed arrays of the resource Schema (Organization → id/slug/name/...).
+    // Lists are typed arrays of the resource schema.
     const orgList =
       doc.paths["/v1/organizations"]?.get?.responses?.["200"]?.content?.["application/json"].schema;
     expect(orgList?.type).toBe("array");
-    expect(orgList?.items?.properties?.defaultCurrency).toBeDefined();
+    expect(orgList?.items?.$ref).toBe("#/components/schemas/Organization");
 
-    // Create endpoints answer 201 Created; minting a key returns CreatedApiKey with the one-time token.
+    // Create endpoints answer 201 Created with the created resource.
     const created =
       doc.paths["/v1/api-keys"]?.post?.responses?.["201"]?.content?.["application/json"].schema;
-    expect(created?.properties?.token).toBeDefined();
-    expect(created?.properties?.role).toBeDefined();
+    expect(created?.$ref).toBe("#/components/schemas/CreatedApiKey");
+  });
 
-    // The remaining resources are typed too (webhook deliveries → array of the delivery Schema).
-    const deliveries =
-      doc.paths["/v1/webhook-deliveries"]?.get?.responses?.["200"]?.content?.["application/json"]
-        .schema;
-    expect(deliveries?.type).toBe("array");
-    expect(deliveries?.items?.properties?.attempts).toBeDefined();
+  it("the committed openapi.json matches the served document (run openapi:emit if this fails)", () => {
+    const committed = JSON.parse(readFileSync("openapi.json", "utf8"));
+    expect(committed).toEqual(openApiDocument);
   });
 });

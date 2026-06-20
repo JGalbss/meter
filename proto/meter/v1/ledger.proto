@@ -63,6 +63,8 @@ message ReserveRequest {
   string reservation_id = 2;
   Credit amount = 3;
   LimitClass limit = 4;
+  // Optional RFC3339 hold expiry; an open hold past it is released by the sweep. Empty never expires.
+  string expires_at = 5;
 }
 
 message ReserveResponse {

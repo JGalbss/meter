@@ -123,6 +123,10 @@ impl v1::ledger_service_server::LedgerService for LedgerGrpc {
         request: Request<v1::ReserveRequest>,
     ) -> Result<Response<v1::ReserveResponse>, Status> {
         let req = request.into_inner();
+        let expires_at = match req.expires_at.is_empty() {
+            true => None,
+            false => Some(super::parse_time(&req.expires_at, "expires_at")?),
+        };
         let outcome = self
             .ledger
             .reserve(ReserveRequest {
@@ -133,7 +137,7 @@ impl v1::ledger_service_server::LedgerService for LedgerGrpc {
                 )?),
                 amount: credit_from_proto(req.amount.as_ref(), "amount")?,
                 limit: limit_class(req.limit)?,
-                expires_at: None,
+                expires_at,
             })
             .await
             .map_err(|error| status_from_ledger(&error))?;

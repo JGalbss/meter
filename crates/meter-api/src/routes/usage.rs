@@ -13,6 +13,7 @@ use crate::cards::resolve_card;
 use crate::dto::{MeterUsageBody, ReserveUsageBody, SettleUsageBody};
 use crate::error::ApiError;
 use crate::AppState;
+use meter_core::Credit;
 use meter_event::{EventStore, RecordEvent};
 use meter_ledger::{
     ChargeRequest, LedgerBackend, ReservationId, ReserveOutcome, ReserveRequest, SettleRequest,
@@ -41,11 +42,24 @@ fn merge_tags(mut base: serde_json::Value, tags: serde_json::Value) -> serde_jso
     base
 }
 
+/// Credits actually burned for a usage call: the priced amount when the usage is burnable, zero
+/// otherwise. Non-burnable usage is still recorded for cost visibility but never debits the ledger,
+/// so its burndown contribution is zero and the ledger stays the sole source of money-truth.
+fn burned_credits(burnable: bool, priced: Credit) -> Credit {
+    match burnable {
+        true => priced,
+        false => Credit::ZERO,
+    }
+}
+
 /// `POST /v1/usage` result: the priced amounts, the recorded event id, and the resulting balance.
 /// Credit/USD amounts are exact decimal strings.
 #[derive(Debug, Serialize, ToSchema)]
 pub struct MeterUsageResult {
+    /// Credits actually burned (debited from the ledger). Zero for non-burnable usage.
     pub credits: String,
+    /// What the usage priced to, whether or not it burned. Equals `credits` for burnable usage.
+    pub priced_credits: String,
     pub cogs_usd: String,
     pub customer_price_usd: String,
     #[schema(value_type = String, format = "uuid")]
@@ -90,6 +104,11 @@ pub async fn meter_usage(
     let priced = price_usage(&usage, &card, &state.credit_value)
         .map_err(|error| ApiError::unprocessable(format!("pricing: {error}")))?;
 
+    // Credits that actually burn: zero for non-burnable usage. We record this (not the priced amount)
+    // as `credits` so analytics burndown reflects ledger truth; `priced_credits` keeps the would-be
+    // charge for visibility.
+    let burned = burned_credits(body.burnable, priced.credits);
+
     let event = state
         .events
         .record(RecordEvent {
@@ -108,7 +127,9 @@ pub async fn meter_usage(
                     "output": body.usage.output,
                     "reasoning": body.usage.reasoning,
                     "cogs_usd": priced.cogs.amount().normalize().to_string(),
-                    "credits": priced.credits.value().normalize().to_string(),
+                    "credits": burned.value().normalize().to_string(),
+                    "priced_credits": priced.credits.value().normalize().to_string(),
+                    "burnable": body.burnable,
                     // Pricing provenance, so a charge can always be re-derived/reconciled: which synced
                     // rate card (null = the hosted catalog) and which version priced this event.
                     "rate_card_id": body.rate_card_id,
@@ -120,13 +141,13 @@ pub async fn meter_usage(
         })
         .await?;
 
-    let charged = priced.credits.is_positive();
+    let charged = burned.is_positive();
     if charged {
         state
             .ledger
             .charge(ChargeRequest {
                 account: body.account,
-                amount: priced.credits,
+                amount: burned,
                 idempotency_key: Some(format!("{}::charge", body.idempotency_key)),
             })
             .await?;
@@ -135,7 +156,8 @@ pub async fn meter_usage(
     let balance = state.ledger.balance(body.account).await?;
 
     Ok(Json(MeterUsageResult {
-        credits: priced.credits.value().normalize().to_string(),
+        credits: burned.value().normalize().to_string(),
+        priced_credits: priced.credits.value().normalize().to_string(),
         cogs_usd: priced.cogs.amount().normalize().to_string(),
         customer_price_usd: priced.customer_price.amount().normalize().to_string(),
         event_id: event.id.to_string(),
@@ -215,8 +237,23 @@ pub async fn settle_usage(
 
 #[cfg(test)]
 mod tests {
-    use super::merge_tags;
+    use super::{burned_credits, merge_tags};
+    use meter_core::Credit;
+    use rust_decimal::Decimal;
     use serde_json::json;
+
+    #[test]
+    fn burnable_usage_burns_the_priced_amount() {
+        let priced = Credit::from_decimal(Decimal::new(200_000, 0));
+        assert_eq!(burned_credits(true, priced), priced);
+    }
+
+    #[test]
+    fn non_burnable_usage_burns_nothing() {
+        let priced = Credit::from_decimal(Decimal::new(200_000, 0));
+        assert_eq!(burned_credits(false, priced), Credit::ZERO);
+        assert!(!burned_credits(false, priced).is_positive());
+    }
 
     #[test]
     fn merge_tags_adds_custom_fields_for_burndown() {

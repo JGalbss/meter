@@ -1776,6 +1776,10 @@
             "type": "string",
             "format": "uuid"
           },
+          "burnable": {
+            "type": "boolean",
+            "description": "Whether this usage burns credits. `true` (the default) prices and debits the ledger as usual.\n`false` records the event with its real provider cost for visibility but never touches the\nledger — its burned `credits` are zero, so burndown stays truthful while you keep flexible,\nnon-charging usage (free tiers, internal traffic, trials). The would-be charge is preserved in\nthe event's `priced_credits` property."
+          },
           "idempotency_key": {
             "type": "string"
           },
@@ -1810,6 +1814,7 @@
         "description": "`POST /v1/usage` result: the priced amounts, the recorded event id, and the resulting balance.\nCredit/USD amounts are exact decimal strings.",
         "required": [
           "credits",
+          "priced_credits",
           "cogs_usd",
           "customer_price_usd",
           "event_id",
@@ -1828,7 +1833,8 @@
             "type": "string"
           },
           "credits": {
-            "type": "string"
+            "type": "string",
+            "description": "Credits actually burned (debited from the ledger). Zero for non-burnable usage."
           },
           "customer_price_usd": {
             "type": "string"
@@ -1836,6 +1842,10 @@
           "event_id": {
             "type": "string",
             "format": "uuid"
+          },
+          "priced_credits": {
+            "type": "string",
+            "description": "What the usage priced to, whether or not it burned. Equals `credits` for burnable usage."
           },
           "settled": {
             "type": "string"

@@ -1098,6 +1098,108 @@ async fn credit_burndown_by_custom_field_and_model() {
     assert_eq!(by_model[0]["credits"], json!(300000.0));
 }
 
+/// Non-burnable usage is priced and recorded (real cost visibility) but never debits the ledger, and
+/// its burndown contribution is zero — so free tiers / internal traffic stay flexible without ever
+/// distorting money-truth.
+#[tokio::test]
+async fn non_burnable_usage_records_cost_but_never_charges() {
+    let (_container, app, ledger, _events) = app_with_stores().await;
+    let org = "22222222-2222-2222-2222-222222222222";
+
+    let (_status, account) = call(
+        &app,
+        "POST",
+        "/v1/accounts",
+        &json!({ "org_id": org, "scope": "org", "no_overdraft": true }),
+    )
+    .await;
+    let account_id = account["id"].as_str().expect("account id").to_owned();
+    call(
+        &app,
+        "POST",
+        &format!("/v1/accounts/{account_id}/grants"),
+        &json!({ "amount": "1000000", "source": "paid" }),
+    )
+    .await;
+
+    // Synced card: output @ $0.0001/token -> 1000 output = 100000 credits.
+    let card_id = uuid::Uuid::now_v7();
+    PgConfig::new(ledger.pool().clone())
+        .put_rate_card(&RateCardRecord {
+            id: card_id,
+            version: 1,
+            kind: "provider_cost".to_owned(),
+            currency: "USD".to_owned(),
+            margin: Decimal::from(1),
+            components: json!([{
+                "dimension": "output", "modality": "text", "context_tier": "standard",
+                "unit": "token", "charge_model": "standard",
+                "unit_price": { "amount": "0.0001", "currency": "USD" }
+            }]),
+        })
+        .await
+        .expect("put card");
+
+    // One burnable call (charges 100000) and one non-burnable call (priced 100000, burns 0).
+    let (_s1, burnable) = call(
+        &app,
+        "POST",
+        "/v1/usage",
+        &json!({
+            "org_id": org, "account": account_id, "model": "custom-x",
+            "idempotency_key": "burn-1", "usage": { "output": 1000 },
+            "rate_card_id": card_id.to_string(), "tags": { "team": "alpha" }
+        }),
+    )
+    .await;
+    assert_eq!(burnable["credits"], "100000");
+    assert_eq!(burnable["priced_credits"], "100000");
+    assert_eq!(burnable["charged"], json!(true));
+
+    let (_s2, free) = call(
+        &app,
+        "POST",
+        "/v1/usage",
+        &json!({
+            "org_id": org, "account": account_id, "model": "custom-x",
+            "idempotency_key": "free-1", "usage": { "output": 1000 },
+            "rate_card_id": card_id.to_string(), "burnable": false,
+            "tags": { "team": "alpha" }
+        }),
+    )
+    .await;
+    // Recorded with real would-be price, but zero burned and no charge.
+    assert_eq!(free["credits"], "0");
+    assert_eq!(free["priced_credits"], "100000");
+    assert_eq!(free["charged"], json!(false));
+
+    // Ledger truth: only the burnable call moved credits (1000000 grant - 100000 = 900000).
+    let (_status, balance) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{account_id}/balance"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(balance["settled"], "900000");
+    assert_eq!(balance["held"], "0");
+
+    // Burndown by team sums only burned credits: alpha = 100000 across 2 recorded events.
+    let (status, rows) = call(
+        &app,
+        "GET",
+        &format!("/v1/orgs/{org}/usage-by-field?field=team"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let rows = rows.as_array().expect("array");
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0]["dimension"], "alpha");
+    assert_eq!(rows[0]["events"], json!(2));
+    assert_eq!(rows[0]["credits"], json!(100000.0));
+}
+
 #[tokio::test]
 async fn usage_prices_with_a_synced_rate_card() {
     let (_container, app, ledger, _events) = app_with_stores().await;

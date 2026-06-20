@@ -211,6 +211,18 @@ pub struct MeterUsageBody {
     #[serde(default)]
     #[schema(value_type = Object)]
     pub tags: Value,
+    /// Whether this usage burns credits. `true` (the default) prices and debits the ledger as usual.
+    /// `false` records the event with its real provider cost for visibility but never touches the
+    /// ledger — its burned `credits` are zero, so burndown stays truthful while you keep flexible,
+    /// non-charging usage (free tiers, internal traffic, trials). The would-be charge is preserved in
+    /// the event's `priced_credits` property.
+    #[serde(default = "default_burnable")]
+    pub burnable: bool,
+}
+
+/// Usage burns credits unless a caller explicitly opts out.
+fn default_burnable() -> bool {
+    true
 }
 
 /// `POST /v1/simulate` — re-rate a stream of usage events from one catalog model onto another to

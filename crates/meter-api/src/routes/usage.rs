@@ -7,22 +7,20 @@ use serde_json::{json, Value};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use meter_event::{EventStore, RecordEvent};
-use meter_ledger::{ChargeRequest, LedgerBackend, ReservationId, ReserveRequest, SettleRequest};
-use meter_pricing::price_usage;
-use meter_ratecards::rate_card_for;
-
+use crate::cards::resolve_card;
 use crate::dto::{MeterUsageBody, ReserveUsageBody, SettleUsageBody};
 use crate::error::ApiError;
 use crate::AppState;
+use meter_event::{EventStore, RecordEvent};
+use meter_ledger::{ChargeRequest, LedgerBackend, ReservationId, ReserveRequest, SettleRequest};
+use meter_pricing::price_usage;
 
 /// `POST /v1/usage`
 pub async fn meter_usage(
     State(state): State<AppState>,
     Json(body): Json<MeterUsageBody>,
 ) -> Result<Json<Value>, ApiError> {
-    let card = rate_card_for(&body.model)
-        .ok_or_else(|| ApiError::not_found(format!("unknown model: {}", body.model)))?;
+    let card = resolve_card(&state, &body.model, body.rate_card_id.as_deref()).await?;
 
     let usage = body.usage.to_usage();
     let priced = price_usage(&usage, &card, &state.credit_value)
@@ -81,8 +79,7 @@ pub async fn reserve_usage(
     State(state): State<AppState>,
     Json(body): Json<ReserveUsageBody>,
 ) -> Result<Json<Value>, ApiError> {
-    let card = rate_card_for(&body.model)
-        .ok_or_else(|| ApiError::not_found(format!("unknown model: {}", body.model)))?;
+    let card = resolve_card(&state, &body.model, body.rate_card_id.as_deref()).await?;
     let usage = body.estimate.to_usage();
     let priced = price_usage(&usage, &card, &state.credit_value)
         .map_err(|error| ApiError::unprocessable(format!("pricing: {error}")))?;
@@ -113,8 +110,7 @@ pub async fn settle_usage(
     Path(id): Path<Uuid>,
     Json(body): Json<SettleUsageBody>,
 ) -> Result<Json<Value>, ApiError> {
-    let card = rate_card_for(&body.model)
-        .ok_or_else(|| ApiError::not_found(format!("unknown model: {}", body.model)))?;
+    let card = resolve_card(&state, &body.model, body.rate_card_id.as_deref()).await?;
     let usage = body.actual.to_usage();
     let priced = price_usage(&usage, &card, &state.credit_value)
         .map_err(|error| ApiError::unprocessable(format!("pricing: {error}")))?;

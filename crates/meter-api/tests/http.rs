@@ -9,7 +9,7 @@ use http_body_util::BodyExt;
 use meter_api::{router, AppState};
 use meter_core::{Currency, Money};
 use meter_store_ch::ChStore;
-use meter_store_pg::{BudgetRecord, PgConfig, PgLedger};
+use meter_store_pg::{BudgetRecord, PgConfig, PgLedger, RateCardRecord};
 use rust_decimal::Decimal;
 use serde_json::{json, Value};
 use sqlx::postgres::PgPoolOptions;
@@ -964,4 +964,74 @@ async fn budget_uses_configured_limit() {
     assert_eq!(body["limit_credits"], "60000");
     assert_eq!(body["used_credits"], "52500");
     assert_eq!(body["status"], "warning"); // 52500 / 60000 = 0.875 >= 0.8
+}
+
+#[tokio::test]
+async fn usage_prices_with_a_synced_rate_card() {
+    let (_container, app, ledger, _events) = app_with_stores().await;
+    let org = "11111111-1111-1111-1111-111111111111";
+
+    let (_status, account) = call(
+        &app,
+        "POST",
+        "/v1/accounts",
+        &json!({ "org_id": org, "scope": "org", "no_overdraft": true }),
+    )
+    .await;
+    let account_id = account["id"].as_str().expect("account id").to_owned();
+    call(
+        &app,
+        "POST",
+        &format!("/v1/accounts/{account_id}/grants"),
+        &json!({ "amount": "1000000", "source": "paid" }),
+    )
+    .await;
+
+    // Sync a custom card: output @ $0.0001/token, no margin.
+    let card_id = uuid::Uuid::now_v7();
+    PgConfig::new(ledger.pool().clone())
+        .put_rate_card(&RateCardRecord {
+            id: card_id,
+            version: 1,
+            kind: "provider_cost".to_owned(),
+            currency: "USD".to_owned(),
+            margin: Decimal::from(1),
+            components: json!([{
+                "dimension": "output", "modality": "text", "context_tier": "standard",
+                "unit": "token", "charge_model": "standard",
+                "unit_price": { "amount": "0.0001", "currency": "USD" }
+            }]),
+        })
+        .await
+        .expect("put card");
+
+    // Price with the synced card (model is arbitrary — the card id overrides catalog lookup).
+    // 500 output * $0.0001 = $0.05 -> 50000 credits at 1 micro-USD/credit.
+    let (status, body) = call(
+        &app,
+        "POST",
+        "/v1/usage",
+        &json!({
+            "org_id": org, "account": account_id, "model": "custom-x",
+            "idempotency_key": "synced-card", "usage": { "output": 500 },
+            "rate_card_id": card_id.to_string()
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["credits"], "50000");
+
+    // An unknown rate_card_id is a 404.
+    let (status, _) = call(
+        &app,
+        "POST",
+        "/v1/usage",
+        &json!({
+            "org_id": org, "account": account_id, "model": "custom-x",
+            "idempotency_key": "synced-card-2", "usage": { "output": 1 },
+            "rate_card_id": uuid::Uuid::now_v7().to_string()
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }

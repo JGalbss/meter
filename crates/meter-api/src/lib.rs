@@ -10,6 +10,7 @@
 
 #![forbid(unsafe_code)]
 
+mod cards;
 mod dto;
 mod error;
 pub mod grpc;

@@ -142,6 +142,9 @@ pub struct MeterUsageBody {
     pub run_id: Option<RunId>,
     #[serde(default)]
     pub usage: UsageDimensions,
+    /// Optional synced rate-card id to price against; defaults to the catalog card for `model`.
+    #[serde(default)]
+    pub rate_card_id: Option<String>,
 }
 
 /// `POST /v1/simulate` — re-rate a stream of usage events from one catalog model onto another to
@@ -164,6 +167,9 @@ pub struct ReserveUsageBody {
     #[serde(default)]
     pub estimate: UsageDimensions,
     pub limit: LimitClass,
+    /// Optional synced rate-card id to price against; defaults to the catalog card for `model`.
+    #[serde(default)]
+    pub rate_card_id: Option<String>,
 }
 
 /// `POST /v1/usage/reservations/{id}/settle` — price the actual usage against a catalog model and
@@ -173,4 +179,7 @@ pub struct SettleUsageBody {
     pub model: String,
     #[serde(default)]
     pub actual: UsageDimensions,
+    /// Optional synced rate-card id to price against; defaults to the catalog card for `model`.
+    #[serde(default)]
+    pub rate_card_id: Option<String>,
 }

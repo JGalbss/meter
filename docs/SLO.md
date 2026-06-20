@@ -28,9 +28,9 @@
 
 | Path | Sustained | Burst | Notes |
 |---|---|---|---|
-| **Event ingest — ClickHouse batch, ExactlyOnce (default), 1 node** | **≥ 600k events/s** | — | `record_batch`; cross-call dedup keeps the rollup exactly-once. Measured ~0.68M/node. |
-| **Event ingest — ClickHouse batch, Append, 1 node** | **≥ 1M events/s** | — | dedup delegated upstream (Kafka EOS, ADR 0005) / reconciled. Measured ~1.0–1.1M/node. |
-| Event ingest — provider scale (target) | ≥ 1M events/s | billions/day | reached single-node (Append) or by stateless-engine + CH-cluster fan-out (ExactlyOnce) |
+| **Event ingest — ClickHouse batch, Append, 1 node** | **≥ 1M events/s** | — | `record_batch`, one bulk insert; dedup delegated upstream (Kafka EOS, ADR 0005) / reconciled. Measured ~0.9–1.1M/node, flat as the table grows. |
+| **Event ingest — ClickHouse batch, ExactlyOnce (default), 1 node** | ~0.45–0.68M events/s | — | cross-call dedup keeps the rollup exactly-once; the dedup read cost grows with table size (~0.68M @ 1M rows → ~0.45M @ 3M), so 1M+ exactly-once is reached via Append+EOS or horizontal fan-out. |
+| Event ingest — provider scale (target) | ≥ 1M events/s | billions/day | met single-node in Append; ExactlyOnce reaches it via stateless-engine + CH-cluster fan-out / upstream EOS |
 | Ledger transfers/s — Postgres + leasing (Zipfian) | TBD | TBD | with vs. without leasing, both measured |
 | Ledger transfers/s — TigerBeetle accelerator | TBD | TBD | only if it passes bill-equivalence |
 | Invoice generation (tenant with N events) | TBD | — | deterministic recompute |

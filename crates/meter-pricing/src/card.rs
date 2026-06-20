@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::component::PriceComponent;
 use crate::dimension::{ContextTier, Modality, PricingDimension};
+use crate::error::PricingError;
 
 /// Whether a card records provider cost (COGS) or what a customer is charged.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -80,6 +81,30 @@ impl RateCard {
             Some(wanted) => versions.iter().find(|card| card.version == wanted),
         }
     }
+
+    /// Validate the card's structure so malformed pricing config is rejected at sync time, not at
+    /// price time: every component must price in the card's currency, no unit price may be negative,
+    /// and no two components may target the same (dimension, modality, context-tier) cell.
+    pub fn validate(&self) -> Result<(), PricingError> {
+        let mut seen = std::collections::HashSet::new();
+        for component in &self.components {
+            if component.unit_price.currency() != &self.currency {
+                return Err(PricingError::CurrencyMismatch);
+            }
+            if component.unit_price.amount().is_sign_negative() {
+                return Err(PricingError::NegativePrice(component.dimension));
+            }
+            let cell = (
+                component.dimension,
+                component.modality,
+                component.context_tier,
+            );
+            if !seen.insert(cell) {
+                return Err(PricingError::DuplicateComponent(component.dimension));
+            }
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -121,5 +146,67 @@ mod tests {
             Some(3)
         );
         assert!(RateCard::resolve(&versions, Some(99)).is_none());
+    }
+
+    fn component(dimension: PricingDimension, price: rust_decimal::Decimal) -> PriceComponent {
+        use crate::component::ChargeModel;
+        use crate::dimension::Unit;
+        use meter_core::Money;
+        PriceComponent {
+            dimension,
+            modality: Modality::Text,
+            context_tier: ContextTier::Standard,
+            unit: Unit::Token,
+            charge_model: ChargeModel::Standard,
+            unit_price: Money::new(price, Currency::new("USD").expect("usd")),
+        }
+    }
+
+    #[test]
+    fn validate_accepts_a_well_formed_card() {
+        use rust_decimal_macros::dec;
+        let mut card = card(1);
+        card.components = vec![
+            component(PricingDimension::InputUncached, dec!(0.000003)),
+            component(PricingDimension::Output, dec!(0.000015)),
+        ];
+        assert_eq!(card.validate(), Ok(()));
+    }
+
+    #[test]
+    fn validate_rejects_currency_mismatch() {
+        use meter_core::Money;
+        use rust_decimal_macros::dec;
+        let mut card = card(1);
+        card.components = vec![PriceComponent {
+            unit_price: Money::new(dec!(0.01), Currency::new("EUR").expect("eur")),
+            ..component(PricingDimension::Output, dec!(0.01))
+        }];
+        assert_eq!(card.validate(), Err(PricingError::CurrencyMismatch));
+    }
+
+    #[test]
+    fn validate_rejects_negative_price() {
+        use rust_decimal_macros::dec;
+        let mut card = card(1);
+        card.components = vec![component(PricingDimension::Output, dec!(-0.01))];
+        assert_eq!(
+            card.validate(),
+            Err(PricingError::NegativePrice(PricingDimension::Output))
+        );
+    }
+
+    #[test]
+    fn validate_rejects_duplicate_cells() {
+        use rust_decimal_macros::dec;
+        let mut card = card(1);
+        card.components = vec![
+            component(PricingDimension::Output, dec!(0.01)),
+            component(PricingDimension::Output, dec!(0.02)),
+        ];
+        assert_eq!(
+            card.validate(),
+            Err(PricingError::DuplicateComponent(PricingDimension::Output))
+        );
     }
 }

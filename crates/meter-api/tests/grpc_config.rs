@@ -113,4 +113,30 @@ async fn config_grpc_syncs_rate_cards_and_budgets() {
         .expect("present");
     assert_eq!(budget.limit_credits, Decimal::from(1000));
     assert_eq!(budget.period, "monthly");
+
+    // A malformed card (a component priced in a different currency than the card) is rejected at sync
+    // time with InvalidArgument, and is not persisted.
+    let bad = service
+        .put_rate_card(Request::new(v1::PutRateCardRequest {
+            card: Some(v1::RateCard {
+                id: String::new(),
+                kind: v1::RateCardKind::ProviderCost as i32,
+                currency: "USD".to_owned(),
+                version: 1,
+                margin: "1.0".to_owned(),
+                components: vec![v1::PriceComponent {
+                    dimension: "output".to_owned(),
+                    modality: "text".to_owned(),
+                    context_tier: "standard".to_owned(),
+                    unit: "token".to_owned(),
+                    charge_model: "standard".to_owned(),
+                    unit_price: Some(v1::Money {
+                        amount: "0.01".to_owned(),
+                        currency: "EUR".to_owned(),
+                    }),
+                }],
+            }),
+        }))
+        .await;
+    assert_eq!(bad.unwrap_err().code(), tonic::Code::InvalidArgument);
 }

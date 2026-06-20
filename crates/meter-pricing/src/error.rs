@@ -19,4 +19,10 @@ pub enum PricingError {
     /// A tiered charge model's schedule is empty, not ascending, or lacks an unbounded final tier.
     #[error("invalid tier schedule: must be ascending and end with an unbounded tier")]
     InvalidTierSchedule,
+    /// A unit price was negative.
+    #[error("negative unit price for dimension {0:?}")]
+    NegativePrice(PricingDimension),
+    /// Two components price the same (dimension, modality, context tier) cell.
+    #[error("duplicate price component for dimension {0:?}")]
+    DuplicateComponent(PricingDimension),
 }

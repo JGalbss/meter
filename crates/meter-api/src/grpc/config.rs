@@ -10,10 +10,31 @@ use serde_json::{json, Value};
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
 
+use meter_core::{Currency, RateCardId};
+use meter_pricing::{Margin, PriceComponent, RateCard, RateCardKind};
 use meter_proto::v1;
 use meter_store_pg::{BudgetRecord, PgConfig, RateCardRecord};
 
 use super::{parse_uuid, status_from_ledger};
+
+/// Reconstruct the pricing card from a record and validate its structure (`RateCard::validate`).
+/// `kind`/`margin` don't affect structural validation, so placeholders are fine here.
+fn validate_record(record: &RateCardRecord) -> Result<(), Status> {
+    let currency = Currency::new(&record.currency)
+        .map_err(|error| Status::invalid_argument(format!("currency: {error}")))?;
+    let components: Vec<PriceComponent> = serde_json::from_value(record.components.clone())
+        .map_err(|error| Status::invalid_argument(format!("invalid components: {error}")))?;
+    let card = RateCard {
+        id: RateCardId::from_uuid(record.id),
+        kind: RateCardKind::ProviderCost,
+        currency,
+        version: 0,
+        margin: Margin::NONE,
+        components,
+    };
+    card.validate()
+        .map_err(|error| Status::invalid_argument(format!("invalid rate card: {error}")))
+}
 
 /// The gRPC config service over the engine's Postgres config store.
 pub struct ConfigGrpc {
@@ -88,6 +109,9 @@ impl v1::config_service_server::ConfigService for ConfigGrpc {
             margin: parse_decimal(&card.margin, "margin")?,
             components: components_json(&card.components),
         };
+        // Validate the card's structure before persisting (currency consistency, non-negative prices,
+        // no duplicate cells), so malformed pricing config is rejected at sync time, not at price time.
+        validate_record(&record)?;
         self.config
             .put_rate_card(&record)
             .await

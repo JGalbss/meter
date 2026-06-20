@@ -49,9 +49,9 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 - [ ] Schema-validated pricing config (AST for custom aggregations, never eval)
 
 ## EPIC 05 — Enforcement
-- [ ] `meter-enforcement`: HARD/SOFT classes; reserve→settle orchestration over LedgerBackend
-- [ ] Worst-case reservation default + optional statistical p95; bounded/alerted overage sub-account
-- [ ] Latency SLO instrumentation (per SLO.md); circuit breaker; fail-closed (HARD) / fail-open (SOFT)
+- [x] `meter-enforcement`: reserve→settle orchestration over LedgerBackend, priced via rate cards; HARD/SOFT via LimitClass; void for failed runs
+- [~] Worst-case reservation default done; statistical p95 + bounded/alerted overage sub-account pending
+- [ ] Latency SLO instrumentation (per SLO.md); circuit breaker; fail-closed (HARD) / fail-open (SOFT) wiring at the engine API
 
 ## EPIC 06 — Ingest & event model
 - [ ] `meter-ingest`: `IngestSource` trait; Postgres-outbox default source; effectively-once consumer (poll→validate→dedup→sink→ack); dead-letter

@@ -1213,6 +1213,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "meter-enforcement"
+version = "0.0.0"
+dependencies = [
+ "meter-core",
+ "meter-ledger",
+ "meter-pricing",
+ "rust_decimal",
+ "rust_decimal_macros",
+ "serde",
+ "thiserror 1.0.69",
+ "tokio",
+]
+
+[[package]]
 name = "meter-ledger"
 version = "0.0.0"
 dependencies = [

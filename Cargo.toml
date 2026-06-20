@@ -53,6 +53,7 @@ proptest = "1"
 meter-core = { path = "crates/meter-core" }
 meter-pricing = { path = "crates/meter-pricing" }
 meter-ledger = { path = "crates/meter-ledger" }
+meter-enforcement = { path = "crates/meter-enforcement" }
 meter-store-pg = { path = "crates/meter-store-pg" }
 
 [workspace.lints.clippy]

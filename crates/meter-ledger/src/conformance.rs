@@ -199,6 +199,58 @@ pub async fn void_releases_a_failed_run<L: LedgerBackend>(ledger: &L) {
     );
 }
 
+/// A SOFT limit on an overdraft-allowed account reserves *beyond* the available balance (it tracks
+/// overage rather than blocking), while a HARD limit on the same account denies the same request.
+pub async fn soft_limit_allows_overage<L: LedgerBackend>(ledger: &L) {
+    let account = ledger
+        .open_account(NewAccount {
+            org_id: OrgId::new(),
+            scope: AccountScope::Org,
+            no_overdraft: false,
+            parent_id: None,
+        })
+        .await
+        .expect("open account")
+        .id;
+    ledger
+        .grant(GrantRequest {
+            account,
+            amount: credits(50),
+            source: CreditSource::Paid,
+            idempotency_key: None,
+        })
+        .await
+        .expect("grant");
+
+    // SOFT, beyond the 50 available -> allowed; the overage is held.
+    let allowed = ledger
+        .reserve(ReserveRequest {
+            account,
+            reservation_id: Default::default(),
+            amount: credits(80),
+            limit: LimitClass::Soft,
+        })
+        .await
+        .expect("soft reserve");
+    assert!(matches!(allowed, ReserveOutcome::Allowed { .. }));
+    assert_eq!(
+        ledger.balance(account).await.expect("balance").held,
+        credits(80)
+    );
+
+    // HARD, beyond available on the same account -> denied (a fresh reservation id).
+    let denied = ledger
+        .reserve(ReserveRequest {
+            account,
+            reservation_id: Default::default(),
+            amount: credits(80),
+            limit: LimitClass::Hard,
+        })
+        .await
+        .expect("hard reserve");
+    assert!(matches!(denied, ReserveOutcome::Denied { .. }));
+}
+
 /// A reservation that was voided cannot then be settled — money is never charged against a released
 /// hold. Settle returns [`LedgerError::ReservationClosed`] and the balance is unchanged.
 pub async fn settle_after_void_is_refused<L: LedgerBackend>(ledger: &L) {
@@ -444,6 +496,7 @@ pub async fn run_all_scenarios<L: LedgerBackend>(ledger: &L) {
     reserve_and_settle_are_idempotent(ledger).await;
     grant_is_idempotent_on_key(ledger).await;
     void_releases_a_failed_run(ledger).await;
+    soft_limit_allows_overage(ledger).await;
     settle_after_void_is_refused(ledger).await;
     void_after_settle_is_refused(ledger).await;
     charge_records_usage(ledger).await;

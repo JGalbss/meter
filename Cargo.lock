@@ -1781,6 +1781,7 @@ dependencies = [
  "testcontainers-modules",
  "time",
  "tokio",
+ "tokio-stream",
  "tonic",
  "tower 0.5.3",
  "tracing",

@@ -38,3 +38,4 @@ tower = "0.5"
 http-body-util = "0.1"
 sqlx = { workspace = true }
 testcontainers-modules = { version = "0.12", features = ["postgres", "clickhouse"] }
+tokio-stream = { version = "0.1", features = ["net"] }

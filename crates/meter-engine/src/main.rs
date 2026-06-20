@@ -62,11 +62,26 @@ async fn main() -> anyhow::Result<()> {
     let usd = Currency::new("USD").map_err(|error| anyhow::anyhow!("currency: {error}"))?;
     let credit_value = Money::new(credit_value_usd, usd);
 
-    let app = router(AppState::new(ledger, events.clone(), events, credit_value));
+    let state = AppState::new(ledger, events.clone(), events, credit_value);
+
+    // The gRPC surface (control-plane RPC) is served on its own port alongside HTTP.
+    let grpc_addr: SocketAddr = std::env::var("METER_GRPC_ADDR")
+        .unwrap_or_else(|_| "0.0.0.0:50051".to_owned())
+        .parse()
+        .context("METER_GRPC_ADDR must be a valid socket address")?;
+    let grpc = meter_api::grpc::router(state.clone());
+    tokio::spawn(async move {
+        tracing::info!(%grpc_addr, "meter engine gRPC listening");
+        if let Err(error) = grpc.serve(grpc_addr).await {
+            tracing::error!(%error, "gRPC server stopped");
+        }
+    });
+
+    let app = router(state);
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .with_context(|| format!("binding {addr}"))?;
-    tracing::info!(%addr, "meter engine listening");
+    tracing::info!(%addr, "meter engine HTTP listening");
     axum::serve(listener, app).await.context("serving HTTP")?;
     Ok(())
 }

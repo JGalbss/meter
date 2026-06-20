@@ -19,7 +19,30 @@ use meter_core::Credit;
 use meter_event::EventError;
 use meter_ledger::LedgerError;
 use meter_proto::v1;
+use meter_proto::v1::ingest_service_server::IngestServiceServer;
+use meter_proto::v1::ledger_service_server::LedgerServiceServer;
+use meter_proto::v1::query_service_server::QueryServiceServer;
 use meter_store_ch::ChError;
+use tonic::transport::server::Router;
+
+use crate::AppState;
+
+/// Assemble the engine's gRPC server: the Ledger, Ingest, and Query services over the same stores as
+/// the HTTP API. Serve it with `.serve(addr)` (see `meter-engine`).
+#[must_use]
+pub fn router(state: AppState) -> Router {
+    tonic::transport::Server::builder()
+        .add_service(LedgerServiceServer::new(ledger::LedgerGrpc::new(
+            state.ledger.clone(),
+        )))
+        .add_service(IngestServiceServer::new(ingest::IngestGrpc::new(
+            state.events.clone(),
+        )))
+        .add_service(QueryServiceServer::new(query::QueryGrpc::new(
+            state.events.clone(),
+            state.ledger.clone(),
+        )))
+}
 
 /// Parse a UUID-bearing string field, mapping a bad value to `invalid_argument`.
 fn parse_uuid(value: &str, field: &str) -> Result<Uuid, Status> {

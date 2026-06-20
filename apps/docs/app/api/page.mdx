@@ -214,7 +214,9 @@ POST /v1/notifications/{id}/ack
 
 ---
 
-> **Contracts.** The control plane emits an **OpenAPI 3.1** document at `GET /openapi.json` — its
-> request bodies are generated from the same Effect `Schema`s the routes validate with, so the contract
-> can't drift from validation and nothing is hand-mirrored. Typed response schemas and generated
-> clients, plus a protobuf engine ⇄ control-plane contract, are tracked next in the project tickets.
+> **Contracts.** The control plane emits an **OpenAPI 3.1** document at `GET /openapi.json` — every
+> request *and* response body is generated from the same Effect `Schema` that validates the request,
+> types the repository, and is returned by the handler (named, `$ref`'d component schemas), so the
+> contract can't drift and nothing is hand-mirrored. The dashboard's control-plane client types are
+> **generated** from this spec (`openapi-typescript`), and CI fails if they drift. A protobuf
+> engine ⇄ control-plane contract is the remaining surface (tracked in the project tickets).

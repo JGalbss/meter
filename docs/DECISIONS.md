@@ -58,5 +58,19 @@ The founder delegated these ("figure out the rest"). Recommended defaults adopte
   Events carry arbitrary, schema-validated custom fields. `amend_event` and `void_run` are first-class,
   append-only corrections (never in-place mutation) — Metronome-beating UX with a perfect audit trail.
   `run_id` is a core dimension across ingest, ledger leases, analytics, and invoicing.
+- **[ADR 0003](adr/0003-events-in-clickhouse.md) — Events live in ClickHouse, not Postgres (sharpens Decisions #2/#3).**
+  The high-volume usage-event firehose and its analytics rollups are a ClickHouse system of record;
+  Postgres keeps money + config. Ingest is idempotent and analytics derive from the events SoR, so there
+  is no second source to reconcile.
+- **[ADR 0004](adr/0004-audit-log-in-clickhouse.md) — Audit log in ClickHouse, not the money database (extends ADR 0003).**
+  The append-only audit firehose is kept off the money Postgres and lives on ClickHouse alongside events.
+- **[ADR 0005](adr/0005-provider-scale-throughput.md) — Scaling to provider-grade throughput.**
+  Millions of metering ops/sec without trading away the sacred ledger, attacked behind the
+  `LedgerBackend` seam: per-session leasing in v1, an optional TigerBeetle backend, stateless engine
+  replicas, and a ClickHouse cluster for the firehose.
+- **[ADR 0006](adr/0006-wire-protocol-versioning.md) — Wire-protocol versioning policy (extends Decision #6, ADR 0001).**
+  Both contracts evolve additive-only within a major (`meter.v1` proto, `/v1` OpenAPI); a breaking change
+  is a new major served in parallel through a published sunset window. Enforced by `buf breaking` and the
+  OpenAPI freshness + client-drift gates so an accidental break cannot merge.
 - **Code organization (standing principle).** Atomic, one-concept-per-file modules; no cramming. The
   codebase will be large — keep it navigable. Enforced in review; detailed in `CLAUDE.md`.

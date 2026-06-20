@@ -19,7 +19,8 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 - [x] TS workspace (pnpm, strict tsconfig, Biome); design-system skill; transitions.dev installed
 
 ## EPIC 01 — Contracts (proto + OpenAPI)
-- [ ] `proto/` Buf module; lint + breaking-change in CI
+- [x] `proto/` Buf module (buf v2, STANDARD lint, FILE breaking) — **lint + breaking-change gate in CI**
+  (the `proto` job runs `buf lint` and `buf breaking --against` main on every PR)
 - [ ] Engine gRPC service defs: Ledger (grant/reserve/settle/void/balance), Ingest (event/amend/void_run), Query, Config-sync (rate cards/grants/budgets)
 - [ ] Codegen: `prost`/`tonic` (Rust `meter-proto`) + `ts-proto`/connect (control plane)
 - [~] Control-plane **OpenAPI emission** done: `GET /openapi.json` serves an OpenAPI 3.1 doc whose
@@ -34,7 +35,9 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
   `openapi-typescript` (`gen:api` → `control-plane.gen.ts`) — the hand-mirrored types are gone, and CI
   fails if the generated client drifts from `openapi.json`. The protobuf engine⇄control-plane contract
   remains (engine has no gRPC surface yet).
-- [ ] Wire-protocol versioning policy
+- [x] Wire-protocol versioning policy — **ADR 0006**: additive-only within a major (`meter.v1` proto,
+  `/v1` OpenAPI); a breaking change is a new major served in parallel through a published sunset window;
+  enforced by `buf breaking` + the OpenAPI freshness/client-drift gates; deprecate-then-remove lifecycle.
 
 ## EPIC 02 — Engine schemas & migrations (Postgres, sqlx)
 - [~] Migration tooling: embedded `sqlx::migrate!` done; `meter migrate` CLI (refuses on version skew) pending

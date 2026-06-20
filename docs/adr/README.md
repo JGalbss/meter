@@ -10,3 +10,6 @@ section of `ARCHITECTURE.md`; it says so explicitly at the top.
 | [0001](0001-engine-controlplane-split.md) | Engine / control-plane split and the protobuf seam | Accepted |
 | [0002](0002-editable-events-and-run-voiding.md) | Editable events, custom fields, and one-call run voiding | Accepted |
 | [0003](0003-events-in-clickhouse.md) | Events live in ClickHouse, not Postgres | Accepted |
+| [0004](0004-audit-log-in-clickhouse.md) | Audit log lives in ClickHouse, not the money database | Accepted |
+| [0005](0005-provider-scale-throughput.md) | Scaling to provider-grade throughput | Accepted |
+| [0006](0006-wire-protocol-versioning.md) | Wire-protocol versioning policy (proto + OpenAPI) | Accepted |

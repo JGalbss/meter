@@ -1,7 +1,9 @@
-//! `ClickHouse` DDL for the event store (ADR 0003).
+//! `ClickHouse` DDL for the event store (ADR 0003) and the audit log (ADR 0004).
 //!
 //! `events` is the system of record for usage events; usage analytics are derived from it directly
-//! (`FINAL` + `status = 'recorded'`, so amends and voids are reflected — see `lib.rs`). Money-truth
+//! (`FINAL` + `status = 'recorded'`, so amends and voids are reflected — see `lib.rs`). The append-only
+//! `audit` firehose also lives here (ADR 0004): it is written on every mutating request, so it is
+//! high-velocity and non-transactional — a ClickHouse fit, kept off the money database. Money-truth
 //! lives in the engine's Postgres ledger (ADR 0001), never here.
 
 /// `CREATE TABLE events` — the editable event model (ADR 0002/0003): the system of record for usage
@@ -41,3 +43,18 @@ CREATE TABLE IF NOT EXISTS events_dead_letter (
 ENGINE = MergeTree
 PARTITION BY toYYYYMM(received_at)
 ORDER BY (org_id, received_at)";
+
+/// `CREATE TABLE audit` — append-only log of mutating requests (ADR 0004). High-velocity and
+/// never updated, so a plain `MergeTree` ordered by time; reads take the most recent rows.
+pub const AUDIT: &str = "\
+CREATE TABLE IF NOT EXISTS audit (
+    id         UUID,
+    actor      LowCardinality(String),
+    method     LowCardinality(String),
+    path       String,
+    status     Int32,
+    created_at DateTime64(3, 'UTC')
+)
+ENGINE = MergeTree
+PARTITION BY toYYYYMM(created_at)
+ORDER BY (created_at, id)";

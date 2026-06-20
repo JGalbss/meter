@@ -8,12 +8,10 @@
 
 #![forbid(unsafe_code)]
 
-mod audit;
 mod mapping;
 mod ops;
 mod report;
 
-pub use audit::{AuditEntry, PgAuditLog};
 pub use report::{DayUsage, PeriodUsage};
 
 use meter_ledger::LedgerError;

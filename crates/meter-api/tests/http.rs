@@ -9,7 +9,7 @@ use http_body_util::BodyExt;
 use meter_api::{router, AppState};
 use meter_core::{Currency, Money};
 use meter_store_ch::ChStore;
-use meter_store_pg::{PgAuditLog, PgLedger};
+use meter_store_pg::PgLedger;
 use rust_decimal::Decimal;
 use serde_json::{json, Value};
 use sqlx::postgres::PgPoolOptions;
@@ -50,9 +50,8 @@ async fn app() -> (TestApp, Router) {
         .connect(&url)
         .await
         .expect("connect");
-    let ledger = PgLedger::new(pool.clone());
+    let ledger = PgLedger::new(pool);
     ledger.migrate().await.expect("migrate");
-    let audit = PgAuditLog::new(pool);
 
     let clickhouse = ClickHouse::default()
         .start()
@@ -74,7 +73,7 @@ async fn app() -> (TestApp, Router) {
     };
     (
         guard,
-        router(AppState::new(ledger, events, audit, credit_value)),
+        router(AppState::new(ledger, events.clone(), events, credit_value)),
     )
 }
 

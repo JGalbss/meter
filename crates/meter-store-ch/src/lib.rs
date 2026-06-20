@@ -63,6 +63,42 @@ struct CountRow {
     n: u64,
 }
 
+/// One recorded mutating action (ADR 0004). Returned by reads; serialized for the API.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AuditEntry {
+    pub id: String,
+    pub actor: String,
+    pub method: String,
+    pub path: String,
+    pub status: i32,
+    #[serde(with = "time::serde::rfc3339")]
+    pub created_at: OffsetDateTime,
+}
+
+/// The `audit` row as stored in ClickHouse (RowBinary codecs); converted to [`AuditEntry`] on read.
+#[derive(clickhouse::Row, Serialize, Deserialize)]
+struct AuditRow {
+    #[serde(with = "clickhouse::serde::uuid")]
+    id: Uuid,
+    actor: String,
+    method: String,
+    path: String,
+    status: i32,
+    #[serde(with = "clickhouse::serde::time::datetime64::millis")]
+    created_at: OffsetDateTime,
+}
+
+fn audit_row_to_entry(row: AuditRow) -> AuditEntry {
+    AuditEntry {
+        id: row.id.to_string(),
+        actor: row.actor,
+        method: row.method,
+        path: row.path,
+        status: row.status,
+        created_at: row.created_at,
+    }
+}
+
 /// The `ClickHouse` store over a `ClickHouse` server.
 #[derive(Clone)]
 pub struct ChStore {
@@ -88,14 +124,51 @@ impl ChStore {
         self.version_seq.fetch_add(1, Ordering::SeqCst)
     }
 
-    /// Apply the schema (idempotent): the events system of record and the dead-letter queue.
+    /// Apply the schema (idempotent): the events system of record, dead-letter queue, and audit log.
     pub async fn migrate(&self) -> Result<(), ChError> {
         self.client.query(schema::EVENTS).execute().await?;
         self.client
             .query(schema::EVENTS_DEAD_LETTER)
             .execute()
             .await?;
+        self.client.query(schema::AUDIT).execute().await?;
         Ok(())
+    }
+
+    /// Append an audit entry (ADR 0004). High-velocity, best-effort — kept off the money database.
+    pub async fn record_audit(
+        &self,
+        actor: &str,
+        method: &str,
+        path: &str,
+        status: i32,
+    ) -> Result<(), ChError> {
+        let row = AuditRow {
+            id: Uuid::now_v7(),
+            actor: actor.to_owned(),
+            method: method.to_owned(),
+            path: path.to_owned(),
+            status,
+            created_at: OffsetDateTime::now_utc(),
+        };
+        let mut insert = self.client.insert("audit")?;
+        insert.write(&row).await?;
+        insert.end().await?;
+        Ok(())
+    }
+
+    /// The most recent audit entries, newest first.
+    pub async fn list_audit(&self, limit: i64) -> Result<Vec<AuditEntry>, ChError> {
+        let rows = self
+            .client
+            .query(
+                "SELECT id, actor, method, path, status, created_at \
+                 FROM audit ORDER BY created_at DESC, id DESC LIMIT ?",
+            )
+            .bind(limit)
+            .fetch_all::<AuditRow>()
+            .await?;
+        Ok(rows.into_iter().map(audit_row_to_entry).collect())
     }
 
     /// Ingest a batch of usage events. Idempotent on `(org_id, event_id)`.

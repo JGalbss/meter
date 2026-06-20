@@ -12,7 +12,7 @@ use anyhow::Context;
 use meter_api::{router, AppState};
 use meter_core::{Currency, Money};
 use meter_store_ch::ChStore;
-use meter_store_pg::{PgAuditLog, PgLedger};
+use meter_store_pg::PgLedger;
 use rust_decimal::Decimal;
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::EnvFilter;
@@ -39,17 +39,17 @@ async fn main() -> anyhow::Result<()> {
         .connect(&database_url)
         .await
         .context("connecting to Postgres")?;
-    let ledger = PgLedger::new(pool.clone());
+    let ledger = PgLedger::new(pool);
     ledger
         .migrate()
         .await
         .map_err(|error| anyhow::anyhow!("running migrations: {error}"))?;
+    // ClickHouse holds events + the audit log (both high-velocity firehoses, ADR 0003/0004).
     let events = ChStore::new(&clickhouse_url);
     events
         .migrate()
         .await
         .map_err(|error| anyhow::anyhow!("running ClickHouse migrations: {error}"))?;
-    let audit = PgAuditLog::new(pool);
 
     // The cash value of one credit (USD), used to price usage into credits.
     let credit_value_usd: Decimal = std::env::var("METER_CREDIT_VALUE")
@@ -59,7 +59,7 @@ async fn main() -> anyhow::Result<()> {
     let usd = Currency::new("USD").map_err(|error| anyhow::anyhow!("currency: {error}"))?;
     let credit_value = Money::new(credit_value_usd, usd);
 
-    let app = router(AppState::new(ledger, events, audit, credit_value));
+    let app = router(AppState::new(ledger, events.clone(), events, credit_value));
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .with_context(|| format!("binding {addr}"))?;

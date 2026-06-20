@@ -7,7 +7,7 @@ use axum::response::Response;
 use axum::Json;
 use serde::Deserialize;
 
-use meter_store_pg::AuditEntry;
+use meter_store_ch::AuditEntry;
 
 use crate::error::ApiError;
 use crate::AppState;
@@ -41,7 +41,7 @@ pub async fn audit_middleware(
         let status = i32::from(response.status().as_u16());
         let _ = state
             .audit
-            .record(&actor, method.as_str(), &path, status)
+            .record_audit(&actor, method.as_str(), &path, status)
             .await;
     }
     response
@@ -66,7 +66,7 @@ pub async fn list(
     let limit = query.limit.clamp(1, 1000);
     let entries = state
         .audit
-        .list(limit)
+        .list_audit(limit)
         .await
         .map_err(|error| ApiError::internal(format!("audit: {error}")))?;
     Ok(Json(entries))

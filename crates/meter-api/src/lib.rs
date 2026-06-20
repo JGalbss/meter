@@ -12,16 +12,17 @@ mod routes;
 
 use meter_core::Money;
 use meter_store_ch::ChStore;
-use meter_store_pg::{PgAuditLog, PgLedger};
+use meter_store_pg::PgLedger;
 
 pub use routes::router;
 
-/// Shared handler state. Money-truth (ledger, audit) is Postgres; events live in `ClickHouse` (ADR 0003).
+/// Shared handler state. Money-truth (the ledger) is Postgres; events and the append-only audit log
+/// live in `ClickHouse` (ADR 0003/0004) — both high-velocity firehoses kept off the money database.
 #[derive(Clone)]
 pub struct AppState {
     pub ledger: PgLedger,
     pub events: ChStore,
-    pub audit: PgAuditLog,
+    pub audit: ChStore,
     /// The cash value of one credit (used to price usage into credits).
     pub credit_value: Money,
 }
@@ -32,7 +33,7 @@ impl AppState {
     pub const fn new(
         ledger: PgLedger,
         events: ChStore,
-        audit: PgAuditLog,
+        audit: ChStore,
         credit_value: Money,
     ) -> Self {
         Self {

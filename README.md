@@ -38,8 +38,8 @@ meter splits along a hard data-plane / control-plane seam:
 |---|---|---|
 | **Engine** | Rust | The data plane and **sole owner of money-truth**: event ingestion, the double-entry credit ledger, real-time reserve/settle enforcement, pricing. Exposes gRPC. |
 | **Control plane** | TypeScript · Effect + Drizzle | The management API the dashboard hits: orgs/teams/users/roles, products, rate cards, budgets, grants, invoices, webhooks. Computes no money — it calls the engine over gRPC. |
-| **System of record** | PostgreSQL | **Money & config only** — the engine owns the ledger schema; the control plane owns the config schema. Events live in ClickHouse (ADR 0003). |
-| **Events & analytics** | ClickHouse | The usage **event firehose** (system of record for events) + rollups. Required (ADR 0003). |
+| **System of record** | PostgreSQL | **Money & config only** — the engine owns the ledger schema; the control plane owns the config schema. The high-velocity firehoses (events, audit) live in ClickHouse. |
+| **Events, audit & analytics** | ClickHouse | The usage **event firehose** (system of record for events) + the append-only **audit log** + analytics rollups. The non-transactional, high-velocity writes, kept off the money DB. Required (ADR 0003/0004). |
 | **Dashboard** | Next.js / React | Dropbox-quality console on the shadcn design system. |
 | **Docs site** | Next.js + MDX | Public documentation: concepts, API reference, SDKs, self-host (`apps/docs`). |
 | **SDKs** | TypeScript, Python | Drop-in instrumentation; the hot path (ingest / reserve / settle) talks to the engine directly. |
@@ -122,7 +122,8 @@ Beyond the engine:
   **budget-evaluation loop** (asks the engine to classify usage, raises notifications on escalation),
   and **signed, retried webhooks** with a dead-letter log. Applies migrations on boot; Docker image +
   compose service; e2e-tested over an in-process server.
-- **Audit log** — engine middleware records every mutating request; `GET /v1/audit`.
+- **Audit log** — engine middleware records every mutating request; `GET /v1/audit`. Stored in
+  ClickHouse (ADR 0004) — a high-velocity append-only firehose, kept off the money database.
 - **SDKs** (`sdks/typescript`, `sdks/python`) — drop-in client + run governance (`withRun`) + usage
   adapters for Anthropic, OpenAI, Vercel AI SDK, Gemini/Vertex, Bedrock, and LangChain/LangGraph.
 - **Dashboard** (`apps/dashboard`, Next.js + shadcn preset) — overview, organizations, products,

@@ -61,3 +61,31 @@ pub struct RecordEventBody {
 pub struct AmendBody {
     pub properties: Value,
 }
+
+/// Token counts for a metered usage event.
+#[derive(Debug, Default, Deserialize)]
+pub struct UsageDimensions {
+    #[serde(default)]
+    pub input_uncached: u64,
+    #[serde(default)]
+    pub cache_read: u64,
+    #[serde(default)]
+    pub cache_write: u64,
+    #[serde(default)]
+    pub output: u64,
+    #[serde(default)]
+    pub reasoning: u64,
+}
+
+/// `POST /v1/usage` — price token usage via the catalog, record the event, and charge credits.
+#[derive(Debug, Deserialize)]
+pub struct MeterUsageBody {
+    pub org_id: OrgId,
+    pub account: AccountId,
+    pub model: String,
+    pub idempotency_key: String,
+    #[serde(default)]
+    pub run_id: Option<RunId>,
+    #[serde(default)]
+    pub usage: UsageDimensions,
+}

@@ -11,6 +11,25 @@ use serde_json::json;
 pub enum ApiError {
     Ledger(LedgerError),
     Event(EventError),
+    Status(StatusCode, &'static str, String),
+}
+
+impl ApiError {
+    /// A 404 with a message.
+    #[must_use]
+    pub fn not_found(message: impl Into<String>) -> Self {
+        Self::Status(StatusCode::NOT_FOUND, "not_found", message.into())
+    }
+
+    /// A 422 with a message (the request was well-formed but could not be processed).
+    #[must_use]
+    pub fn unprocessable(message: impl Into<String>) -> Self {
+        Self::Status(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "unprocessable",
+            message.into(),
+        )
+    }
 }
 
 impl From<LedgerError> for ApiError {
@@ -49,6 +68,7 @@ impl IntoResponse for ApiError {
         let ((status, code), message) = match self {
             ApiError::Ledger(error) => (ledger_status(&error), error.to_string()),
             ApiError::Event(error) => (event_status(&error), error.to_string()),
+            ApiError::Status(status, code, message) => ((status, code), message),
         };
         (status, Json(json!({ "error": code, "message": message }))).into_response()
     }

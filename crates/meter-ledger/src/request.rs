@@ -53,3 +53,12 @@ pub struct SettleRequest {
     pub reservation_id: ReservationId,
     pub actual: Credit,
 }
+
+/// Charge usage directly, without a prior reservation (post-hoc metering). Always posts — the usage
+/// already happened — so it can drive a balance negative (overage). Idempotent on `idempotency_key`.
+#[derive(Debug, Clone)]
+pub struct ChargeRequest {
+    pub account: AccountId,
+    pub amount: Credit,
+    pub idempotency_key: Option<String>,
+}

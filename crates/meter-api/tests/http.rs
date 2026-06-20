@@ -5,7 +5,9 @@ use axum::http::{Request, StatusCode};
 use axum::Router;
 use http_body_util::BodyExt;
 use meter_api::{router, AppState};
+use meter_core::{Currency, Money};
 use meter_store_pg::{PgEventStore, PgLedger};
+use rust_decimal::Decimal;
 use serde_json::{json, Value};
 use sqlx::postgres::PgPoolOptions;
 use testcontainers_modules::postgres::Postgres;
@@ -28,7 +30,12 @@ async fn app() -> (ContainerAsync<Postgres>, Router) {
     let ledger = PgLedger::new(pool.clone());
     ledger.migrate().await.expect("migrate");
     let events = PgEventStore::new(pool);
-    (container, router(AppState::new(ledger, events)))
+    // 1 credit = 1 micro-USD, so credits == COGS in micro-dollars.
+    let credit_value = Money::new(Decimal::new(1, 6), Currency::new("USD").expect("usd"));
+    (
+        container,
+        router(AppState::new(ledger, events, credit_value)),
+    )
 }
 
 async fn call(app: &Router, method: &str, uri: &str, body: &Value) -> (StatusCode, Value) {
@@ -244,4 +251,65 @@ async fn event_flow_over_http() {
     )
     .await;
     assert!(after.as_array().expect("array").is_empty());
+}
+
+#[tokio::test]
+async fn usage_metering_over_http() {
+    let (_container, app) = app().await;
+
+    // Account funded with 1,000,000 credits ($1 at 1 micro-USD/credit).
+    let (_status, account) = call(
+        &app,
+        "POST",
+        "/v1/accounts",
+        &json!({ "org_id": "11111111-1111-1111-1111-111111111111", "scope": "org", "no_overdraft": true }),
+    )
+    .await;
+    let account_id = account["id"].as_str().expect("account id").to_owned();
+    call(
+        &app,
+        "POST",
+        &format!("/v1/accounts/{account_id}/grants"),
+        &json!({ "amount": "1000000", "source": "paid" }),
+    )
+    .await;
+
+    // Meter 1000 input + 500 output for Claude Opus ($15/$75 per M): COGS $0.0525 → 52500 credits.
+    let body = json!({
+        "org_id": "11111111-1111-1111-1111-111111111111",
+        "account": account_id,
+        "model": "claude-opus-4-8",
+        "idempotency_key": "run-42",
+        "run_id": "55555555-5555-5555-5555-555555555555",
+        "usage": { "input_uncached": 1000, "output": 500 }
+    });
+    let (status, result) = call(&app, "POST", "/v1/usage", &body).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(result["charged"], json!(true));
+    assert_eq!(result["credits"], "52500");
+    assert_eq!(result["cogs_usd"], "0.0525");
+    assert_eq!(result["settled"], "947500"); // 1_000_000 − 52_500
+
+    // The usage event was recorded with its custom fields.
+    let (_status, events) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{account_id}/events"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(events.as_array().expect("array").len(), 1);
+    assert_eq!(events[0]["properties"]["model"], "claude-opus-4-8");
+
+    // Idempotent on the key: re-metering the same run does not double-charge.
+    let (_status, again) = call(&app, "POST", "/v1/usage", &body).await;
+    assert_eq!(again["settled"], "947500");
+    let (_status, events_after) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{account_id}/events"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(events_after.as_array().expect("array").len(), 1);
 }

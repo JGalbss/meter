@@ -5,7 +5,9 @@ use meter_core::AccountId;
 
 use crate::error::LedgerError;
 use crate::model::{Balance, LedgerAccount, LedgerEntry, ReservationId};
-use crate::request::{GrantRequest, NewAccount, ReserveOutcome, ReserveRequest, SettleRequest};
+use crate::request::{
+    ChargeRequest, GrantRequest, NewAccount, ReserveOutcome, ReserveRequest, SettleRequest,
+};
 
 /// A pluggable double-entry credit ledger.
 ///
@@ -29,6 +31,9 @@ pub trait LedgerBackend: Send + Sync {
 
     /// Close a reservation at the actual amount, posting the priced usage.
     async fn settle(&self, req: SettleRequest) -> Result<LedgerEntry, LedgerError>;
+
+    /// Charge usage directly (post-hoc, no prior reservation). Always posts; idempotent on its key.
+    async fn charge(&self, req: ChargeRequest) -> Result<LedgerEntry, LedgerError>;
 
     /// Release an open reservation without charging it (e.g. a failed or abandoned run).
     async fn void(&self, reservation: ReservationId) -> Result<(), LedgerError>;

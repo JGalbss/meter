@@ -9,7 +9,9 @@ use std::net::SocketAddr;
 
 use anyhow::Context;
 use meter_api::{router, AppState};
+use meter_core::{Currency, Money};
 use meter_store_pg::{PgEventStore, PgLedger};
+use rust_decimal::Decimal;
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::EnvFilter;
 
@@ -40,7 +42,15 @@ async fn main() -> anyhow::Result<()> {
         .map_err(|error| anyhow::anyhow!("running migrations: {error}"))?;
     let events = PgEventStore::new(pool);
 
-    let app = router(AppState::new(ledger, events));
+    // The cash value of one credit (USD), used to price usage into credits.
+    let credit_value_usd: Decimal = std::env::var("METER_CREDIT_VALUE")
+        .unwrap_or_else(|_| "0.000001".to_owned())
+        .parse()
+        .context("METER_CREDIT_VALUE must be a decimal")?;
+    let usd = Currency::new("USD").map_err(|error| anyhow::anyhow!("currency: {error}"))?;
+    let credit_value = Money::new(credit_value_usd, usd);
+
+    let app = router(AppState::new(ledger, events, credit_value));
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .with_context(|| format!("binding {addr}"))?;

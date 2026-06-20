@@ -17,10 +17,13 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
 time = { workspace = true }
+rust_decimal = { workspace = true }
 tracing = { workspace = true }
 meter-core = { workspace = true }
 meter-ledger = { workspace = true }
 meter-event = { workspace = true }
+meter-pricing = { workspace = true }
+meter-ratecards = { workspace = true }
 meter-store-pg = { workspace = true }
 
 [dev-dependencies]

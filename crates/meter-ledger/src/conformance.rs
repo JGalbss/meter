@@ -9,7 +9,9 @@ use meter_core::{AccountId, Credit, OrgId};
 
 use crate::backend::LedgerBackend;
 use crate::model::{AccountScope, CreditSource, LimitClass};
-use crate::request::{GrantRequest, NewAccount, ReserveOutcome, ReserveRequest, SettleRequest};
+use crate::request::{
+    ChargeRequest, GrantRequest, NewAccount, ReserveOutcome, ReserveRequest, SettleRequest,
+};
 
 /// A whole-credit amount.
 fn credits(n: i64) -> Credit {
@@ -195,6 +197,38 @@ pub async fn void_releases_a_failed_run<L: LedgerBackend>(ledger: &L) {
     );
 }
 
+/// A direct charge posts usage and lowers the balance; it is idempotent on its key.
+pub async fn charge_records_usage<L: LedgerBackend>(ledger: &L) {
+    let account = open_no_overdraft_org(ledger).await;
+    ledger
+        .grant(GrantRequest {
+            account,
+            amount: credits(100),
+            source: CreditSource::Paid,
+            idempotency_key: None,
+        })
+        .await
+        .expect("grant");
+    let charge = ChargeRequest {
+        account,
+        amount: credits(30),
+        idempotency_key: Some("charge-1".to_owned()),
+    };
+    ledger.charge(charge.clone()).await.expect("charge");
+    assert_eq!(
+        ledger.balance(account).await.expect("balance").settled,
+        credits(70)
+    );
+    ledger
+        .charge(charge)
+        .await
+        .expect("charge again (idempotent)");
+    assert_eq!(
+        ledger.balance(account).await.expect("balance").settled,
+        credits(70)
+    );
+}
+
 /// Run every self-contained scenario against a backend (each opens its own account).
 pub async fn run_all_scenarios<L: LedgerBackend>(ledger: &L) {
     grant_increases_balance(ledger).await;
@@ -203,6 +237,7 @@ pub async fn run_all_scenarios<L: LedgerBackend>(ledger: &L) {
     reserve_and_settle_are_idempotent(ledger).await;
     grant_is_idempotent_on_key(ledger).await;
     void_releases_a_failed_run(ledger).await;
+    charge_records_usage(ledger).await;
 }
 
 /// One operation in a model-based conformance sequence.

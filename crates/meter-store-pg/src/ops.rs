@@ -7,9 +7,9 @@ use uuid::Uuid;
 
 use meter_core::{AccountId, EntryId};
 use meter_ledger::{
-    Balance, EntryType, GrantRequest, LedgerAccount, LedgerBackend, LedgerEntry, LedgerError,
-    LimitClass, NewAccount, ReservationId, ReserveOutcome, ReserveRequest, SettleRequest,
-    SYSTEM_ACCOUNT,
+    Balance, ChargeRequest, EntryType, GrantRequest, LedgerAccount, LedgerBackend, LedgerEntry,
+    LedgerError, LimitClass, NewAccount, ReservationId, ReserveOutcome, ReserveRequest,
+    SettleRequest, SYSTEM_ACCOUNT,
 };
 
 use crate::mapping::{
@@ -292,6 +292,65 @@ impl LedgerBackend for PgLedger {
         .execute(&mut *tx)
         .await
         .map_err(be)?;
+        tx.commit().await.map_err(be)?;
+        Ok(entry)
+    }
+
+    async fn charge(&self, req: ChargeRequest) -> Result<LedgerEntry, LedgerError> {
+        if !req.amount.is_positive() {
+            return Err(LedgerError::NonPositiveAmount);
+        }
+        let mut tx = self.pool().begin().await.map_err(be)?;
+        let account_row =
+            sqlx::query("SELECT org_id FROM ledger_accounts WHERE id = $1 FOR UPDATE")
+                .bind(req.account.as_uuid())
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(be)?
+                .ok_or(LedgerError::AccountNotFound(req.account))?;
+        let org_id: Uuid = account_row.try_get("org_id").map_err(be)?;
+
+        if let Some(key) = req.idempotency_key.as_deref() {
+            let existing = sqlx::query(
+                "SELECT * FROM ledger_entries WHERE account_id = $1 AND idempotency_key = $2",
+            )
+            .bind(req.account.as_uuid())
+            .bind(key)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(be)?;
+            if let Some(row) = existing {
+                let entry = entry_from_row(&row)?;
+                tx.commit().await.map_err(be)?;
+                return Ok(entry);
+            }
+        }
+
+        let balance_after: Decimal = sqlx::query_scalar(
+            "UPDATE ledger_accounts SET settled_credits = settled_credits - $2 \
+             WHERE id = $1 RETURNING settled_credits",
+        )
+        .bind(req.account.as_uuid())
+        .bind(req.amount.value())
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(be)?;
+
+        let entry = LedgerEntry {
+            id: EntryId::new(),
+            account_id: req.account,
+            paired_account_id: SYSTEM_ACCOUNT,
+            entry_type: EntryType::Usage,
+            delta_credits: -req.amount,
+            balance_after: credit_from_db(balance_after),
+            source: None,
+            revenue_recognizable: true,
+            reverses_entry_id: None,
+            reservation_id: None,
+            idempotency_key: req.idempotency_key.clone(),
+            created_at: now_micros(),
+        };
+        insert_entry(&mut tx, &entry, org_id).await?;
         tx.commit().await.map_err(be)?;
         Ok(entry)
     }

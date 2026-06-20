@@ -79,8 +79,12 @@ The Rust engine is functional and tested end-to-end against real Postgres:
 - **Catalog** — curated model rate-card snapshot (`meter-ratecards`).
 - **Engine** — the `meter` binary serving HTTP; `meterctl` admin CLI; Docker image + compose.
 
-Engine HTTP endpoints under `/v1`: `accounts` (open · balance · grants · entries · events · invoice),
-`reservations` (reserve · settle · void), `events` (record · get · amend), `runs/{id}/void`.
+- **Usage metering** — `POST /v1/usage` prices token usage via the catalog (`model` + token counts),
+  records the event, and charges credits in one idempotent call (the core loop, end-to-end tested).
+
+Engine HTTP endpoints under `/v1`: `usage` (meter), `accounts` (open · balance · grants · entries ·
+events · invoice), `reservations` (reserve · settle · void), `events` (record · get · amend),
+`runs/{id}/void`.
 
 In progress (see [tickets](tickets/README.md)): TypeScript control plane (Effect + Drizzle), SDKs,
 dashboard, ClickHouse analytics, budgets/grants, notifications & alerts, audit log, rate-card scraper.

@@ -5,6 +5,7 @@ mod events;
 mod health;
 mod invoices;
 mod reservations;
+mod usage;
 
 use axum::routing::{get, post};
 use axum::Router;
@@ -26,7 +27,8 @@ pub fn router(state: AppState) -> Router {
         .route("/events", post(events::record))
         .route("/events/:id", get(events::get))
         .route("/events/:id/amend", post(events::amend))
-        .route("/runs/:id/void", post(events::void_run));
+        .route("/runs/:id/void", post(events::void_run))
+        .route("/usage", post(usage::meter_usage));
 
     Router::new()
         .route("/health", get(health::health))

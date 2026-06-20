@@ -22,5 +22,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 anyhow = { workspace = true }
 sqlx = { workspace = true }
+rust_decimal = { workspace = true }
+meter-core = { workspace = true }
 meter-api = { workspace = true }
 meter-store-pg = { workspace = true }

@@ -26,4 +26,6 @@ pub use model::{
     AccountScope, Balance, CreditSource, EntryType, LedgerAccount, LedgerEntry, LimitClass,
     ReservationId, SYSTEM_ACCOUNT, SYSTEM_ORG,
 };
-pub use request::{GrantRequest, NewAccount, ReserveOutcome, ReserveRequest, SettleRequest};
+pub use request::{
+    ChargeRequest, GrantRequest, NewAccount, ReserveOutcome, ReserveRequest, SettleRequest,
+};

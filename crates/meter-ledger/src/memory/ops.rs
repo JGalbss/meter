@@ -7,7 +7,9 @@ use time::OffsetDateTime;
 use crate::backend::LedgerBackend;
 use crate::error::LedgerError;
 use crate::model::{Balance, EntryType, LedgerAccount, LedgerEntry, LimitClass, ReservationId};
-use crate::request::{GrantRequest, NewAccount, ReserveOutcome, ReserveRequest, SettleRequest};
+use crate::request::{
+    ChargeRequest, GrantRequest, NewAccount, ReserveOutcome, ReserveRequest, SettleRequest,
+};
 
 use super::state::{AccountRow, Hold, HoldStatus};
 use super::InMemoryLedger;
@@ -182,6 +184,50 @@ impl LedgerBackend for InMemoryLedger {
             hold.status = HoldStatus::Settled;
             hold.settle_entry = Some(entry.id);
         }
+        Ok(entry)
+    }
+
+    async fn charge(&self, req: ChargeRequest) -> Result<LedgerEntry, LedgerError> {
+        if !req.amount.is_positive() {
+            return Err(LedgerError::NonPositiveAmount);
+        }
+        let mut state = self.lock();
+        if !state.accounts.contains_key(&req.account) {
+            return Err(LedgerError::AccountNotFound(req.account));
+        }
+        if let Some(key) = req.idempotency_key.as_deref() {
+            if let Some(existing) = state.entries.iter().find(|entry| {
+                entry.account_id == req.account && entry.idempotency_key.as_deref() == Some(key)
+            }) {
+                return Ok(existing.clone());
+            }
+        }
+        let balance_after = {
+            let account = state
+                .accounts
+                .get_mut(&req.account)
+                .expect("existence checked above");
+            account.settled -= req.amount;
+            account.settled
+        };
+        if let Some(system) = state.accounts.get_mut(&self.system) {
+            system.settled += req.amount;
+        }
+        let entry = LedgerEntry {
+            id: EntryId::new(),
+            account_id: req.account,
+            paired_account_id: self.system,
+            entry_type: EntryType::Usage,
+            delta_credits: -req.amount,
+            balance_after,
+            source: None,
+            revenue_recognizable: true,
+            reverses_entry_id: None,
+            reservation_id: None,
+            idempotency_key: req.idempotency_key,
+            created_at: OffsetDateTime::now_utc(),
+        };
+        state.entries.push(entry.clone());
         Ok(entry)
     }
 

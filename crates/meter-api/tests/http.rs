@@ -136,6 +136,20 @@ async fn full_ledger_flow_over_http() {
     assert_eq!(balance["settled"], "70");
     assert_eq!(balance["held"], "0");
 
+    // The invoice for the period sums the ledger's settles: enforced == billed.
+    let (status, invoice) = call(
+        &app,
+        "GET",
+        &format!(
+            "/v1/accounts/{account_id}/invoice?start=2000-01-01T00:00:00Z&end=2100-01-01T00:00:00Z"
+        ),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(invoice["total_credits"], "30");
+    assert_eq!(invoice["settle_count"], json!(1));
+
     // Over-reserving is denied.
     let (status, outcome) = call(
         &app,

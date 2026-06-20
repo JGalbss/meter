@@ -3,6 +3,7 @@
 mod accounts;
 mod events;
 mod health;
+mod invoices;
 mod reservations;
 
 use axum::routing::{get, post};
@@ -18,6 +19,7 @@ pub fn router(state: AppState) -> Router {
         .route("/accounts/:id/grants", post(accounts::grant))
         .route("/accounts/:id/entries", get(accounts::entries))
         .route("/accounts/:id/events", get(events::list_for_account))
+        .route("/accounts/:id/invoice", get(invoices::invoice))
         .route("/reservations", post(reservations::reserve))
         .route("/reservations/:id/settle", post(reservations::settle))
         .route("/reservations/:id/void", post(reservations::void))

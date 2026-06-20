@@ -11,8 +11,10 @@
 mod event;
 mod mapping;
 mod ops;
+mod report;
 
 pub use event::PgEventStore;
+pub use report::PeriodUsage;
 
 use meter_ledger::LedgerError;
 use sqlx::postgres::PgPool;

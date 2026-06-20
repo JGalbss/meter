@@ -81,7 +81,7 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 - [ ] Auth (sessions + API keys), authorization (RBAC), OpenAPI emission; agent-doctor in CI
 
 ## EPIC 10 — Invoicing
-- [ ] Deterministic, query-based invoices summed from the ledger (enforced==billed, hard-block on mismatch)
+- [~] Deterministic, query-based invoice summed from the ledger (enforced==billed): `GET /v1/accounts/:id/invoice?start&end` done & e2e-tested. Hard-block-on-mismatch reconciliation pending
 - [ ] State machine Draft→Grace→Finalized(immutable)→Void; sealing posting; credit-notes for corrections
 - [ ] Billing periods independent of budget cycles; line items, drawdown, rev-rec view
 

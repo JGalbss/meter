@@ -888,6 +888,143 @@ pub async fn run_all_scenarios<L: LedgerBackend>(ledger: &L) {
     over_lease_is_refused(ledger).await;
 }
 
+/// One hold in a [`void_run_property`] spec: a reservation tagged with a run, either left open or
+/// settled at an actual amount.
+#[derive(Debug, Clone)]
+pub struct HoldSpec {
+    /// Which run this hold belongs to (a small index; mapped to a fresh `RunId`).
+    pub run: u8,
+    /// Reserve amount (clamped to at least 1).
+    pub amount: u32,
+    /// `None` leaves the hold open; `Some(actual)` settles it at `min(actual, amount)`.
+    pub settle: Option<u32>,
+}
+
+/// Property: voiding a run reverses exactly that run's financial impact and nothing else, and is
+/// idempotent — over an arbitrary set of run-tagged holds. Releases the target run's open holds and
+/// refunds its non-zero settled charges; other runs are untouched; credits are conserved. Drive this
+/// with proptest from each backend's tests, the same way as [`check_against_model`].
+pub async fn void_run_property<L: LedgerBackend>(ledger: &L, specs: &[HoldSpec], target_run: u8) {
+    // Fund strictly above the sum of all reserve amounts so every HARD reserve is allowed.
+    let total: i64 = specs.iter().map(|spec| i64::from(spec.amount.max(1))).sum();
+    let account = open_no_overdraft_org(ledger).await;
+    ledger
+        .grant(GrantRequest {
+            account,
+            amount: credits(total + 1),
+            source: CreditSource::Paid,
+            idempotency_key: None,
+        })
+        .await
+        .expect("grant");
+
+    // A fresh RunId per run index in play (specs and the target).
+    let run_count = specs
+        .iter()
+        .map(|spec| spec.run)
+        .chain(std::iter::once(target_run))
+        .max()
+        .map_or(1, |max| usize::from(max) + 1);
+    let run_ids: Vec<RunId> = (0..run_count).map(|_| RunId::new()).collect();
+
+    // Apply every hold, accumulating the expected effect of voiding the target run.
+    let mut target_open_amount: i64 = 0;
+    let mut target_open_count: u64 = 0;
+    let mut target_refund_amount: i64 = 0;
+    let mut target_refund_count: u64 = 0;
+    for spec in specs {
+        let amount = i64::from(spec.amount.max(1));
+        let reservation = ReservationId::new();
+        let outcome = ledger
+            .reserve(ReserveRequest {
+                account,
+                reservation_id: reservation,
+                amount: credits(amount),
+                limit: LimitClass::Hard,
+                expires_at: None,
+                run_id: Some(run_ids[usize::from(spec.run)]),
+            })
+            .await
+            .expect("reserve");
+        assert!(
+            matches!(outcome, ReserveOutcome::Allowed { .. }),
+            "over-funded reserve was denied"
+        );
+        let is_target = spec.run == target_run;
+        match spec.settle {
+            None => {
+                if is_target {
+                    target_open_amount += amount;
+                    target_open_count += 1;
+                }
+            }
+            Some(actual) => {
+                let actual = i64::from(actual).min(amount);
+                ledger
+                    .settle(SettleRequest {
+                        reservation_id: reservation,
+                        actual: credits(actual),
+                    })
+                    .await
+                    .expect("settle");
+                // Only a positive settled charge is refundable on void.
+                if is_target && actual > 0 {
+                    target_refund_amount += actual;
+                    target_refund_count += 1;
+                }
+            }
+        }
+    }
+
+    let before = ledger.balance(account).await.expect("balance before");
+    let summary = ledger
+        .void_run(run_ids[usize::from(target_run)])
+        .await
+        .expect("void run");
+    assert_eq!(summary.holds_released, target_open_count, "holds_released");
+    assert_eq!(
+        summary.charges_refunded, target_refund_count,
+        "charges_refunded"
+    );
+    assert_eq!(
+        summary.credits_refunded,
+        credits(target_refund_amount),
+        "credits_refunded"
+    );
+
+    // Settled rises by the refunded charges; held falls by the released holds; other runs untouched.
+    let after = ledger.balance(account).await.expect("balance after");
+    assert_eq!(
+        after.settled,
+        before.settled + credits(target_refund_amount),
+        "settled after void"
+    );
+    assert_eq!(
+        after.held,
+        before.held - credits(target_open_amount),
+        "held after void"
+    );
+
+    // Idempotent: a second void reverses nothing new and leaves the balance unchanged.
+    let again = ledger
+        .void_run(run_ids[usize::from(target_run)])
+        .await
+        .expect("void run again");
+    assert_eq!(again.holds_released, 0, "idempotent holds_released");
+    assert_eq!(again.charges_refunded, 0, "idempotent charges_refunded");
+    assert_eq!(
+        again.credits_refunded,
+        credits(0),
+        "idempotent credits_refunded"
+    );
+    let stable = ledger.balance(account).await.expect("balance stable");
+    assert_eq!(
+        stable.settled, after.settled,
+        "settled stable after re-void"
+    );
+    assert_eq!(stable.held, after.held, "held stable after re-void");
+}
+
 /// One operation in a model-based conformance sequence.
 #[derive(Debug, Clone)]
 pub enum Op {

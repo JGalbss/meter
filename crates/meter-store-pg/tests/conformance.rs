@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use meter_core::{Credit, OrgId};
-use meter_ledger::conformance::{self, Op};
+use meter_ledger::conformance::{self, HoldSpec, Op};
 use meter_ledger::{
     AccountScope, CreditSource, GrantRequest, LedgerBackend, LimitClass, NewAccount, ReservationId,
     ReserveOutcome, ReserveRequest, SettleRequest,
@@ -70,6 +70,45 @@ async fn matches_the_model_over_a_sequence() {
         Op::Void { reserve: 500 }, // denied reservation, void is a no-op
     ];
     conformance::check_against_model(&ledger, &ops).await;
+}
+
+#[tokio::test]
+async fn void_run_invariants_hold_on_postgres() {
+    let (_container, ledger) = start_ledger().await;
+    // Run 0: one open + one settled (refundable) + one zero-settle (not refundable).
+    // Run 1: one open + one settled — must be untouched when run 0 is voided.
+    let specs = vec![
+        HoldSpec {
+            run: 0,
+            amount: 40,
+            settle: None,
+        },
+        HoldSpec {
+            run: 0,
+            amount: 30,
+            settle: Some(20),
+        },
+        HoldSpec {
+            run: 0,
+            amount: 15,
+            settle: Some(0),
+        },
+        HoldSpec {
+            run: 1,
+            amount: 25,
+            settle: None,
+        },
+        HoldSpec {
+            run: 1,
+            amount: 10,
+            settle: Some(7),
+        },
+    ];
+    conformance::void_run_property(&ledger, &specs, 0).await;
+
+    // Also exercise voiding a run with no holds at all (everything zero, balance unchanged).
+    let (_container2, ledger2) = start_ledger().await;
+    conformance::void_run_property(&ledger2, &specs, 3).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

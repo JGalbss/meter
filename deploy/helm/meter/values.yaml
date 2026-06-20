@@ -93,7 +93,13 @@ ingress:
   enabled: false
   className: ""
   annotations: {}
+  # The dashboard console host (always routed when ingress is enabled).
   host: meter.local
+  # Optional API hosts. Set these to expose the HTTP surfaces the SDKs call — the control plane
+  # (config) and the engine (money/usage hot path) — each on its own host, serving its native paths.
+  # Leave empty to keep an API surface cluster-internal.
+  controlPlaneHost: ""
+  engineHost: ""
   tls:
     enabled: false
     secretName: ""

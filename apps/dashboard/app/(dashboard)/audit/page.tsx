@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/table"
 import { unwrapOr } from "@/lib/meter/client"
 import { fetchAuditLog } from "@/lib/meter/engine"
+import { AuditFilters } from "./audit-filters"
+import { ExportAuditButton } from "./export-audit-button"
 
 export const dynamic = "force-dynamic"
 
@@ -25,15 +27,43 @@ function statusVariant(status: number): BadgeVariant {
   return "default"
 }
 
-export default async function AuditPage() {
-  const entries = unwrapOr(await fetchAuditLog(200), [])
+const WINDOW_MS: Record<string, number> = {
+  "24h": 86_400_000,
+  "7d": 604_800_000,
+  "30d": 2_592_000_000,
+}
+
+// Translate a window preset into an RFC3339 lower bound the engine can filter on.
+function sinceFor(window: string | undefined): string | undefined {
+  if (window === undefined) {
+    return undefined
+  }
+  const ms = WINDOW_MS[window]
+  if (ms === undefined) {
+    return undefined
+  }
+  return new Date(Date.now() - ms).toISOString()
+}
+
+export default async function AuditPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ actor?: string; method?: string; window?: string }>
+}) {
+  const { actor, method, window } = await searchParams
+  const entries = unwrapOr(
+    await fetchAuditLog({ actor, method, since: sinceFor(window), limit: 500 }),
+    []
+  )
 
   return (
     <>
       <PageHeader
         title="Audit log"
         description="Every mutating request to the engine, most recent first."
+        action={<ExportAuditButton entries={entries} />}
       />
+      <AuditFilters actor={actor} method={method} window={window} />
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -43,17 +73,18 @@ export default async function AuditPage() {
                 <TableHead>Actor</TableHead>
                 <TableHead>Method</TableHead>
                 <TableHead>Path</TableHead>
+                <TableHead>Request</TableHead>
                 <TableHead className="text-right">Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {entries.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="p-0">
+                  <TableCell colSpan={6} className="p-0">
                     <EmptyState
                       icon={ClipboardText}
                       title="No audit entries"
-                      message="Mutating engine requests will appear here (or the engine is unreachable)."
+                      message="No entries match these filters (or the engine is unreachable)."
                     />
                   </TableCell>
                 </TableRow>
@@ -69,6 +100,9 @@ export default async function AuditPage() {
                   </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">
                     {entry.path}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">
+                    {entry.request_id}
                   </TableCell>
                   <TableCell className="text-right">
                     <Badge variant={statusVariant(entry.status)}>

@@ -4,6 +4,7 @@
 import type { Result } from "./client"
 import type {
   AuditEntry,
+  AuditFilter,
   Balance,
   Catalog,
   DayUsage,
@@ -89,10 +90,19 @@ export async function fetchEventsForAccount(
 }
 
 export async function fetchAuditLog(
-  limit = 100
+  filter: AuditFilter = {}
 ): Promise<Result<readonly AuditEntry[]>> {
   try {
-    const params = new URLSearchParams({ limit: String(limit) })
+    const params = new URLSearchParams({ limit: String(filter.limit ?? 200) })
+    const setIf = (key: string, value: string | undefined): void => {
+      if (value !== undefined && value.length > 0) {
+        params.set(key, value)
+      }
+    }
+    setIf("actor", filter.actor)
+    setIf("method", filter.method)
+    setIf("since", filter.since)
+    setIf("until", filter.until)
     const response = await fetch(
       `${ENGINE_URL}/v1/audit?${params.toString()}`,
       {

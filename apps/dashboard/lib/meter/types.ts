@@ -40,7 +40,17 @@ export interface AuditEntry {
   readonly method: string
   readonly path: string
   readonly status: number
+  readonly request_id: string
   readonly created_at: string
+}
+
+/** Server-side filters for the engine audit log (`GET /v1/audit`). */
+export interface AuditFilter {
+  readonly actor?: string
+  readonly method?: string
+  readonly since?: string
+  readonly until?: string
+  readonly limit?: number
 }
 
 export type EventStatus = "recorded" | "amended" | "voided"

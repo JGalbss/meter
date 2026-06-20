@@ -14,6 +14,13 @@ use crate::error::ApiError;
 use crate::AppState;
 
 /// `POST /v1/reservations`
+#[utoipa::path(
+    post,
+    path = "/v1/reservations",
+    request_body = ReserveBody,
+    responses((status = 200, description = "Reservation outcome (allowed or denied)")),
+    tag = "reservations"
+)]
 pub async fn reserve(
     State(state): State<AppState>,
     Json(body): Json<ReserveBody>,
@@ -33,6 +40,14 @@ pub async fn reserve(
 }
 
 /// `POST /v1/reservations/{id}/settle`
+#[utoipa::path(
+    post,
+    path = "/v1/reservations/{id}/settle",
+    params(("id" = String, Path, description = "Reservation id (UUID)")),
+    request_body = SettleBody,
+    responses((status = 200, description = "Settle posted; returns the ledger entry")),
+    tag = "reservations"
+)]
 pub async fn settle(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -49,6 +64,13 @@ pub async fn settle(
 }
 
 /// `POST /v1/reservations/{id}/void`
+#[utoipa::path(
+    post,
+    path = "/v1/reservations/{id}/void",
+    params(("id" = String, Path, description = "Reservation id (UUID)")),
+    responses((status = 204, description = "Hold released (idempotent)")),
+    tag = "reservations"
+)]
 pub async fn void(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -58,6 +80,18 @@ pub async fn void(
 }
 
 /// `POST /v1/reservations/{id}/extend` — push the hold's expiry forward (heartbeat keep-alive).
+#[utoipa::path(
+    post,
+    path = "/v1/reservations/{id}/extend",
+    params(("id" = String, Path, description = "Reservation id (UUID)")),
+    request_body = ExtendBody,
+    responses(
+        (status = 204, description = "Expiry extended"),
+        (status = 404, description = "Unknown reservation"),
+        (status = 409, description = "Reservation already closed")
+    ),
+    tag = "reservations"
+)]
 pub async fn extend(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,

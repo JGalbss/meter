@@ -14,6 +14,13 @@ use crate::error::ApiError;
 use crate::AppState;
 
 /// `POST /v1/leases`
+#[utoipa::path(
+    post,
+    path = "/v1/leases",
+    request_body = OpenLeaseBody,
+    responses((status = 200, description = "Lease (session sub-account) opened")),
+    tag = "leases"
+)]
 pub async fn open_lease(
     State(state): State<AppState>,
     Json(body): Json<OpenLeaseBody>,
@@ -29,6 +36,13 @@ pub async fn open_lease(
 }
 
 /// `POST /v1/leases/{id}/close`
+#[utoipa::path(
+    post,
+    path = "/v1/leases/{id}/close",
+    params(("id" = String, Path, description = "Lease account id (UUID)")),
+    responses((status = 200, description = "Unused remainder returned to the parent")),
+    tag = "leases"
+)]
 pub async fn close_lease(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,

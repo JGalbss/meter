@@ -6,7 +6,9 @@
 use axum::Json;
 use utoipa::OpenApi;
 
-use crate::dto::{GrantBody, OpenAccountBody, RefundBody};
+use crate::dto::{
+    ExtendBody, GrantBody, OpenAccountBody, OpenLeaseBody, RefundBody, ReserveBody, SettleBody,
+};
 
 /// The engine's OpenAPI 3.1 description. The version tracks the crate version.
 #[derive(OpenApi)]
@@ -24,11 +26,27 @@ use crate::dto::{GrantBody, OpenAccountBody, RefundBody};
         super::accounts::grant,
         super::accounts::credit_note,
         super::accounts::entries,
+        super::reservations::reserve,
+        super::reservations::settle,
+        super::reservations::void,
+        super::reservations::extend,
+        super::leases::open_lease,
+        super::leases::close_lease,
     ),
-    components(schemas(OpenAccountBody, GrantBody, RefundBody)),
+    components(schemas(
+        OpenAccountBody,
+        GrantBody,
+        RefundBody,
+        ReserveBody,
+        SettleBody,
+        ExtendBody,
+        OpenLeaseBody
+    )),
     tags(
         (name = "health", description = "Liveness and readiness probes"),
-        (name = "accounts", description = "Ledger accounts: open, balance, grants, credit-notes, entries")
+        (name = "accounts", description = "Ledger accounts: open, balance, grants, credit-notes, entries"),
+        (name = "reservations", description = "The reserve -> settle/void hold lifecycle"),
+        (name = "leases", description = "Per-session credit leases (hot-account mitigation)")
     )
 )]
 pub struct ApiDoc;

@@ -53,37 +53,50 @@ pub struct RefundBody {
 }
 
 /// `POST /v1/leases`
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct OpenLeaseBody {
+    #[schema(value_type = String, format = "uuid")]
     pub parent: AccountId,
+    #[schema(value_type = String)]
     pub amount: Credit,
 }
 
 /// `POST /v1/reservations`
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct ReserveBody {
+    #[schema(value_type = String, format = "uuid")]
     pub account: AccountId,
+    #[schema(value_type = String, format = "uuid")]
     pub reservation_id: ReservationId,
+    #[schema(value_type = String)]
     pub amount: Credit,
+    /// Limit class: `hard` (fail-closed) or `soft` (fail-open).
+    #[schema(value_type = String)]
     pub limit: LimitClass,
     /// Optional hold expiry (RFC3339); an open hold past it is released by the sweep.
     #[serde(with = "time::serde::rfc3339::option", default)]
+    #[schema(value_type = Option<String>, format = "date-time")]
     pub expires_at: Option<OffsetDateTime>,
     /// Optional agent run this hold belongs to; lets `POST /v1/runs/{id}/void` reverse it.
     #[serde(default)]
+    #[schema(value_type = Option<String>, format = "uuid")]
     pub run_id: Option<RunId>,
 }
 
 /// `POST /v1/reservations/{id}/settle`
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct SettleBody {
+    /// Actual spend to charge, as an exact decimal string.
+    #[schema(value_type = String)]
     pub actual: Credit,
 }
 
 /// `POST /v1/reservations/{id}/extend` — push the hold's expiry forward (heartbeat).
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct ExtendBody {
+    /// New hold expiry (RFC3339).
     #[serde(with = "time::serde::rfc3339")]
+    #[schema(value_type = String, format = "date-time")]
     pub expires_at: OffsetDateTime,
 }
 

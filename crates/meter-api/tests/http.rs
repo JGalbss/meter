@@ -1089,6 +1089,16 @@ async fn openapi_document_is_served() {
     assert!(doc["paths"]["/health"]["get"].is_object());
     assert!(doc["components"]["schemas"]["OpenAccountBody"].is_object());
     assert!(doc["components"]["schemas"]["GrantBody"].is_object());
+
+    // Reservations + leases group.
+    assert!(doc["paths"]["/v1/reservations"]["post"].is_object());
+    assert!(doc["paths"]["/v1/reservations/{id}/settle"]["post"].is_object());
+    assert!(doc["paths"]["/v1/reservations/{id}/void"]["post"].is_object());
+    assert!(doc["paths"]["/v1/reservations/{id}/extend"]["post"].is_object());
+    assert!(doc["paths"]["/v1/leases"]["post"].is_object());
+    assert!(doc["paths"]["/v1/leases/{id}/close"]["post"].is_object());
+    assert!(doc["components"]["schemas"]["ReserveBody"].is_object());
+    assert!(doc["components"]["schemas"]["OpenLeaseBody"].is_object());
 }
 
 #[tokio::test]

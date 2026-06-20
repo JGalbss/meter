@@ -40,6 +40,24 @@ async fn passes_the_shared_conformance_scenarios() {
 }
 
 #[tokio::test]
+async fn statement_timeout_aborts_a_stuck_query() {
+    // The hot money path begins transactions with `SET LOCAL statement_timeout` so a hung query can't
+    // hold account-row locks indefinitely. Prove the mechanism against real Postgres: a query that
+    // exceeds the timeout is aborted rather than blocking forever.
+    let (_container, ledger) = start_ledger().await;
+    let mut tx = ledger.pool().begin().await.expect("begin");
+    sqlx::query("SET LOCAL statement_timeout = 50")
+        .execute(&mut *tx)
+        .await
+        .expect("set statement_timeout");
+    let result = sqlx::query("SELECT pg_sleep(1)").execute(&mut *tx).await;
+    assert!(
+        result.is_err(),
+        "a query exceeding statement_timeout must be aborted"
+    );
+}
+
+#[tokio::test]
 async fn matches_the_model_over_a_sequence() {
     let (_container, ledger) = start_ledger().await;
     let ops = vec![

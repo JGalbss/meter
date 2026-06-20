@@ -19,6 +19,26 @@ use crate::mapping::{
 };
 use crate::PgLedger;
 
+/// Statement timeout applied to every hot-path money transaction (milliseconds). A hung query holding
+/// account-row locks under `FOR UPDATE` must never stall the ledger indefinitely — the OpenAI-Postgres
+/// discipline for hot tables. Conservative enough that legitimate reserve/settle never trips it.
+const HOT_PATH_STATEMENT_TIMEOUT_MS: u32 = 5_000;
+
+impl PgLedger {
+    /// Begin a money-path transaction with [`HOT_PATH_STATEMENT_TIMEOUT_MS`] already applied via
+    /// `SET LOCAL`, so no single statement can hold locks past the timeout.
+    async fn begin_hot(&self) -> Result<sqlx::Transaction<'_, sqlx::Postgres>, LedgerError> {
+        let mut tx = self.pool().begin().await.map_err(be)?;
+        sqlx::query(&format!(
+            "SET LOCAL statement_timeout = {HOT_PATH_STATEMENT_TIMEOUT_MS}"
+        ))
+        .execute(&mut *tx)
+        .await
+        .map_err(be)?;
+        Ok(tx)
+    }
+}
+
 async fn insert_entry(
     conn: &mut sqlx::PgConnection,
     entry: &LedgerEntry,
@@ -161,7 +181,7 @@ impl LedgerBackend for PgLedger {
         if !req.amount.is_positive() {
             return Err(LedgerError::NonPositiveAmount);
         }
-        let mut tx = self.pool().begin().await.map_err(be)?;
+        let mut tx = self.begin_hot().await?;
         let account_row =
             sqlx::query("SELECT org_id FROM ledger_accounts WHERE id = $1 FOR UPDATE")
                 .bind(req.account.as_uuid())
@@ -220,7 +240,7 @@ impl LedgerBackend for PgLedger {
         if !req.amount.is_positive() {
             return Err(LedgerError::NonPositiveAmount);
         }
-        let mut tx = self.pool().begin().await.map_err(be)?;
+        let mut tx = self.begin_hot().await?;
         let account_row =
             sqlx::query("SELECT org_id FROM ledger_accounts WHERE id = $1 FOR UPDATE")
                 .bind(req.account.as_uuid())
@@ -279,7 +299,7 @@ impl LedgerBackend for PgLedger {
         if !req.amount.is_positive() {
             return Err(LedgerError::NonPositiveAmount);
         }
-        let mut tx = self.pool().begin().await.map_err(be)?;
+        let mut tx = self.begin_hot().await?;
         let account_row = sqlx::query(
             "SELECT org_id, settled_credits, no_overdraft FROM ledger_accounts \
              WHERE id = $1 FOR UPDATE",
@@ -352,7 +372,7 @@ impl LedgerBackend for PgLedger {
         if req.actual.is_negative() {
             return Err(LedgerError::NonPositiveAmount);
         }
-        let mut tx = self.pool().begin().await.map_err(be)?;
+        let mut tx = self.begin_hot().await?;
         let hold = sqlx::query(
             "SELECT account_id, status, settle_entry_id FROM ledger_holds \
              WHERE reservation_id = $1 FOR UPDATE",
@@ -425,7 +445,7 @@ impl LedgerBackend for PgLedger {
         if !req.amount.is_positive() {
             return Err(LedgerError::NonPositiveAmount);
         }
-        let mut tx = self.pool().begin().await.map_err(be)?;
+        let mut tx = self.begin_hot().await?;
         let account_row =
             sqlx::query("SELECT org_id FROM ledger_accounts WHERE id = $1 FOR UPDATE")
                 .bind(req.account.as_uuid())
@@ -481,7 +501,7 @@ impl LedgerBackend for PgLedger {
     }
 
     async fn void(&self, reservation: ReservationId) -> Result<(), LedgerError> {
-        let mut tx = self.pool().begin().await.map_err(be)?;
+        let mut tx = self.begin_hot().await?;
         let status: Option<String> = sqlx::query_scalar(
             "SELECT status FROM ledger_holds WHERE reservation_id = $1 FOR UPDATE",
         )
@@ -522,7 +542,7 @@ impl LedgerBackend for PgLedger {
         reservation: ReservationId,
         expires_at: OffsetDateTime,
     ) -> Result<(), LedgerError> {
-        let mut tx = self.pool().begin().await.map_err(be)?;
+        let mut tx = self.begin_hot().await?;
         let status: Option<String> = sqlx::query_scalar(
             "SELECT status FROM ledger_holds WHERE reservation_id = $1 FOR UPDATE",
         )
@@ -548,7 +568,7 @@ impl LedgerBackend for PgLedger {
     }
 
     async fn void_run(&self, run: RunId) -> Result<RunVoidSummary, LedgerError> {
-        let mut tx = self.pool().begin().await.map_err(be)?;
+        let mut tx = self.begin_hot().await?;
         // Lock the run's holds for the duration of the reversal.
         let rows = sqlx::query(
             "SELECT reservation_id, account_id, status, settle_entry_id \
@@ -645,7 +665,7 @@ impl LedgerBackend for PgLedger {
         if !req.amount.is_positive() {
             return Err(LedgerError::NonPositiveAmount);
         }
-        let mut tx = self.pool().begin().await.map_err(be)?;
+        let mut tx = self.begin_hot().await?;
         let parent = sqlx::query(
             "SELECT org_id, settled_credits, no_overdraft FROM ledger_accounts \
              WHERE id = $1 FOR UPDATE",
@@ -702,7 +722,7 @@ impl LedgerBackend for PgLedger {
     }
 
     async fn close_lease(&self, lease: AccountId) -> Result<Credit, LedgerError> {
-        let mut tx = self.pool().begin().await.map_err(be)?;
+        let mut tx = self.begin_hot().await?;
         let row = sqlx::query(
             "SELECT org_id, settled_credits, parent_id FROM ledger_accounts \
              WHERE id = $1 FOR UPDATE",

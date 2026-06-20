@@ -129,6 +129,81 @@ async fn void_run_invariants_hold_on_postgres() {
     conformance::void_run_property(&ledger2, &specs, 3).await;
 }
 
+/// Two `void_run` calls racing on the same run must not double-refund its settled charge — that would
+/// create credits from nothing. The hold-row `FOR UPDATE` lock serializes them and the refund
+/// idempotency key makes the second a no-op, so the account ends at exactly one refund.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn concurrent_void_run_does_not_double_refund() {
+    let (_container, ledger) = start_ledger().await;
+    let ledger = Arc::new(ledger);
+    let account = ledger
+        .open_account(NewAccount {
+            org_id: OrgId::new(),
+            scope: AccountScope::Org,
+            no_overdraft: true,
+            parent_id: None,
+        })
+        .await
+        .expect("open")
+        .id;
+    ledger
+        .grant(GrantRequest {
+            account,
+            amount: Credit::from(100_i64),
+            source: CreditSource::Paid,
+            idempotency_key: None,
+        })
+        .await
+        .expect("grant");
+
+    // A settled charge in the run: reserve 30, settle 30 -> settled 70.
+    let run = meter_core::RunId::new();
+    let reservation = ReservationId::new();
+    ledger
+        .reserve(ReserveRequest {
+            account,
+            reservation_id: reservation,
+            amount: Credit::from(30_i64),
+            limit: LimitClass::Hard,
+            expires_at: None,
+            run_id: Some(run),
+        })
+        .await
+        .expect("reserve");
+    ledger
+        .settle(SettleRequest {
+            reservation_id: reservation,
+            actual: Credit::from(30_i64),
+        })
+        .await
+        .expect("settle");
+
+    // Two concurrent voids of the same run.
+    let a = {
+        let ledger = Arc::clone(&ledger);
+        tokio::spawn(async move { ledger.void_run(run).await })
+    };
+    let b = {
+        let ledger = Arc::clone(&ledger);
+        tokio::spawn(async move { ledger.void_run(run).await })
+    };
+    let first = a.await.expect("task a").expect("void_run a");
+    let second = b.await.expect("task b").expect("void_run b");
+
+    // Exactly one of the two refunded the settled charge; the other was a no-op.
+    assert_eq!(
+        first.charges_refunded + second.charges_refunded,
+        1,
+        "the settled charge must be refunded exactly once across concurrent voids"
+    );
+    // Balance reflects a single refund: 70 + 30 = 100, not 130.
+    assert_eq!(
+        ledger.balance(account).await.expect("balance").settled,
+        Credit::from(100_i64),
+        "concurrent voids must not double-refund"
+    );
+}
+
 /// `void_run` racing a `settle` on the same run must never corrupt the ledger. Whichever wins the
 /// `FOR UPDATE` lock, the run nets to zero: if settle wins it charges, then void_run refunds it; if
 /// void_run wins the hold is released and settle is refused. Either way the account returns to the

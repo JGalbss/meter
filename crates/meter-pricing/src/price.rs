@@ -132,6 +132,37 @@ mod tests {
     }
 
     #[test]
+    fn charges_per_action_for_tool_calls_and_web_searches() {
+        // action_charge (EPIC 04): non-token dimensions billed per call via `Unit::Call`.
+        let action = |dimension, price| PriceComponent {
+            dimension,
+            modality: Modality::None,
+            context_tier: ContextTier::Standard,
+            unit: Unit::Call,
+            charge_model: ChargeModel::Standard,
+            unit_price: Money::new(price, usd()),
+        };
+        let card = RateCard {
+            id: RateCardId::new(),
+            kind: RateCardKind::ProviderCost,
+            currency: usd(),
+            version: 1,
+            margin: Margin::NONE,
+            components: vec![
+                action(PricingDimension::ToolCall, dec!(0.01)), // $0.01 per tool call
+                action(PricingDimension::WebSearch, dec!(0.02)), // $0.02 per web search
+            ],
+        };
+        let usage = Usage::new(Modality::None, ContextTier::Standard)
+            .with(PricingDimension::ToolCall, dec!(3))
+            .with(PricingDimension::WebSearch, dec!(2));
+        // 3 * 0.01 + 2 * 0.02 = 0.07; priced 1:1 to credits at a 1-cent credit value.
+        assert_eq!(cost(&usage, &card).unwrap().amount(), dec!(0.07));
+        let priced = price_usage(&usage, &card, &Money::new(dec!(0.01), usd())).unwrap();
+        assert_eq!(priced.credits.value(), dec!(7));
+    }
+
+    #[test]
     fn missing_component_is_an_error() {
         let usage = Usage::new(Modality::Text, ContextTier::Standard)
             .with(PricingDimension::CacheRead, dec!(10));

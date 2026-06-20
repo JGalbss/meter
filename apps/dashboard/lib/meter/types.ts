@@ -97,6 +97,12 @@ export interface Balance {
   readonly held: string
 }
 
+export interface Invoice {
+  readonly account_id: string
+  readonly total_credits: string
+  readonly entries: number
+}
+
 export type EntryType =
   | "grant"
   | "usage"

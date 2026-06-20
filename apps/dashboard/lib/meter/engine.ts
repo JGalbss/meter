@@ -6,6 +6,7 @@ import type {
   AuditEntry,
   Balance,
   DayUsage,
+  Invoice,
   LedgerEntry,
   ModelUsage,
   UsageEvent,
@@ -120,6 +121,29 @@ export async function fetchBalance(
       return { ok: false, error: `engine responded ${response.status}` }
     }
     return { ok: true, data: (await response.json()) as Balance }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "engine unreachable",
+    }
+  }
+}
+
+export async function fetchInvoice(
+  accountId: string,
+  start: string,
+  end: string
+): Promise<Result<Invoice>> {
+  try {
+    const params = new URLSearchParams({ start, end })
+    const response = await fetch(
+      `${ENGINE_URL}/v1/accounts/${encodeURIComponent(accountId)}/invoice?${params.toString()}`,
+      { cache: "no-store", headers: authHeaders() }
+    )
+    if (!response.ok) {
+      return { ok: false, error: `engine responded ${response.status}` }
+    }
+    return { ok: true, data: (await response.json()) as Invoice }
   } catch (error) {
     return {
       ok: false,

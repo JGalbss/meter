@@ -1070,6 +1070,75 @@ async fn usage_prices_with_a_synced_rate_card() {
 }
 
 #[tokio::test]
+async fn usage_prices_with_a_package_charge_model() {
+    let (_container, app, ledger, _events) = app_with_stores().await;
+    let org = "11111111-1111-1111-1111-111111111111";
+
+    let (_status, account) = call(
+        &app,
+        "POST",
+        "/v1/accounts",
+        &json!({ "org_id": org, "scope": "org", "no_overdraft": true }),
+    )
+    .await;
+    let account_id = account["id"].as_str().expect("account id").to_owned();
+    call(
+        &app,
+        "POST",
+        &format!("/v1/accounts/{account_id}/grants"),
+        &json!({ "amount": "1000000", "source": "paid" }),
+    )
+    .await;
+
+    // Sync a card whose output is sold in 1000-token packages at $0.01 each (round up).
+    let card_id = uuid::Uuid::now_v7();
+    PgConfig::new(ledger.pool().clone())
+        .put_rate_card(&RateCardRecord {
+            id: card_id,
+            version: 1,
+            kind: "provider_cost".to_owned(),
+            currency: "USD".to_owned(),
+            margin: Decimal::from(1),
+            components: json!([{
+                "dimension": "output", "modality": "text", "context_tier": "standard",
+                "unit": "token", "charge_model": { "package": { "size": 1000 } },
+                "unit_price": { "amount": "0.01", "currency": "USD" }
+            }]),
+        })
+        .await
+        .expect("put card");
+
+    // 2500 output tokens -> ceil(2500/1000) = 3 packages * $0.01 = $0.03 -> 30000 credits.
+    let (status, body) = call(
+        &app,
+        "POST",
+        "/v1/usage",
+        &json!({
+            "org_id": org, "account": account_id, "model": "custom-pkg",
+            "idempotency_key": "pkg-1", "usage": { "output": 2500 },
+            "rate_card_id": card_id.to_string()
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["credits"], "30000");
+
+    // Exactly one package boundary: 1000 tokens -> 1 package -> 10000 credits.
+    let (_status, exact) = call(
+        &app,
+        "POST",
+        "/v1/usage",
+        &json!({
+            "org_id": org, "account": account_id, "model": "custom-pkg",
+            "idempotency_key": "pkg-2", "usage": { "output": 1000 },
+            "rate_card_id": card_id.to_string()
+        }),
+    )
+    .await;
+    assert_eq!(exact["credits"], "10000");
+}
+
+#[tokio::test]
 async fn extend_hold_over_http() {
     let (_container, app) = app().await;
     let org = "11111111-1111-1111-1111-111111111111";

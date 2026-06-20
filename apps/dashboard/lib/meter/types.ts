@@ -53,6 +53,12 @@ export interface Webhook {
   readonly createdAt: string;
 }
 
+export interface DayUsage {
+  readonly day: string;
+  readonly total_credits: string;
+  readonly entry_count: number;
+}
+
 export interface ApiKey {
   readonly id: string;
   readonly orgId: string;

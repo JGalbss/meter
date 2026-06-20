@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { requireSession } from "@/lib/auth/session";
 import {
   createAlertRule,
   evaluateAlertRules,
@@ -16,6 +17,7 @@ export type EvaluateResult =
 
 export async function toggleAlertRuleAction(id: string, enabled: boolean): Promise<ActionResult> {
   try {
+    await requireSession();
     await setAlertRuleEnabled(id, enabled);
     revalidatePath("/alerts");
     return { ok: true };
@@ -26,6 +28,7 @@ export async function toggleAlertRuleAction(id: string, enabled: boolean): Promi
 
 export async function createAlertRuleAction(input: NewAlertRuleInput): Promise<ActionResult> {
   try {
+    await requireSession();
     await createAlertRule(input);
     revalidatePath("/alerts");
     return { ok: true };
@@ -36,6 +39,7 @@ export async function createAlertRuleAction(input: NewAlertRuleInput): Promise<A
 
 export async function evaluateAction(orgId: string): Promise<EvaluateResult> {
   try {
+    await requireSession();
     const summary = await evaluateAlertRules(orgId);
     revalidatePath("/alerts");
     return { ok: true, evaluated: summary.evaluated, raised: summary.raised };

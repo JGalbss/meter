@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { requireSession } from "@/lib/auth/session";
 import { createApiKey, revokeApiKey } from "@/lib/meter/client";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
@@ -14,6 +15,7 @@ export async function createApiKeyAction(input: {
   name: string;
 }): Promise<CreateResult> {
   try {
+    await requireSession();
     const key = await createApiKey(input);
     revalidatePath("/api-keys");
     return { ok: true, token: key.token, prefix: key.prefix };
@@ -24,6 +26,7 @@ export async function createApiKeyAction(input: {
 
 export async function revokeApiKeyAction(id: string): Promise<ActionResult> {
   try {
+    await requireSession();
     await revokeApiKey(id);
     revalidatePath("/api-keys");
     return { ok: true };

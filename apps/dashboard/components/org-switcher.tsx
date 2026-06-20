@@ -1,7 +1,7 @@
 "use client";
 
 import { CaretDown, Check } from "@phosphor-icons/react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -26,13 +26,17 @@ function activeOrg(orgs: readonly Organization[], current: string | null): Organ
 
 export function OrgSwitcher({ orgs }: { orgs: readonly Organization[] }) {
   const router = useRouter();
-  const pathname = usePathname();
   const current = useSearchParams().get("org");
   const active = activeOrg(orgs, current);
 
   if (active === null) {
     return <span className="text-sm text-muted-foreground">No organizations</span>;
   }
+
+  // Read the path inside the handler so the component doesn't re-render on every URL change.
+  const select = (orgId: string) => {
+    router.push(`${window.location.pathname}?org=${orgId}`);
+  };
 
   return (
     <DropdownMenu>
@@ -46,7 +50,7 @@ export function OrgSwitcher({ orgs }: { orgs: readonly Organization[] }) {
         {orgs.map((org) => (
           <DropdownMenuItem
             key={org.id}
-            onClick={() => router.push(`${pathname}?org=${org.id}`)}
+            onClick={() => select(org.id)}
             className="justify-between"
           >
             <span className="truncate">{org.name}</span>

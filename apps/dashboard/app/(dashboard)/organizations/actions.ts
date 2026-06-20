@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { requireSession } from "@/lib/auth/session";
 import { createOrganization } from "@/lib/meter/client";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
@@ -11,6 +12,7 @@ export async function createOrganizationAction(input: {
   name: string;
 }): Promise<ActionResult> {
   try {
+    await requireSession();
     await createOrganization(input);
     revalidatePath("/organizations");
     return { ok: true };

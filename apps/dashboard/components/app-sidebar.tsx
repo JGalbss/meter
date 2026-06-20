@@ -3,6 +3,7 @@
 import {
   Bell,
   Buildings,
+  ChartLineUp,
   House,
   Key,
   Lightning,
@@ -34,6 +35,7 @@ interface NavItem {
 
 const NAV: readonly NavItem[] = [
   { href: "/", label: "Overview", icon: House },
+  { href: "/usage", label: "Usage", icon: ChartLineUp },
   { href: "/organizations", label: "Organizations", icon: Buildings },
   { href: "/products", label: "Products", icon: Package },
   { href: "/notifications", label: "Notifications", icon: Bell },

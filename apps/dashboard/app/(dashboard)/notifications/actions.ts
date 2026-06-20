@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { requireSession } from "@/lib/auth/session";
 import { ackNotification, markNotificationRead } from "@/lib/meter/client";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
@@ -12,6 +13,7 @@ function fail(error: unknown): ActionResult {
 
 export async function markReadAction(id: string): Promise<ActionResult> {
   try {
+    await requireSession();
     await markNotificationRead(id);
     revalidatePath("/notifications");
     return { ok: true };
@@ -22,6 +24,7 @@ export async function markReadAction(id: string): Promise<ActionResult> {
 
 export async function ackAction(id: string): Promise<ActionResult> {
   try {
+    await requireSession();
     await ackNotification(id);
     revalidatePath("/notifications");
     return { ok: true };

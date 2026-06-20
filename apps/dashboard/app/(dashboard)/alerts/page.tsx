@@ -15,6 +15,7 @@ import {
 import { listAlertRules, unwrapOr } from "@/lib/meter/client";
 import { resolveOrgScope } from "@/lib/meter/org";
 import { AlertToggle } from "./alert-toggle";
+import { CreateAlertRuleDialog } from "./create-alert-rule-dialog";
 import { EvaluateButton } from "./evaluate-button";
 
 export const dynamic = "force-dynamic";
@@ -74,7 +75,12 @@ export default async function AlertsPage({
       <PageHeader
         title="Alert rules"
         description="Thresholds that raise notifications and fire webhooks."
-        action={<EvaluateButton orgId={orgId} />}
+        action={
+          <div className="flex gap-2">
+            <CreateAlertRuleDialog orgId={orgId} />
+            <EvaluateButton orgId={orgId} />
+          </div>
+        }
       />
       <Card>
         <CardContent className="p-0">

@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { listOrganizations } from "@/lib/meter/client";
+import { CreateOrganizationDialog } from "./create-organization-dialog";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,11 @@ export default async function OrganizationsPage() {
   if (result.data.length === 0) {
     return (
       <>
-        <PageHeader title="Organizations" description="Tenants in this meter deployment." />
+        <PageHeader
+        title="Organizations"
+        description="Tenants in this meter deployment."
+        action={<CreateOrganizationDialog />}
+      />
         <EmptyState
           icon={Buildings}
           title="No organizations"
@@ -42,7 +47,11 @@ export default async function OrganizationsPage() {
 
   return (
     <>
-      <PageHeader title="Organizations" description="Tenants in this meter deployment." />
+      <PageHeader
+        title="Organizations"
+        description="Tenants in this meter deployment."
+        action={<CreateOrganizationDialog />}
+      />
       <Card>
         <CardContent className="p-0">
           <Table>

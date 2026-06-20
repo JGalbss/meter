@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import { listWebhookDeliveries, listWebhooks, unwrapOr } from "@/lib/meter/client";
 import { resolveOrgScope } from "@/lib/meter/org";
+import { RegisterWebhookDialog } from "./register-webhook-dialog";
 import { WebhookToggle } from "./webhook-toggle";
 
 export const dynamic = "force-dynamic";
@@ -82,7 +83,11 @@ export default async function WebhooksPage({
 
   return (
     <>
-      <PageHeader title="Webhooks" description="Signed, retried event delivery with a dead-letter log." />
+      <PageHeader
+        title="Webhooks"
+        description="Signed, retried event delivery with a dead-letter log."
+        action={<RegisterWebhookDialog orgId={orgId} />}
+      />
 
       <Card>
         <CardHeader>

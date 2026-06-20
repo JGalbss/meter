@@ -2,7 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 
-import { evaluateAlertRules, setAlertRuleEnabled } from "@/lib/meter/client";
+import {
+  createAlertRule,
+  evaluateAlertRules,
+  type NewAlertRuleInput,
+  setAlertRuleEnabled,
+} from "@/lib/meter/client";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 export type EvaluateResult =
@@ -12,6 +17,16 @@ export type EvaluateResult =
 export async function toggleAlertRuleAction(id: string, enabled: boolean): Promise<ActionResult> {
   try {
     await setAlertRuleEnabled(id, enabled);
+    revalidatePath("/alerts");
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "request failed" };
+  }
+}
+
+export async function createAlertRuleAction(input: NewAlertRuleInput): Promise<ActionResult> {
+  try {
+    await createAlertRule(input);
     revalidatePath("/alerts");
     return { ok: true };
   } catch (error) {

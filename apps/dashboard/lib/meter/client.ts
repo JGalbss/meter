@@ -57,6 +57,35 @@ export function listOrganizations(): Promise<Result<readonly Organization[]>> {
   return getJson("/v1/organizations");
 }
 
+export function createOrganization(input: { slug: string; name: string }): Promise<void> {
+  return post("/v1/organizations", input);
+}
+
+export function createWebhook(input: {
+  orgId: string;
+  url: string;
+  secret: string;
+  eventTypes: readonly string[];
+}): Promise<void> {
+  return post("/v1/webhooks", input);
+}
+
+export interface NewAlertRuleInput {
+  readonly orgId: string;
+  readonly name: string;
+  readonly scope: string;
+  readonly metric: string;
+  readonly action: string;
+  readonly threshold: number;
+  readonly accountId?: string;
+  readonly creditLimit?: number;
+  readonly windowDays?: number;
+}
+
+export function createAlertRule(input: NewAlertRuleInput): Promise<void> {
+  return post("/v1/alert-rules", input);
+}
+
 export function listNotifications(
   orgId: string,
   status?: string,

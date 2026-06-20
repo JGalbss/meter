@@ -103,3 +103,29 @@ export interface UsageSettlement {
   readonly credits_charged: string;
   readonly balance_after: string;
 }
+
+/** One catalogued model's provider-cost prices (exact decimal strings, per token). */
+export interface CatalogModel {
+  readonly provider: string;
+  readonly model_id: string;
+  readonly input_per_token: string;
+  readonly cache_read_per_token: string;
+  readonly cache_write_per_token: string;
+  readonly output_per_token: string;
+}
+
+/** The hosted rate-card catalog: a dated snapshot of model prices. */
+export interface Catalog {
+  readonly as_of: string;
+  readonly models: readonly CatalogModel[];
+}
+
+/** The result of re-rating a usage stream from one model onto another. */
+export interface SimulateResult {
+  readonly current_model: string;
+  readonly proposed_model: string;
+  readonly event_count: number;
+  readonly credits_current: string;
+  readonly credits_proposed: string;
+  readonly credit_delta: string;
+}

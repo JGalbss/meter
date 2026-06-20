@@ -273,4 +273,58 @@ describe("withRun", () => {
     expect(calls.some((entry) => entry.includes("/usage/reservations/res-1/settle"))).toBe(true);
     expect(calls.some((entry) => entry.includes("/void"))).toBe(false);
   });
+
+  it("reads the catalog and simulates a model switch", async () => {
+    const calls: Array<{ url: string; body: unknown }> = [];
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push({
+        url,
+        body: init?.body === undefined ? undefined : JSON.parse(init.body as string),
+      });
+      if (url.endsWith("/catalog")) {
+        return jsonResponse(200, {
+          as_of: "2026-01-01",
+          models: [
+            {
+              provider: "anthropic",
+              model_id: "claude-opus-4-8",
+              input_per_token: "0.000003",
+              cache_read_per_token: "0",
+              cache_write_per_token: "0",
+              output_per_token: "0.000015",
+            },
+          ],
+        });
+      }
+      return jsonResponse(200, {
+        current_model: "a",
+        proposed_model: "b",
+        event_count: 1,
+        credits_current: "100",
+        credits_proposed: "80",
+        credit_delta: "-20",
+      });
+    });
+    const client = new MeterClient({
+      baseUrl: "http://engine",
+      fetch: fetchMock as unknown as typeof fetch,
+    });
+
+    const catalog = await client.catalog();
+    expect(catalog.models[0]?.model_id).toBe("claude-opus-4-8");
+    expect(calls[0]?.url).toBe("http://engine/v1/catalog");
+
+    const sim = await client.simulate({
+      currentModel: "a",
+      proposedModel: "b",
+      events: [{ input_uncached: 1000, output: 500 }],
+    });
+    expect(sim.credit_delta).toBe("-20");
+    expect(calls[1]?.url).toBe("http://engine/v1/simulate");
+    expect(calls[1]?.body).toMatchObject({
+      current_model: "a",
+      proposed_model: "b",
+      events: [{ input_uncached: 1000, output: 500 }],
+    });
+  });
 });

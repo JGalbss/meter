@@ -11,6 +11,7 @@ export type {
   ReserveInput,
   ReserveUsageInput,
   SettleUsageInput,
+  SimulateInput,
 } from "./client";
 export { MeterError } from "./errors";
 export { withRun, withRunUsage } from "./run";
@@ -20,11 +21,14 @@ export {
   isDenied,
   type Account,
   type Balance,
+  type Catalog,
+  type CatalogModel,
   type CreditSource,
   type Invoice,
   type LedgerEntry,
   type LimitClass,
   type ReserveOutcome,
+  type SimulateResult,
   type UsageEvent,
   type UsageReserveOutcome,
   type UsageResult,

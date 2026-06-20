@@ -91,7 +91,10 @@ response = metered_call(
 
 `open_account`, `balance`, `grant`, `entries`, `reserve`, `settle`, `extend_reservation`,
 `void_reservation`, `open_lease`, `close_lease`, `record_event`, `amend_event`, `list_events`,
-`void_run`, `invoice`, `meter_usage`, `reserve_usage`, `settle_usage`.
+`void_run`, `invoice`, `meter_usage`, `reserve_usage`, `settle_usage`, `catalog`, `simulate`.
+
+`catalog` lists the hosted model prices and `simulate` re-rates a usage stream across two models —
+useful for cost-aware routing and budgeting from your own code.
 
 `reserve` accepts an optional `expires_at` (RFC3339) hold timeout; `extend_reservation` pushes it out — a
 heartbeat so a long-running reservation isn't swept.

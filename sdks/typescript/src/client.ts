@@ -4,11 +4,13 @@ import { MeterError } from "./errors";
 import type {
   Account,
   Balance,
+  Catalog,
   CreditSource,
   Invoice,
   LedgerEntry,
   LimitClass,
   ReserveOutcome,
+  SimulateResult,
   UsageEvent,
   UsageReserveOutcome,
   UsageResult,
@@ -88,6 +90,13 @@ export interface SettleUsageInput {
   /** Actual token usage; the engine reprices it and settles the hold. */
   readonly actual: UsageTokens;
   readonly rateCardId?: string;
+}
+
+export interface SimulateInput {
+  readonly currentModel: string;
+  readonly proposedModel: string;
+  /** The usage stream to re-rate across both models. */
+  readonly events: readonly UsageTokens[];
 }
 
 interface EngineErrorBody {
@@ -227,6 +236,20 @@ export class MeterClient {
       model: input.model,
       actual: input.actual,
       rate_card_id: input.rateCardId ?? null,
+    });
+  }
+
+  /** The hosted model rate-card catalog — provider-cost prices per token, for cost-aware routing. */
+  catalog(): Promise<Catalog> {
+    return this.#get<Catalog>("/v1/catalog");
+  }
+
+  /** Re-rate a usage stream from one catalogued model onto another to compare credit cost. */
+  simulate(input: SimulateInput): Promise<SimulateResult> {
+    return this.#post<SimulateResult>("/v1/simulate", {
+      current_model: input.currentModel,
+      proposed_model: input.proposedModel,
+      events: input.events,
     });
   }
 

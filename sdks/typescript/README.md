@@ -70,7 +70,10 @@ plus `meterModelUsage` (price + charge), `recordModelUsage` (emit a usage event 
 
 `openAccount`, `balance`, `grant`, `entries`, `reserve`, `settle`, `extendReservation`,
 `voidReservation`, `openLease`, `closeLease`, `recordEvent`, `amendEvent`, `listEvents`, `voidRun`,
-`invoice`, `meterUsage`, `reserveUsage`, `settleUsage`.
+`invoice`, `meterUsage`, `reserveUsage`, `settleUsage`, `catalog`, `simulate`.
+
+`catalog` lists the hosted model prices and `simulate` re-rates a usage stream across two models —
+useful for cost-aware routing and budgeting from your own code.
 
 `reserve` accepts an optional `expiresAt` (RFC3339) hold timeout; `extendReservation` pushes it out — a
 heartbeat so a long-running reservation isn't swept.

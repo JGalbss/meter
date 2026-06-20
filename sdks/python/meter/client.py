@@ -209,6 +209,27 @@ class MeterClient:
             {"model": model, "actual": actual, "rate_card_id": rate_card_id},
         )
 
+    def catalog(self) -> dict[str, Any]:
+        """The hosted model rate-card catalog — provider-cost prices per token."""
+        return self._get("/v1/catalog")
+
+    def simulate(
+        self,
+        *,
+        current_model: str,
+        proposed_model: str,
+        events: list[dict[str, int]],
+    ) -> dict[str, Any]:
+        """Re-rate a usage stream from one catalogued model onto another to compare credit cost."""
+        return self._post(
+            "/v1/simulate",
+            {
+                "current_model": current_model,
+                "proposed_model": proposed_model,
+                "events": events,
+            },
+        )
+
     def _get(self, path: str) -> Any:
         return self._send("GET", path, None)
 

@@ -151,6 +151,39 @@ class ClientTests(unittest.TestCase):
         self.assertTrue(url1.endswith("/v1/usage/reservations/res-1/settle"))
         self.assertEqual(body1["actual"], {"input_uncached": 900, "output": 480})
 
+    def test_catalog_and_simulate(self) -> None:
+        def handler(_method: str, url: str):
+            if url.endswith("/catalog"):
+                return 200, {
+                    "as_of": "2026-01-01",
+                    "models": [{"provider": "anthropic", "model_id": "claude-opus-4-8"}],
+                }
+            return 200, {
+                "current_model": "a",
+                "proposed_model": "b",
+                "event_count": 1,
+                "credits_current": "100",
+                "credits_proposed": "80",
+                "credit_delta": "-20",
+            }
+
+        transport, calls = make_transport(handler)
+        client = MeterClient("http://engine", transport)
+
+        catalog = client.catalog()
+        self.assertEqual(catalog["models"][0]["model_id"], "claude-opus-4-8")
+        self.assertTrue(calls[0][1].endswith("/v1/catalog"))
+
+        sim = client.simulate(
+            current_model="a",
+            proposed_model="b",
+            events=[{"input_uncached": 1000, "output": 500}],
+        )
+        self.assertEqual(sim["credit_delta"], "-20")
+        _m, url1, body1 = calls[1]
+        self.assertTrue(url1.endswith("/v1/simulate"))
+        self.assertEqual(body1["events"], [{"input_uncached": 1000, "output": 500}])
+
 
 class AdapterTests(unittest.TestCase):
     def test_anthropic_usage(self) -> None:

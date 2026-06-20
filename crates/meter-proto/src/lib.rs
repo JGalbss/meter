@@ -22,6 +22,7 @@ mod tests {
                 amount: "40".to_owned(),
             }),
             limit: v1::LimitClass::Hard as i32,
+            expires_at: String::new(),
         };
         assert_eq!(req.amount.unwrap().amount, "40");
         assert_eq!(req.limit, v1::LimitClass::Hard as i32);

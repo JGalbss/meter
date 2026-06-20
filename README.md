@@ -117,9 +117,13 @@ Beyond the engine:
 - **Dashboard** (`apps/dashboard`, Next.js + shadcn preset) — overview, organizations, notifications,
   alert rules, and webhooks, wired to the control plane.
 
+- **Analytics (ClickHouse, optional):** `meter-store-ch` — `events_raw` firehose
+  (`ReplacingMergeTree`, idempotent on `org_id`+`event_id`) + usage-by-model rollups, integration-tested
+  against a real ClickHouse container. Money-truth stays in the engine; ClickHouse is analytics only.
+
 In progress (see [tickets](tickets/README.md)): OpenAPI emission + Stainless-generated SDKs, protobuf
-engine⇄control-plane contract, ClickHouse analytics, auth/RBAC, dashboard usage charts, throughput
-benchmarks.
+engine⇄control-plane contract, ClickHouse rollup MVs + query API, RBAC, dashboard usage charts,
+throughput benchmarks.
 
 ## Self-hosting
 

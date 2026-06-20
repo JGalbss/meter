@@ -1,0 +1,24 @@
+[package]
+name = "meter-store-ch"
+description = "ClickHouse analytics store for meter usage events (optional add-on)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+clickhouse = { version = "0.13", features = ["uuid", "time"] }
+uuid = { workspace = true }
+time = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+testcontainers-modules = { version = "0.12", features = ["clickhouse"] }

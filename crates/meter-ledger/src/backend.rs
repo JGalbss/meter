@@ -7,8 +7,8 @@ use time::OffsetDateTime;
 use crate::error::LedgerError;
 use crate::model::{Balance, LedgerAccount, LedgerEntry, ReservationId};
 use crate::request::{
-    ChargeRequest, GrantRequest, LeaseRequest, NewAccount, ReserveOutcome, ReserveRequest,
-    SettleRequest,
+    ChargeRequest, GrantRequest, LeaseRequest, NewAccount, RefundRequest, ReserveOutcome,
+    ReserveRequest, SettleRequest,
 };
 
 /// A pluggable double-entry credit ledger.
@@ -27,6 +27,10 @@ pub trait LedgerBackend: Send + Sync {
 
     /// Add credits to an account (a paired transfer from the system account).
     async fn grant(&self, req: GrantRequest) -> Result<LedgerEntry, LedgerError>;
+
+    /// Credit an account back as a correction (a credit-note / refund). Adds credits, recording the
+    /// entry it reverses; conserving and idempotent like [`grant`](Self::grant).
+    async fn refund(&self, req: RefundRequest) -> Result<LedgerEntry, LedgerError>;
 
     /// Place a durable hold before a spend. The hold is the authorization to spend.
     async fn reserve(&self, req: ReserveRequest) -> Result<ReserveOutcome, LedgerError>;

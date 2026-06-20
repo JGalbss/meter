@@ -27,6 +27,7 @@ pub fn router(state: AppState) -> Router {
         .route("/accounts", post(accounts::open_account))
         .route("/accounts/:id/balance", get(accounts::balance))
         .route("/accounts/:id/grants", post(accounts::grant))
+        .route("/accounts/:id/credit-notes", post(accounts::credit_note))
         .route("/accounts/:id/entries", get(accounts::entries))
         .route("/accounts/:id/events", get(events::list_for_account))
         .route("/accounts/:id/invoice", get(invoices::invoice))

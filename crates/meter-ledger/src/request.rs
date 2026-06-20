@@ -2,7 +2,7 @@
 //!
 //! These are the verbs (`grant`, `reserve`, `settle`, …) as data, kept separate from the model nouns.
 
-use meter_core::{AccountId, Credit, OrgId};
+use meter_core::{AccountId, Credit, EntryId, OrgId};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
@@ -23,6 +23,17 @@ pub struct GrantRequest {
     pub account: AccountId,
     pub amount: Credit,
     pub source: CreditSource,
+    pub idempotency_key: Option<String>,
+}
+
+/// Credit an account back (a credit-note / refund for a correction). Adds credits, referencing the
+/// entry it reverses when known. Idempotent on `idempotency_key`.
+#[derive(Debug, Clone)]
+pub struct RefundRequest {
+    pub account: AccountId,
+    pub amount: Credit,
+    /// The original entry being reversed, if known (for audit / rev-rec).
+    pub reverses_entry_id: Option<EntryId>,
     pub idempotency_key: Option<String>,
 }
 

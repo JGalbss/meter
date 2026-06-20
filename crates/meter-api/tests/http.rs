@@ -1245,3 +1245,63 @@ async fn synced_rate_card_is_readable() {
         .expect("first card present");
     assert_eq!(first["version"], json!(2));
 }
+
+#[tokio::test]
+async fn credit_note_refunds_credits() {
+    let (_container, app) = app().await;
+    let org = "11111111-1111-1111-1111-111111111111";
+
+    let (_status, account) = call(
+        &app,
+        "POST",
+        "/v1/accounts",
+        &json!({ "org_id": org, "scope": "org", "no_overdraft": true }),
+    )
+    .await;
+    let account_id = account["id"].as_str().expect("account id").to_owned();
+    call(
+        &app,
+        "POST",
+        &format!("/v1/accounts/{account_id}/grants"),
+        &json!({ "amount": "100", "source": "paid" }),
+    )
+    .await;
+    // Reserve + settle 30 -> settled 70.
+    let reservation = "abababab-abab-abab-abab-abababababab";
+    call(
+        &app,
+        "POST",
+        "/v1/reservations",
+        &json!({ "account": account_id, "reservation_id": reservation, "amount": "40", "limit": "hard" }),
+    )
+    .await;
+    let (_status, settle) = call(
+        &app,
+        "POST",
+        &format!("/v1/reservations/{reservation}/settle"),
+        &json!({ "actual": "30" }),
+    )
+    .await;
+    let settle_entry = settle["id"].as_str().expect("settle id").to_owned();
+
+    // Credit the 30 back, referencing the settle entry.
+    let (status, entry) = call(
+        &app,
+        "POST",
+        &format!("/v1/accounts/{account_id}/credit-notes"),
+        &json!({ "amount": "30", "reverses_entry_id": settle_entry }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(entry["entry_type"], "refund");
+    assert_eq!(entry["reverses_entry_id"], settle_entry);
+
+    let (_status, balance) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{account_id}/balance"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(balance["settled"], "100"); // 70 + 30 refunded
+}

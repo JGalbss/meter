@@ -1,6 +1,6 @@
 //! Request bodies. Responses reuse the domain types directly (they already derive serde).
 
-use meter_core::{AccountId, Credit, OrgId, RunId};
+use meter_core::{AccountId, Credit, EntryId, OrgId, RunId};
 use meter_event::RecordEvent;
 use meter_ledger::{AccountScope, CreditSource, LimitClass, ReservationId};
 use meter_pricing::{ContextTier, Modality, PricingDimension, Usage};
@@ -25,6 +25,17 @@ pub struct OpenAccountBody {
 pub struct GrantBody {
     pub amount: Credit,
     pub source: CreditSource,
+    #[serde(default)]
+    pub idempotency_key: Option<String>,
+}
+
+/// `POST /v1/accounts/{id}/credit-notes` — credit an account back (a refund / correction).
+#[derive(Debug, Deserialize)]
+pub struct RefundBody {
+    pub amount: Credit,
+    /// The original ledger entry being reversed (UUID), if known.
+    #[serde(default)]
+    pub reverses_entry_id: Option<EntryId>,
     #[serde(default)]
     pub idempotency_key: Option<String>,
 }

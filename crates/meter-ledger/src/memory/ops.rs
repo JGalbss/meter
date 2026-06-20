@@ -10,8 +10,8 @@ use crate::model::{
     AccountScope, Balance, EntryType, LedgerAccount, LedgerEntry, LimitClass, ReservationId,
 };
 use crate::request::{
-    ChargeRequest, GrantRequest, LeaseRequest, NewAccount, ReserveOutcome, ReserveRequest,
-    SettleRequest,
+    ChargeRequest, GrantRequest, LeaseRequest, NewAccount, RefundRequest, ReserveOutcome,
+    ReserveRequest, SettleRequest,
 };
 
 use super::state::{AccountRow, Hold, HoldStatus, State};
@@ -129,6 +129,50 @@ impl LedgerBackend for InMemoryLedger {
             source: Some(req.source),
             revenue_recognizable: false,
             reverses_entry_id: None,
+            reservation_id: None,
+            idempotency_key: req.idempotency_key,
+            created_at: OffsetDateTime::now_utc(),
+        };
+        state.entries.push(entry.clone());
+        Ok(entry)
+    }
+
+    async fn refund(&self, req: RefundRequest) -> Result<LedgerEntry, LedgerError> {
+        if !req.amount.is_positive() {
+            return Err(LedgerError::NonPositiveAmount);
+        }
+        let mut state = self.lock();
+        if !state.accounts.contains_key(&req.account) {
+            return Err(LedgerError::AccountNotFound(req.account));
+        }
+        if let Some(key) = req.idempotency_key.as_deref() {
+            if let Some(existing) = state.entries.iter().find(|entry| {
+                entry.account_id == req.account && entry.idempotency_key.as_deref() == Some(key)
+            }) {
+                return Ok(existing.clone());
+            }
+        }
+        if let Some(system) = state.accounts.get_mut(&self.system) {
+            system.settled -= req.amount;
+        }
+        let balance_after = {
+            let account = state
+                .accounts
+                .get_mut(&req.account)
+                .expect("existence checked above");
+            account.settled += req.amount;
+            account.settled
+        };
+        let entry = LedgerEntry {
+            id: EntryId::new(),
+            account_id: req.account,
+            paired_account_id: self.system,
+            entry_type: EntryType::Refund,
+            delta_credits: req.amount,
+            balance_after,
+            source: None,
+            revenue_recognizable: false,
+            reverses_entry_id: req.reverses_entry_id,
             reservation_id: None,
             idempotency_key: req.idempotency_key,
             created_at: OffsetDateTime::now_utc(),

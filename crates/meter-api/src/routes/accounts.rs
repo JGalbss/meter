@@ -5,9 +5,11 @@ use axum::Json;
 use uuid::Uuid;
 
 use meter_core::AccountId;
-use meter_ledger::{Balance, GrantRequest, LedgerAccount, LedgerBackend, LedgerEntry, NewAccount};
+use meter_ledger::{
+    Balance, GrantRequest, LedgerAccount, LedgerBackend, LedgerEntry, NewAccount, RefundRequest,
+};
 
-use crate::dto::{GrantBody, OpenAccountBody};
+use crate::dto::{GrantBody, OpenAccountBody, RefundBody};
 use crate::error::ApiError;
 use crate::AppState;
 
@@ -49,6 +51,24 @@ pub async fn grant(
             account: AccountId::from_uuid(id),
             amount: body.amount,
             source: body.source,
+            idempotency_key: body.idempotency_key,
+        })
+        .await?;
+    Ok(Json(entry))
+}
+
+/// `POST /v1/accounts/{id}/credit-notes` — credit an account back (a refund / correction).
+pub async fn credit_note(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<RefundBody>,
+) -> Result<Json<LedgerEntry>, ApiError> {
+    let entry = state
+        .ledger
+        .refund(RefundRequest {
+            account: AccountId::from_uuid(id),
+            amount: body.amount,
+            reverses_entry_id: body.reverses_entry_id,
             idempotency_key: body.idempotency_key,
         })
         .await?;

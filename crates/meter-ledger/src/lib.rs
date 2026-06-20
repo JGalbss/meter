@@ -27,6 +27,6 @@ pub use model::{
     ReservationId, SYSTEM_ACCOUNT, SYSTEM_ORG,
 };
 pub use request::{
-    ChargeRequest, GrantRequest, LeaseRequest, NewAccount, ReserveOutcome, ReserveRequest,
-    SettleRequest,
+    ChargeRequest, GrantRequest, LeaseRequest, NewAccount, RefundRequest, ReserveOutcome,
+    ReserveRequest, SettleRequest,
 };

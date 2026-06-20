@@ -13,8 +13,8 @@ use crate::backend::LedgerBackend;
 use crate::error::LedgerError;
 use crate::model::{AccountScope, CreditSource, LimitClass, ReservationId};
 use crate::request::{
-    ChargeRequest, GrantRequest, LeaseRequest, NewAccount, ReserveOutcome, ReserveRequest,
-    SettleRequest,
+    ChargeRequest, GrantRequest, LeaseRequest, NewAccount, RefundRequest, ReserveOutcome,
+    ReserveRequest, SettleRequest,
 };
 
 /// A whole-credit amount.
@@ -659,9 +659,91 @@ pub async fn extend_hold_keeps_it_alive<L: LedgerBackend>(ledger: &L) {
     );
 }
 
+/// A refund (credit-note) adds credits back, references the entry it reverses, and is idempotent.
+pub async fn refund_credits_back<L: LedgerBackend>(ledger: &L) {
+    let account = open_no_overdraft_org(ledger).await;
+    ledger
+        .grant(GrantRequest {
+            account,
+            amount: credits(100),
+            source: CreditSource::Paid,
+            idempotency_key: None,
+        })
+        .await
+        .expect("grant");
+    let reservation = ReservationId::new();
+    ledger
+        .reserve(ReserveRequest {
+            account,
+            reservation_id: reservation,
+            amount: credits(40),
+            limit: LimitClass::Hard,
+            expires_at: None,
+        })
+        .await
+        .expect("reserve");
+    let settle = ledger
+        .settle(SettleRequest {
+            reservation_id: reservation,
+            actual: credits(30),
+        })
+        .await
+        .expect("settle");
+    assert_eq!(
+        ledger.balance(account).await.expect("balance").settled,
+        credits(70)
+    );
+
+    // Credit the 30 back, referencing the settle entry.
+    let refund = ledger
+        .refund(RefundRequest {
+            account,
+            amount: credits(30),
+            reverses_entry_id: Some(settle.id),
+            idempotency_key: Some("refund-1".to_owned()),
+        })
+        .await
+        .expect("refund");
+    assert_eq!(refund.reverses_entry_id, Some(settle.id));
+    assert_eq!(
+        ledger.balance(account).await.expect("balance").settled,
+        credits(100)
+    );
+
+    // Idempotent on the key.
+    let again = ledger
+        .refund(RefundRequest {
+            account,
+            amount: credits(30),
+            reverses_entry_id: Some(settle.id),
+            idempotency_key: Some("refund-1".to_owned()),
+        })
+        .await
+        .expect("refund again");
+    assert_eq!(again.id, refund.id);
+    assert_eq!(
+        ledger.balance(account).await.expect("balance").settled,
+        credits(100)
+    );
+
+    // A non-positive refund is refused.
+    assert_eq!(
+        ledger
+            .refund(RefundRequest {
+                account,
+                amount: credits(0),
+                reverses_entry_id: None,
+                idempotency_key: None,
+            })
+            .await,
+        Err(LedgerError::NonPositiveAmount)
+    );
+}
+
 pub async fn run_all_scenarios<L: LedgerBackend>(ledger: &L) {
     grant_increases_balance(ledger).await;
     reserve_denies_when_insufficient(ledger).await;
+    refund_credits_back(ledger).await;
     expired_holds_are_swept(ledger).await;
     extend_hold_keeps_it_alive(ledger).await;
     reserve_hold_then_settle_charges_actual(ledger).await;

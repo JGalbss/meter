@@ -47,7 +47,8 @@ await withRun(meter, { account, estimate: "40" }, async (run) => {
 
 Each maps a provider's usage object to meter's normalized token dimensions:
 `anthropicUsage`, `openaiUsage`, `geminiUsage`, `bedrockUsage`, `langchainUsage`, `vercelAiUsage` —
-plus `meterModelUsage` (price + charge) and `recordModelUsage` (emit a usage event only).
+plus `meterModelUsage` (price + charge), `recordModelUsage` (emit a usage event only), and
+`meteredCall` (wrap a provider call, record its usage, and return the response unchanged).
 
 ## `MeterClient`
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Buildings, House, Lightning, Plugs, ShieldWarning } from "@phosphor-icons/react";
+import { Bell, Buildings, House, Key, Lightning, Plugs, ShieldWarning } from "@phosphor-icons/react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import type { ComponentType } from "react";
@@ -29,6 +29,7 @@ const NAV: readonly NavItem[] = [
   { href: "/notifications", label: "Notifications", icon: Bell },
   { href: "/alerts", label: "Alert rules", icon: ShieldWarning },
   { href: "/webhooks", label: "Webhooks", icon: Plugs },
+  { href: "/api-keys", label: "API keys", icon: Key },
 ];
 
 function isActive(pathname: string, href: string): boolean {

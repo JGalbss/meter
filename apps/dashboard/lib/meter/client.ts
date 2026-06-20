@@ -4,6 +4,8 @@
 
 import type {
   AlertRule,
+  ApiKey,
+  CreatedApiKey,
   Notification,
   Organization,
   Webhook,
@@ -65,6 +67,19 @@ async function post(path: string, body?: unknown): Promise<void> {
   }
 }
 
+async function postJson<T>(path: string, body?: unknown): Promise<T> {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method: "POST",
+    cache: "no-store",
+    headers: { "content-type": "application/json", ...authHeaders() },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`control plane responded ${response.status}`);
+  }
+  return (await response.json()) as T;
+}
+
 export function listOrganizations(): Promise<Result<readonly Organization[]>> {
   return getJson("/v1/organizations");
 }
@@ -96,6 +111,18 @@ export interface NewAlertRuleInput {
 
 export function createAlertRule(input: NewAlertRuleInput): Promise<void> {
   return post("/v1/alert-rules", input);
+}
+
+export function listApiKeys(orgId: string): Promise<Result<readonly ApiKey[]>> {
+  return getJson(`/v1/api-keys?orgId=${encodeURIComponent(orgId)}`);
+}
+
+export function createApiKey(input: { orgId: string; name: string }): Promise<CreatedApiKey> {
+  return postJson<CreatedApiKey>("/v1/api-keys", input);
+}
+
+export function revokeApiKey(id: string): Promise<void> {
+  return post(`/v1/api-keys/${encodeURIComponent(id)}/revoke`);
 }
 
 export function listNotifications(

@@ -53,6 +53,20 @@ export interface Webhook {
   readonly createdAt: string;
 }
 
+export interface ApiKey {
+  readonly id: string;
+  readonly orgId: string;
+  readonly name: string;
+  readonly prefix: string;
+  readonly createdAt: string;
+  readonly lastUsedAt: string | null;
+  readonly revokedAt: string | null;
+}
+
+export interface CreatedApiKey extends ApiKey {
+  readonly token: string;
+}
+
 export interface WebhookDelivery {
   readonly id: string;
   readonly webhookId: string;

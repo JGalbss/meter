@@ -73,6 +73,22 @@ services:
       engine:
         condition: service_started
 
+  dashboard:
+    build:
+      context: ..
+      dockerfile: deploy/dashboard.Dockerfile
+    restart: unless-stopped
+    environment:
+      METER_CONTROL_PLANE_URL: http://control-plane:8090
+      METER_ENGINE_URL: http://engine:8080
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-meter}
+      DASHBOARD_SESSION_SECRET: ${DASHBOARD_SESSION_SECRET:-change-me-to-a-long-random-session-secret}
+    ports:
+      - "3000:3000"
+    depends_on:
+      control-plane:
+        condition: service_started
+
 volumes:
   meter_pg:
   meter_ch:

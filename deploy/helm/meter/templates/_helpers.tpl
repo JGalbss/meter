@@ -74,3 +74,8 @@ app.kubernetes.io/component: {{ .component }}
 {{- define "meter.engineUrl" -}}
 {{- printf "http://%s-engine:%d" (include "meter.fullname" .) (int .Values.engine.listenPort) -}}
 {{- end -}}
+
+{{/* Control-plane internal URL the dashboard calls. */}}
+{{- define "meter.controlPlaneUrl" -}}
+{{- printf "http://%s-control-plane:%d" (include "meter.fullname" .) (int .Values.controlPlane.port) -}}
+{{- end -}}

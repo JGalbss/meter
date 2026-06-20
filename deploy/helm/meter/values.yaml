@@ -49,6 +49,21 @@ controlPlane:
       cpu: "1"
       memory: 512Mi
 
+dashboard:
+  enabled: true
+  image:
+    repository: ghcr.io/jgalbss/meter-dashboard
+    tag: ""
+    pullPolicy: IfNotPresent
+  replicas: 1
+  port: 3000
+  password: meter                # DASHBOARD_PASSWORD (login)
+  sessionSecret: change-me-to-a-long-random-session-secret  # DASHBOARD_SESSION_SECRET
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
 postgres:
   enabled: true
   image: postgres:17

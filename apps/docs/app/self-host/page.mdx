@@ -19,10 +19,11 @@ This starts:
 
 | Service | Port | Role |
 | --- | --- | --- |
-| `postgres` | 5432 | Ledger + audit (money-truth). |
-| `clickhouse` | 8123 | Usage events (system of record). |
-| `engine` | 8080 | HTTP data plane. Applies ledger + event migrations on boot. |
+| `postgres` | 5432 | Ledger (money-truth). |
+| `clickhouse` | 8123 | Usage events + audit (system of record). |
+| `engine` | 8080 | HTTP data plane. Applies ledger + ClickHouse migrations on boot. |
 | `control-plane` | 8090 | Config API. Applies its config migrations on boot. |
+| `dashboard` | 3000 | Operator console (Next.js). Set `DASHBOARD_PASSWORD` / `DASHBOARD_SESSION_SECRET`. |
 
 The engine applies Postgres ledger migrations **and** ClickHouse event migrations at startup; the
 control plane applies its config migrations at startup. No manual migration step is required for a
@@ -38,8 +39,9 @@ helm install meter deploy/helm/meter \
   --set controlPlane.image.repository=ghcr.io/you/meter-control-plane --set controlPlane.image.tag=0.0.0
 ```
 
-It deploys the engine and control plane, with Postgres and ClickHouse either in-cluster (default) or
-external. The engine is stateless — scale it with `engine.replicas`. Point at managed data stores with
+It deploys the engine, control plane, and dashboard, with Postgres and ClickHouse either in-cluster
+(default) or external. The engine is stateless — scale it with `engine.replicas`; the dashboard is
+toggleable (`dashboard.enabled`). Point at managed data stores with
 `postgres.enabled=false` / `clickhouse.enabled=false` and `engine.databaseUrl` / `engine.clickhouseUrl`.
 
 ## Engine configuration

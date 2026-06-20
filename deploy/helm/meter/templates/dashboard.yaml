@@ -1,0 +1,67 @@
+{{- if .Values.dashboard.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "meter.fullname" . }}-dashboard
+  labels:
+    {{- include "meter.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.dashboard.replicas }}
+  selector:
+    matchLabels:
+      {{- include "meter.selectorLabels" (merge (dict "component" "dashboard") .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "meter.selectorLabels" (merge (dict "component" "dashboard") .) | nindent 8 }}
+    spec:
+      containers:
+        - name: dashboard
+          image: "{{ .Values.dashboard.image.repository }}:{{ .Values.dashboard.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.dashboard.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.dashboard.port }}
+          env:
+            - name: METER_CONTROL_PLANE_URL
+              value: {{ include "meter.controlPlaneUrl" . | quote }}
+            - name: METER_ENGINE_URL
+              value: {{ include "meter.engineUrl" . | quote }}
+            - name: PORT
+              value: {{ .Values.dashboard.port | quote }}
+            - name: HOSTNAME
+              value: "0.0.0.0"
+            - name: DASHBOARD_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "meter.secretName" . }}
+                  key: dashboard-password
+            - name: DASHBOARD_SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "meter.secretName" . }}
+                  key: dashboard-session-secret
+          readinessProbe:
+            httpGet:
+              path: /login
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.dashboard.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "meter.fullname" . }}-dashboard
+  labels:
+    {{- include "meter.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "meter.selectorLabels" (merge (dict "component" "dashboard") .) | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.dashboard.port }}
+      targetPort: http
+{{- end }}

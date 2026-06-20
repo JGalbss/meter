@@ -36,8 +36,8 @@ meter splits along a hard data-plane / control-plane seam:
 
 | Component | Tech | Responsibility |
 |---|---|---|
-| **Engine** | Rust | The data plane and **sole owner of money-truth**: event ingestion, the double-entry credit ledger, real-time reserve/settle enforcement, pricing. Exposes gRPC. |
-| **Control plane** | TypeScript · Effect + Drizzle | The management API the dashboard hits: orgs/teams/users/roles, products, rate cards, budgets, grants, invoices, webhooks. Computes no money — it calls the engine over gRPC. |
+| **Engine** | Rust | The data plane and **sole owner of money-truth**: event ingestion, the double-entry credit ledger, real-time reserve/settle enforcement, pricing. Exposes gRPC and an HTTP/OpenAPI surface. |
+| **Control plane** | TypeScript · Effect + Drizzle | The management API the dashboard hits: orgs/teams/users/roles, products, rate cards, budgets, grants, invoices, webhooks. Computes no money — it calls the engine for all money-truth. |
 | **System of record** | PostgreSQL | **Money & config only** — the engine owns the ledger schema; the control plane owns the config schema. The high-velocity firehoses (events, audit) live in ClickHouse. |
 | **Events, audit & analytics** | ClickHouse | The usage **event firehose** (system of record for events) + the append-only **audit log** + analytics rollups. The non-transactional, high-velocity writes, kept off the money DB. Required (ADR 0003/0004). |
 | **Dashboard** | Next.js / React | Dropbox-quality console on the shadcn design system. |
@@ -76,15 +76,19 @@ curl -s localhost:8080/v1/accounts/$ACC/balance
 
 ## Quickstart (full stack)
 
-Bring up Postgres + the engine (`:8080`) + the control plane (`:8090`), each applying its migrations on
-boot:
+Bring up the whole stack — Postgres + ClickHouse + the engine (`:8080`) + the control plane (`:8090`) +
+the dashboard (`:3000`) + the docs site (`:3001`) — each service applying its migrations on boot:
 
 ```bash
 docker compose -f deploy/docker-compose.yml up --build
 ```
 
 The control plane (config + notifications/alerts/webhooks) is the API the dashboard hits; it calls the
-engine for money-truth. Run the dashboard against it:
+engine for money-truth. The dashboard is auth-gated (signed-cookie session) — set `DASHBOARD_PASSWORD`
+and `DASHBOARD_SESSION_SECRET` (compose ships dev defaults). Browse the console at
+`http://localhost:3000` and the documentation at `http://localhost:3001`.
+
+For dashboard development against the running stack, run it in dev mode instead:
 
 ```bash
 cd apps/dashboard && bun install \
@@ -94,9 +98,7 @@ cd apps/dashboard && bun install \
      bun run dev
 ```
 
-The dashboard is auth-gated (signed-cookie session); set `DASHBOARD_SESSION_SECRET` and
-`DASHBOARD_PASSWORD` or it stays locked. React code is reviewed by **react-doctor** (advisory PR
-workflow + `bun run doctor`).
+React code is reviewed by **react-doctor** (advisory PR workflow + `bun run doctor`).
 
 ## Status — what works today
 
@@ -142,16 +144,19 @@ Beyond the engine:
   accounts (balance + ledger entries), invoices (month-to-date statement), the audit log, a
   **rate-card catalog** viewer, and a **pricing simulator** (re-rate a usage profile across two
   catalogued models). Shipped as a Docker image; run-verified.
-- **Docs site** (`apps/docs`, Next.js + MDX) — concepts, a narrative API reference plus a **generated
-  control-plane reference** (rendered from the OpenAPI contract, drift-checked in CI), SDK guides with
-  provider adapters, and self-host instructions (incl. air-gapped). Built and typechecked in CI.
+- **Docs site** (`apps/docs`, Next.js + MDX) — concepts, a narrative API reference plus **generated
+  references for both the engine and control-plane surfaces** (rendered from their committed OpenAPI
+  contracts, drift-checked in CI), SDK guides with provider adapters, and self-host instructions (incl.
+  air-gapped). Client-side **search** (Pagefind over a static export); built and typechecked in CI;
+  shipped as a Docker image.
 
 - **ClickHouse** (`meter-store-ch`, required) — the **system of record for events** (editable model:
   record/amend/void via `ReplacingMergeTree` + `FINAL`) plus the **audit log** and **usage analytics**
   (ADR 0003/0004). Integration-tested against a real ClickHouse container. Money-truth stays in the
   Postgres ledger; the high-velocity firehoses live here.
-- **Deployment** — engine, control-plane, and dashboard Docker images; a 5-service docker-compose; a
-  Helm chart (toggleable in-cluster Postgres/ClickHouse, Ingress/TLS) and a GHCR publish workflow.
+- **Deployment** — engine, control-plane, dashboard, and docs Docker images; a 6-service docker-compose
+  (Postgres · ClickHouse · engine · control plane · dashboard · docs); a Helm chart (toggleable
+  in-cluster Postgres/ClickHouse, Ingress/TLS) and a GHCR publish workflow.
 
 In progress (see [tickets](tickets/README.md)): the protobuf engine↔control-plane contract and its
 generated TypeScript client (the OpenAPI surface and the generated dashboard client are done), and a

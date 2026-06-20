@@ -2,12 +2,13 @@
 //! reference, executed against a real Postgres started by testcontainers.
 
 use std::sync::Arc;
+use std::time::Instant;
 
 use meter_core::{Credit, OrgId};
 use meter_ledger::conformance::{self, Op};
 use meter_ledger::{
     AccountScope, CreditSource, GrantRequest, LedgerBackend, LimitClass, NewAccount, ReservationId,
-    ReserveOutcome, ReserveRequest,
+    ReserveOutcome, ReserveRequest, SettleRequest,
 };
 use meter_store_pg::PgLedger;
 use sqlx::postgres::PgPoolOptions;
@@ -125,5 +126,94 @@ async fn concurrent_reserves_never_overdraft() {
     assert!(
         !balance.available().is_negative(),
         "overdraft under concurrency"
+    );
+}
+
+/// Load harness: many workers hammer reserve→settle on one funded account in parallel. The ledger
+/// must conserve credits exactly — every settle charges its actual and releases its hold, with no
+/// lost or double-counted credits — so the final settled balance equals `funded - sum(actuals)` and
+/// nothing stays held. Also reports sustained throughput.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn concurrent_reserve_settle_conserves_credits() {
+    const WORKERS: i64 = 8;
+    const PER_WORKER: i64 = 25;
+    const RESERVE: i64 = 10;
+    const ACTUAL: i64 = 3;
+    const FUNDED: i64 = 100_000;
+
+    let (_container, ledger) = start_ledger().await;
+    let ledger = Arc::new(ledger);
+    let account = ledger
+        .open_account(NewAccount {
+            org_id: OrgId::new(),
+            scope: AccountScope::Org,
+            no_overdraft: true,
+            parent_id: None,
+        })
+        .await
+        .expect("open account")
+        .id;
+    ledger
+        .grant(GrantRequest {
+            account,
+            amount: Credit::from(FUNDED),
+            source: CreditSource::Paid,
+            idempotency_key: None,
+        })
+        .await
+        .expect("grant");
+
+    let started = Instant::now();
+    let mut handles = Vec::new();
+    for _ in 0..WORKERS {
+        let ledger = Arc::clone(&ledger);
+        handles.push(tokio::spawn(async move {
+            for _ in 0..PER_WORKER {
+                let reservation = ReservationId::new();
+                let outcome = ledger
+                    .reserve(ReserveRequest {
+                        account,
+                        reservation_id: reservation,
+                        amount: Credit::from(RESERVE),
+                        limit: LimitClass::Hard,
+                    })
+                    .await
+                    .expect("reserve");
+                assert!(
+                    matches!(outcome, ReserveOutcome::Allowed { .. }),
+                    "reserve denied"
+                );
+                ledger
+                    .settle(SettleRequest {
+                        reservation_id: reservation,
+                        actual: Credit::from(ACTUAL),
+                    })
+                    .await
+                    .expect("settle");
+            }
+        }));
+    }
+    for handle in handles {
+        handle.await.expect("worker panicked");
+    }
+
+    let ops = WORKERS * PER_WORKER;
+    let balance = ledger.balance(account).await.expect("balance");
+    assert_eq!(
+        balance.settled,
+        Credit::from(FUNDED - ops * ACTUAL),
+        "credits not conserved under concurrent settles"
+    );
+    assert_eq!(
+        balance.held,
+        Credit::from(0_i64),
+        "holds left open after settle"
+    );
+
+    let elapsed = started.elapsed();
+    eprintln!(
+        "concurrent reserve+settle: {ops} cycles in {:.3}s ({:.0} ops/s)",
+        elapsed.as_secs_f64(),
+        f64::from(i32::try_from(ops).unwrap_or(i32::MAX)) / elapsed.as_secs_f64()
     );
 }

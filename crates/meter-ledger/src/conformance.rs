@@ -199,6 +199,42 @@ pub async fn void_releases_a_failed_run<L: LedgerBackend>(ledger: &L) {
     );
 }
 
+/// Settling more than was held charges the full actual (the overage path): a reservation is a
+/// worst-case ceiling, but billing reflects what was really used. The hold clears either way.
+pub async fn settle_overage_charges_actual<L: LedgerBackend>(ledger: &L) {
+    let account = open_no_overdraft_org(ledger).await;
+    ledger
+        .grant(GrantRequest {
+            account,
+            amount: credits(100),
+            source: CreditSource::Paid,
+            idempotency_key: None,
+        })
+        .await
+        .expect("grant");
+    let reservation = Default::default();
+    ledger
+        .reserve(ReserveRequest {
+            account,
+            reservation_id: reservation,
+            amount: credits(40),
+            limit: LimitClass::Hard,
+        })
+        .await
+        .expect("reserve");
+    // The actual (60) exceeds the 40 hold; the full 60 is charged, not the held 40.
+    ledger
+        .settle(SettleRequest {
+            reservation_id: reservation,
+            actual: credits(60),
+        })
+        .await
+        .expect("settle");
+    let after = ledger.balance(account).await.expect("balance");
+    assert_eq!(after.settled, credits(40)); // 100 − 60
+    assert_eq!(after.held, Credit::ZERO);
+}
+
 /// A SOFT limit on an overdraft-allowed account reserves *beyond* the available balance (it tracks
 /// overage rather than blocking), while a HARD limit on the same account denies the same request.
 pub async fn soft_limit_allows_overage<L: LedgerBackend>(ledger: &L) {
@@ -496,6 +532,7 @@ pub async fn run_all_scenarios<L: LedgerBackend>(ledger: &L) {
     reserve_and_settle_are_idempotent(ledger).await;
     grant_is_idempotent_on_key(ledger).await;
     void_releases_a_failed_run(ledger).await;
+    settle_overage_charges_actual(ledger).await;
     soft_limit_allows_overage(ledger).await;
     settle_after_void_is_refused(ledger).await;
     void_after_settle_is_refused(ledger).await;

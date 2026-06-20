@@ -5,6 +5,7 @@
 //! so `result_large_err` is unavoidable here and allowed at the module boundary.
 #![allow(clippy::result_large_err)]
 
+pub mod ingest;
 pub mod ledger;
 
 use std::str::FromStr;
@@ -14,6 +15,7 @@ use tonic::Status;
 use uuid::Uuid;
 
 use meter_core::Credit;
+use meter_event::EventError;
 use meter_ledger::LedgerError;
 use meter_proto::v1;
 
@@ -50,5 +52,14 @@ fn status_from_ledger(error: &LedgerError) -> Status {
         LedgerError::NonPositiveAmount => Status::invalid_argument(error.to_string()),
         LedgerError::InsufficientFunds { .. } => Status::resource_exhausted(error.to_string()),
         LedgerError::Backend(_) => Status::internal(error.to_string()),
+    }
+}
+
+/// Map an [`EventError`] to the closest gRPC status code.
+fn status_from_event(error: &EventError) -> Status {
+    match error {
+        EventError::NotFound(_) => Status::not_found(error.to_string()),
+        EventError::Voided(_) => Status::failed_precondition(error.to_string()),
+        EventError::Backend(_) => Status::internal(error.to_string()),
     }
 }

@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package meter.v1;
+
+message RecordEventRequest {
+  string org_id = 1;
+  string idempotency_key = 2;
+  // RFC3339 timestamp; empty means "now".
+  string event_time = 3;
+  string meter = 4;
+  string account_id = 5;
+  // Optional run grouping.
+  string run_id = 6;
+  // Arbitrary customer JSON.
+  string properties = 7;
+}
+
+message RecordEventResponse {
+  string event_id = 1;
+}
+
+// The firehose path: many events in one call, written as a single bulk insert.
+message RecordBatchRequest {
+  repeated RecordEventRequest events = 1;
+}
+
+message RecordBatchResponse {
+  uint64 accepted = 1;
+}
+
+message AmendEventRequest {
+  string event_id = 1;
+  // Replacement customer JSON.
+  string properties = 2;
+}
+
+message AmendEventResponse {
+  string event_id = 1;
+}
+
+message VoidRunRequest {
+  string run_id = 1;
+}
+
+message VoidRunResponse {
+  uint64 voided = 1;
+}
+
+// Usage-event ingestion. Editable, append-only: amend records a new version, void_run reverses a run.
+service IngestService {
+  rpc RecordEvent(RecordEventRequest) returns (RecordEventResponse);
+  rpc RecordBatch(RecordBatchRequest) returns (RecordBatchResponse);
+  rpc AmendEvent(AmendEventRequest) returns (AmendEventResponse);
+  rpc VoidRun(VoidRunRequest) returns (VoidRunResponse);
+}

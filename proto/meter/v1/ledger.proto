@@ -1,0 +1,103 @@
+syntax = "proto3";
+
+package meter.v1;
+
+import "meter/v1/common.proto";
+
+// The scope of a ledger account.
+enum AccountScope {
+  ACCOUNT_SCOPE_UNSPECIFIED = 0;
+  ACCOUNT_SCOPE_ORG = 1;
+  ACCOUNT_SCOPE_TEAM = 2;
+  ACCOUNT_SCOPE_SESSION = 3;
+}
+
+// How a reservation is enforced.
+enum LimitClass {
+  LIMIT_CLASS_UNSPECIFIED = 0;
+  // Fail-closed: deny when the balance is insufficient.
+  LIMIT_CLASS_HARD = 1;
+  // Allow beyond the balance, tracking overage.
+  LIMIT_CLASS_SOFT = 2;
+}
+
+// Where granted credits came from.
+enum CreditSource {
+  CREDIT_SOURCE_UNSPECIFIED = 0;
+  CREDIT_SOURCE_PAID = 1;
+  CREDIT_SOURCE_PROMOTIONAL = 2;
+  CREDIT_SOURCE_REFUND = 3;
+}
+
+message OpenAccountRequest {
+  string org_id = 1;
+  AccountScope scope = 2;
+  bool no_overdraft = 3;
+  // Optional parent account id; empty when none.
+  string parent_id = 4;
+}
+
+message OpenAccountResponse {
+  string account_id = 1;
+}
+
+message GrantRequest {
+  string account_id = 1;
+  Credit amount = 2;
+  CreditSource source = 3;
+  // Optional; makes the grant idempotent within the account.
+  string idempotency_key = 4;
+}
+
+message GrantResponse {
+  Credit settled = 1;
+}
+
+message ReserveRequest {
+  string account_id = 1;
+  string reservation_id = 2;
+  Credit amount = 3;
+  LimitClass limit = 4;
+}
+
+message ReserveResponse {
+  bool allowed = 1;
+  // Populated when denied: what was available and what was requested.
+  Credit available = 2;
+  Credit requested = 3;
+}
+
+message SettleRequest {
+  string reservation_id = 1;
+  Credit actual = 2;
+}
+
+message SettleResponse {
+  Credit balance_after = 1;
+}
+
+message VoidRequest {
+  string reservation_id = 1;
+}
+
+message VoidResponse {}
+
+message BalanceRequest {
+  string account_id = 1;
+}
+
+message BalanceResponse {
+  Credit settled = 1;
+  Credit held = 2;
+}
+
+// The transactional money path. Money-truth lives here in the engine (ADR 0001); the control plane
+// calls this and never computes money itself.
+service LedgerService {
+  rpc OpenAccount(OpenAccountRequest) returns (OpenAccountResponse);
+  rpc Grant(GrantRequest) returns (GrantResponse);
+  rpc Reserve(ReserveRequest) returns (ReserveResponse);
+  rpc Settle(SettleRequest) returns (SettleResponse);
+  rpc Void(VoidRequest) returns (VoidResponse);
+  rpc Balance(BalanceRequest) returns (BalanceResponse);
+}

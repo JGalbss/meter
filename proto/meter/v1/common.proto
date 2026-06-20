@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package meter.v1;
+
+// Shared value types for the engine contract.
+//
+// Money and credits are exact decimals carried as canonical decimal *strings* (never floats), exactly
+// like the engine's Money/Credit newtypes — the wire must not introduce float error near money.
+
+// A monetary amount in a single currency.
+message Money {
+  // Decimal string, e.g. "0.0525".
+  string amount = 1;
+  // ISO 4217 currency code, e.g. "USD".
+  string currency = 2;
+}
+
+// A credit amount (the engine's internal unit of account).
+message Credit {
+  // Decimal string, e.g. "6250".
+  string amount = 1;
+}

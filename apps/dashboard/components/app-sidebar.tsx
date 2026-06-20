@@ -8,6 +8,7 @@ import {
   House,
   Key,
   Lightning,
+  ListBullets,
   Package,
   Plugs,
   ShieldWarning,
@@ -37,6 +38,7 @@ interface NavItem {
 const NAV: readonly NavItem[] = [
   { href: "/", label: "Overview", icon: House },
   { href: "/usage", label: "Usage", icon: ChartLineUp },
+  { href: "/events", label: "Events", icon: ListBullets },
   { href: "/organizations", label: "Organizations", icon: Buildings },
   { href: "/products", label: "Products", icon: Package },
   { href: "/notifications", label: "Notifications", icon: Bell },

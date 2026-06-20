@@ -6,7 +6,17 @@ import type { FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-export function AccountForm({ initial, org }: { initial: string; org?: string }) {
+/** A small form that navigates to `basePath?account=<uuid>` (preserving the active org). Shared by the
+ * account-scoped engine views (usage, events). */
+export function AccountSearchForm({
+  basePath,
+  initial,
+  org,
+}: {
+  basePath: string;
+  initial: string;
+  org?: string;
+}) {
   const router = useRouter();
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -20,7 +30,7 @@ export function AccountForm({ initial, org }: { initial: string; org?: string })
     if (org !== undefined && org.length > 0) {
       params.set("org", org);
     }
-    router.push(`/usage?${params.toString()}`);
+    router.push(`${basePath}?${params.toString()}`);
   };
 
   return (

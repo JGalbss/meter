@@ -76,6 +76,22 @@ export interface AuditEntry {
   readonly created_at: string;
 }
 
+export type EventStatus = "recorded" | "amended" | "voided";
+
+export interface UsageEvent {
+  readonly id: string;
+  readonly org_id: string;
+  readonly idempotency_key: string;
+  readonly event_time: string;
+  readonly meter: string;
+  readonly account_id: string;
+  readonly run_id: string | null;
+  readonly properties: unknown;
+  readonly status: EventStatus;
+  readonly supersedes: string | null;
+  readonly created_at: string;
+}
+
 export type ApiKeyRole = "viewer" | "member" | "admin";
 
 export interface ApiKey {

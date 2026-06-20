@@ -17,10 +17,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { AccountSearchForm } from "@/components/account-search-form";
 import { unwrapOr } from "@/lib/meter/client";
 import { fetchUsageByDay, fetchUsageByModel } from "@/lib/meter/engine";
 import { resolveOrgScope } from "@/lib/meter/org";
-import { AccountForm } from "./account-form";
 import { ModelUsageChartLazy } from "./model-usage-chart-lazy";
 import { UsageChartLazy } from "./usage-chart-lazy";
 
@@ -136,7 +136,7 @@ export default async function UsagePage({
               Credit usage over the last 30 days for a single engine account.
             </CardDescription>
           </div>
-          <AccountForm initial={account ?? ""} org={orgId} />
+          <AccountSearchForm basePath="/usage" initial={account ?? ""} org={orgId} />
         </CardHeader>
         <CardContent>
           {!hasAccount && (

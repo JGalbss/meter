@@ -227,7 +227,12 @@ screens pending (need control-plane config resources)
 - [~] Observability: control-plane **request-id + structured access-log middleware** (propagates/echoes
   `x-request-id`, annotates per-request logs, logs method/path/status/duration); tested. Engine tracing
   + metrics export pending.
-- [ ] **Full e2e**: SDK → engine → ledger → control plane → invoice → dashboard, against real stores (testcontainers / compose)
+- [~] **Full e2e**: SDK → engine → ledger → control plane → invoice, against real stores via compose
+  (`deploy/e2e/smoke.sh` + `flow.py`, driving the engine flow through the Python SDK). Harness built and
+  run; it found + fixed a `protoc` gap that broke the engine image and CI rust build. **Open blocker
+  (engine-side):** the engine's ClickHouse client (`meter-store-ch`) sends no credentials, but CH 24.8
+  rejects passwordless remote auth — the engine crash-loops on boot, so the flow can't complete until
+  the engine supports CH credentials (see `deploy/e2e/README.md`). Dashboard leg still to add.
 - [~] Criterion benchmarks: pricing hot path (`cargo bench -p meter-pricing`: `cost` ≈135 ns, `price_usage` ≈158 ns/event) and the **Postgres-backed enforcement** hot path (`cargo bench -p meter-store-pg`: `reserve`+`settle` ≈0.95 ms/call vs a local container — representative, indexed idempotency, no O(n) growth).
 - [x] Concurrent **load harness**: 8 workers × 25 reserve→settle cycles in parallel against one funded account proves exact credit conservation under contention (settled == funded − Σactuals, held == 0) + reports throughput. Published SLO results vs SLO.md pending
 - [x] **Event-ingest throughput harness** (`meter-store-ch/tests/throughput.rs`): single-record baseline vs `record_batch` across a batch-size × concurrency sweep against a real ClickHouse container, plus usage-read latency at scale and an exactly-once replay check. Numbers + targets published in `SLO.md` (ingest ~1M events/s; usage reads single-digit ms, O(rollup groups)).

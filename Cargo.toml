@@ -9,6 +9,9 @@ rust-version = "1.88"
 license = "AGPL-3.0-only"
 repository = "https://github.com/JGalbss/meter"
 authors = ["Josh Galbreath"]
+readme = "README.md"
+keywords = ["metering", "billing", "ledger", "usage", "pricing"]
+categories = ["finance", "development-tools"]
 
 [workspace.dependencies]
 # async runtime + web

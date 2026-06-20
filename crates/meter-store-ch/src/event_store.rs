@@ -15,8 +15,35 @@ use meter_event::{AmendEvent, Event, EventError, EventStatus, EventStore, Record
 use crate::ChStore;
 
 /// The `events` columns in struct order — RowBinary reads positionally, so SELECTs must match.
-const COLUMNS: &str = "id, org_id, idempotency_key, event_time, meter, account_id, run_id, \
-                       properties, status, supersedes, created_at, version";
+/// A macro (not a `const`) so the list can be `concat!`-ed into compile-time query strings, keeping
+/// every read a static `&str` (no runtime `format!`, single source of truth for the column order).
+macro_rules! event_columns {
+    () => {
+        "id, org_id, idempotency_key, event_time, meter, account_id, run_id, \
+         properties, status, supersedes, created_at, version"
+    };
+}
+
+const SELECT_BY_KEY: &str = concat!(
+    "SELECT ",
+    event_columns!(),
+    " FROM events FINAL WHERE org_id = ? AND idempotency_key = ? LIMIT 1"
+);
+const SELECT_BY_ID: &str = concat!(
+    "SELECT ",
+    event_columns!(),
+    " FROM events FINAL WHERE id = ? LIMIT 1"
+);
+const SELECT_FOR_ACCOUNT: &str = concat!(
+    "SELECT ",
+    event_columns!(),
+    " FROM events FINAL WHERE account_id = ? AND status = 'recorded' ORDER BY event_time, id"
+);
+const SELECT_FOR_RUN: &str = concat!(
+    "SELECT ",
+    event_columns!(),
+    " FROM events FINAL WHERE run_id = ? AND status = 'recorded'"
+);
 
 #[derive(clickhouse::Row, Serialize, Deserialize)]
 struct EventRow {
@@ -103,9 +130,7 @@ impl ChStore {
     async fn find_by_key(&self, org_id: OrgId, key: &str) -> Result<Option<Event>, EventError> {
         let rows = self
             .client
-            .query(&format!(
-                "SELECT {COLUMNS} FROM events FINAL WHERE org_id = ? AND idempotency_key = ? LIMIT 1"
-            ))
+            .query(SELECT_BY_KEY)
             .bind(org_id.as_uuid())
             .bind(key)
             .fetch_all::<EventRow>()
@@ -144,9 +169,7 @@ impl EventStore for ChStore {
     async fn get(&self, id: EventId) -> Result<Event, EventError> {
         let rows = self
             .client
-            .query(&format!(
-                "SELECT {COLUMNS} FROM events FINAL WHERE id = ? LIMIT 1"
-            ))
+            .query(SELECT_BY_ID)
             .bind(id.as_uuid())
             .fetch_all::<EventRow>()
             .await
@@ -160,10 +183,7 @@ impl EventStore for ChStore {
     async fn list_for_account(&self, account: AccountId) -> Result<Vec<Event>, EventError> {
         let rows = self
             .client
-            .query(&format!(
-                "SELECT {COLUMNS} FROM events FINAL WHERE account_id = ? AND status = 'recorded' \
-                 ORDER BY event_time, id"
-            ))
+            .query(SELECT_FOR_ACCOUNT)
             .bind(account.as_uuid())
             .fetch_all::<EventRow>()
             .await
@@ -202,9 +222,7 @@ impl EventStore for ChStore {
     async fn void_run(&self, run: RunId) -> Result<u64, EventError> {
         let rows = self
             .client
-            .query(&format!(
-                "SELECT {COLUMNS} FROM events FINAL WHERE run_id = ? AND status = 'recorded'"
-            ))
+            .query(SELECT_FOR_RUN)
             .bind(run.as_uuid())
             .fetch_all::<EventRow>()
             .await

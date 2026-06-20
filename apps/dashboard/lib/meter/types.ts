@@ -115,3 +115,29 @@ export interface Catalog {
   readonly as_of: string
   readonly models: readonly RateCardEntry[]
 }
+
+/** Token counts for one usage event, re-rated by the pricing simulator. */
+export interface SimulateUsage {
+  readonly input_uncached: number
+  readonly cache_read: number
+  readonly cache_write: number
+  readonly output: number
+  readonly reasoning: number
+}
+
+/** `POST /v1/simulate` request: re-rate a usage stream from one catalogued model onto another. */
+export interface SimulateInput {
+  readonly current_model: string
+  readonly proposed_model: string
+  readonly events: readonly SimulateUsage[]
+}
+
+/** `POST /v1/simulate` response: credits under each model and the delta (exact decimal strings). */
+export interface SimulateResult {
+  readonly current_model: string
+  readonly proposed_model: string
+  readonly event_count: number
+  readonly credits_current: string
+  readonly credits_proposed: string
+  readonly credit_delta: string
+}

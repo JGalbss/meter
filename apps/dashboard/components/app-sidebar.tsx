@@ -3,6 +3,7 @@
 import {
   Bell,
   Buildings,
+  Calculator,
   ChartLineUp,
   ClipboardText,
   House,
@@ -45,6 +46,7 @@ const NAV: readonly NavItem[] = [
   { href: "/accounts", label: "Accounts", icon: Wallet },
   { href: "/invoices", label: "Invoices", icon: Receipt },
   { href: "/rate-cards", label: "Rate cards", icon: Tag },
+  { href: "/simulate", label: "Pricing simulator", icon: Calculator },
   { href: "/organizations", label: "Organizations", icon: Buildings },
   { href: "/products", label: "Products", icon: Package },
   { href: "/notifications", label: "Notifications", icon: Bell },

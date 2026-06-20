@@ -10,6 +10,8 @@ import type {
   Invoice,
   LedgerEntry,
   ModelUsage,
+  SimulateInput,
+  SimulateResult,
   UsageEvent,
 } from "./types"
 
@@ -231,6 +233,29 @@ export async function fetchCatalog(): Promise<Result<Catalog>> {
       return { ok: false, error: `engine responded ${response.status}` }
     }
     return { ok: true, data: (await response.json()) as Catalog }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "engine unreachable",
+    }
+  }
+}
+
+// Re-rate a usage stream from one catalogued model onto another (pure projection; never the ledger).
+export async function fetchSimulate(
+  body: SimulateInput
+): Promise<Result<SimulateResult>> {
+  try {
+    const response = await fetch(`${ENGINE_URL}/v1/simulate`, {
+      method: "POST",
+      cache: "no-store",
+      headers: { "content-type": "application/json", ...authHeaders() },
+      body: JSON.stringify(body),
+    })
+    if (!response.ok) {
+      return { ok: false, error: `engine responded ${response.status}` }
+    }
+    return { ok: true, data: (await response.json()) as SimulateResult }
   } catch (error) {
     return {
       ok: false,

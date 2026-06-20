@@ -14,8 +14,13 @@ export function EmptyState({
       <div className="mb-3 rounded-full bg-muted p-3 text-muted-foreground">
         <Icon size={20} />
       </div>
-      <p className="font-medium">{title}</p>
-      <p className="mt-1 max-w-sm text-sm text-muted-foreground">{message}</p>
+      {/* transitions.dev "texts reveal" (mount variant). */}
+      <div className="t-stagger-reveal">
+        <p className="t-stagger-line t-stagger-line--1 font-medium">{title}</p>
+        <p className="t-stagger-line t-stagger-line--2 mt-1 max-w-sm text-sm text-muted-foreground">
+          {message}
+        </p>
+      </div>
     </div>
   );
 }

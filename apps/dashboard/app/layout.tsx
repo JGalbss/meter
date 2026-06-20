@@ -1,6 +1,7 @@
 import { Geist_Mono, Montserrat, Raleway } from "next/font/google"
 
 import "./globals.css"
+import "./transitions.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils";

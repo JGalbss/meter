@@ -21,9 +21,12 @@ pub struct PeriodUsage {
 }
 
 /// Credits consumed on a single UTC day — a point in a usage time series.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, utoipa::ToSchema)]
 pub struct DayUsage {
+    /// The UTC day as `YYYY-MM-DD`.
     pub day: String,
+    /// Total credits consumed that day, as an exact decimal string.
+    #[schema(value_type = String)]
     pub total_credits: Credit,
     pub entry_count: i64,
 }

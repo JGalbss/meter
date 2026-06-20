@@ -15,6 +15,8 @@ use meter_pricing::{
     ChargeModel, ContextTier, Margin, Modality, PriceComponent, PriceTier, PricingDimension,
     RateCard, RateCardKind, Unit,
 };
+use meter_store_ch::{DayUsage as EventDayUsage, ModelUsage};
+use meter_store_pg::DayUsage;
 
 use crate::dto::{
     AmendBody, ExtendBody, GrantBody, MeterUsageBody, OpenAccountBody, OpenLeaseBody,
@@ -102,7 +104,10 @@ use crate::dto::{
         ContextTier,
         Unit,
         Money,
-        Currency
+        Currency,
+        DayUsage,
+        EventDayUsage,
+        ModelUsage
     )),
     tags(
         (name = "health", description = "Liveness and readiness probes"),

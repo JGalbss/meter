@@ -27,7 +27,7 @@ pub enum ChError {
 }
 
 /// Usage aggregated by model for one organization.
-#[derive(clickhouse::Row, Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(clickhouse::Row, Serialize, Deserialize, Debug, Clone, PartialEq, utoipa::ToSchema)]
 pub struct ModelUsage {
     pub model: String,
     pub events: u64,
@@ -37,7 +37,9 @@ pub struct ModelUsage {
 }
 
 /// Daily usage totals for an organization (a time series for charts). `day` is `YYYY-MM-DD`.
-#[derive(clickhouse::Row, Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(clickhouse::Row, Serialize, Deserialize, Debug, Clone, PartialEq, utoipa::ToSchema)]
+// Distinct OpenAPI name: the Postgres per-account view is also `DayUsage`.
+#[schema(as = EventDayUsage)]
 pub struct DayUsage {
     pub day: String,
     pub events: u64,

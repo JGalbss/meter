@@ -32,7 +32,7 @@ pub struct PeriodQuery {
         ("start" = String, Query, description = "Period start (RFC3339)"),
         ("end" = String, Query, description = "Period end (RFC3339)")
     ),
-    responses((status = 200, description = "Daily credit totals over the period")),
+    responses((status = 200, description = "Daily credit totals over the period", body = Vec<DayUsage>)),
     tag = "analytics"
 )]
 pub async fn usage_by_day(
@@ -54,7 +54,7 @@ pub async fn usage_by_day(
     get,
     path = "/v1/orgs/{id}/usage-by-model",
     params(("id" = String, Path, description = "Org id (UUID)")),
-    responses((status = 200, description = "Usage aggregated by model, ordered by spend")),
+    responses((status = 200, description = "Usage aggregated by model, ordered by spend", body = Vec<ModelUsage>)),
     tag = "analytics"
 )]
 pub async fn usage_by_model(
@@ -74,7 +74,7 @@ pub async fn usage_by_model(
     get,
     path = "/v1/orgs/{id}/usage-by-day",
     params(("id" = String, Path, description = "Org id (UUID)")),
-    responses((status = 200, description = "Daily event + credit totals")),
+    responses((status = 200, description = "Daily event + credit totals", body = Vec<EventDayUsage>)),
     tag = "analytics"
 )]
 pub async fn org_usage_by_day(

@@ -1158,6 +1158,11 @@ async fn openapi_document_is_served() {
             ["schema"]["$ref"],
         "#/components/schemas/Event"
     );
+
+    // Analytics view schemas (the two DayUsage types are distinct: per-account vs org event store).
+    assert!(doc["components"]["schemas"]["DayUsage"].is_object());
+    assert!(doc["components"]["schemas"]["EventDayUsage"].is_object());
+    assert!(doc["components"]["schemas"]["ModelUsage"].is_object());
 }
 
 #[tokio::test]

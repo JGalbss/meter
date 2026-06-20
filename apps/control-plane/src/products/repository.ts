@@ -1,13 +1,11 @@
 //! Products repository — Effect-wrapped Drizzle queries with a typed error channel.
 
 import { eq } from "drizzle-orm";
-import { Data, Effect } from "effect";
+import { Effect } from "effect";
 
 import type { Db } from "../db/client";
 import { products } from "../db/schema";
-
-/** A failure talking to the database. */
-export class RepoError extends Data.TaggedError("RepoError")<{ readonly cause: unknown }> {}
+import { RepoError } from "../repository/errors";
 
 export interface Product {
   readonly id: string;

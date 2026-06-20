@@ -1,12 +1,10 @@
 //! Organizations repository — Effect-wrapped Drizzle queries with a typed error channel.
 
-import { Data, Effect } from "effect";
+import { Effect } from "effect";
 
 import type { Db } from "../db/client";
 import { organizations } from "../db/schema";
-
-/** A failure talking to the database. */
-export class RepoError extends Data.TaggedError("RepoError")<{ readonly cause: unknown }> {}
+import { RepoError } from "../repository/errors";
 
 export interface Organization {
   readonly id: string;

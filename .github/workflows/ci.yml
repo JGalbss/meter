@@ -49,7 +49,9 @@ jobs:
       - name: typecheck
         run: pnpm --filter "@meter/*" run typecheck
       - name: test
-        run: pnpm --filter "@meter/*" run test
+        # Run package suites serially: each spins in-process HTTP test servers, and stacking
+        # multiple vitest processes on a small runner can starve them into spurious timeouts.
+        run: pnpm --workspace-concurrency=1 --filter "@meter/*" run test
 
   python:
     name: python — sdk tests

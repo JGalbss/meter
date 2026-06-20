@@ -1,40 +1,11 @@
 //! End-to-end HTTP tests for the control-plane API: drive the router over the in-process test server
 //! (NodeHttpServer.layerTest) backed by PGlite, exercising it with the Effect HttpClient.
 
-import { HttpClient, HttpClientRequest, HttpServer } from "@effect/platform";
-import { NodeHttpServer } from "@effect/platform-node";
-import { PGlite } from "@electric-sql/pglite";
-import type { PgliteDatabase } from "drizzle-orm/pglite";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
-import { Effect, Layer } from "effect";
-import type { Scope } from "effect";
+import { HttpClient, HttpClientRequest } from "@effect/platform";
+import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 
-import * as schema from "../src/db/schema";
-import { Database } from "../src/db/service";
-import { router } from "../src/http/router";
-
-async function freshDb(): Promise<PgliteDatabase<typeof schema>> {
-  const db = drizzle(new PGlite(), { schema });
-  await migrate(db, { migrationsFolder: "./drizzle" });
-  return db;
-}
-
-/** A live test server (ephemeral port) serving `router` over the given database, exposing HttpClient. */
-function testLayer(db: PgliteDatabase<typeof schema>) {
-  return HttpServer.serve(router).pipe(
-    Layer.provide(Layer.succeed(Database, db)),
-    Layer.provideMerge(NodeHttpServer.layerTest),
-  );
-}
-
-function run<A, E>(
-  db: PgliteDatabase<typeof schema>,
-  program: Effect.Effect<A, E, HttpClient.HttpClient | Scope.Scope>,
-): Promise<A> {
-  return program.pipe(Effect.scoped, Effect.provide(testLayer(db)), Effect.runPromise);
-}
+import { freshDb, run } from "./support";
 
 describe("control-plane HTTP API", () => {
   it("reports health", async () => {

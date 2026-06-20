@@ -171,3 +171,23 @@ export async function fetchEntries(
     }
   }
 }
+
+// Void every event for a run (reverses its ledger effects). Returns the number of events voided.
+export async function voidRun(runId: string): Promise<Result<number>> {
+  try {
+    const response = await fetch(
+      `${ENGINE_URL}/v1/runs/${encodeURIComponent(runId)}/void`,
+      { method: "POST", cache: "no-store", headers: authHeaders() }
+    )
+    if (!response.ok) {
+      return { ok: false, error: `engine responded ${response.status}` }
+    }
+    const body = (await response.json()) as { voided: number }
+    return { ok: true, data: body.voided }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "engine unreachable",
+    }
+  }
+}

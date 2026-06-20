@@ -16,6 +16,7 @@ import {
 import { unwrapOr } from "@/lib/meter/client"
 import { fetchEventsForAccount } from "@/lib/meter/engine"
 import { resolveOrgScope } from "@/lib/meter/org"
+import { VoidRunButton } from "./void-run-button"
 
 export const dynamic = "force-dynamic"
 
@@ -30,6 +31,11 @@ function summarize(properties: unknown): string {
     return ""
   }
   return JSON.stringify(properties)
+}
+
+// A run can be voided from the UI only while it is the live (recorded) version and has a run id.
+function canVoidRun(runId: string | null, status: string): boolean {
+  return runId !== null && status === "recorded"
 }
 
 export default async function EventsPage({
@@ -76,13 +82,14 @@ export default async function EventsPage({
                   <TableHead>Status</TableHead>
                   <TableHead>Run</TableHead>
                   <TableHead>Properties</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {events.length === 0 && (
                   <TableRow>
                     <TableCell
-                      colSpan={5}
+                      colSpan={6}
                       className="py-10 text-center text-sm text-muted-foreground"
                     >
                       No events for this account (or the engine is unreachable).
@@ -106,6 +113,12 @@ export default async function EventsPage({
                     </TableCell>
                     <TableCell className="max-w-md truncate font-mono text-xs text-muted-foreground">
                       {summarize(event.properties)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {canVoidRun(event.run_id, event.status) &&
+                        event.run_id !== null && (
+                          <VoidRunButton runId={event.run_id} />
+                        )}
                     </TableCell>
                   </TableRow>
                 ))}

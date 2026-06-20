@@ -89,6 +89,22 @@ export function setAlertRuleEnabled(id: string, enabled: boolean): Promise<void>
   return post(`/v1/alert-rules/${encodeURIComponent(id)}/enabled`, { enabled });
 }
 
+export interface EvaluationSummary {
+  readonly evaluated: number;
+  readonly raised: number;
+}
+
+export async function evaluateAlertRules(orgId: string): Promise<EvaluationSummary> {
+  const response = await fetch(
+    `${BASE_URL}/v1/alert-rules/evaluate?orgId=${encodeURIComponent(orgId)}`,
+    { method: "POST", cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw new Error(`control plane responded ${response.status}`);
+  }
+  return (await response.json()) as EvaluationSummary;
+}
+
 export function setWebhookEnabled(id: string, enabled: boolean): Promise<void> {
   return post(`/v1/webhooks/${encodeURIComponent(id)}/enabled`, { enabled });
 }

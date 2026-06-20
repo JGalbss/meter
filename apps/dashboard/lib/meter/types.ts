@@ -37,6 +37,10 @@ export interface AlertRule {
   readonly threshold: string;
   readonly action: string;
   readonly enabled: boolean;
+  readonly accountId: string | null;
+  readonly creditLimit: string | null;
+  readonly windowDays: number;
+  readonly lastStatus: string | null;
   readonly createdAt: string;
 }
 

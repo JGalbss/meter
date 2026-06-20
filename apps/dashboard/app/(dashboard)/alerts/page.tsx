@@ -15,16 +15,25 @@ import {
 import { listAlertRules, unwrapOr } from "@/lib/meter/client";
 import { resolveOrgScope } from "@/lib/meter/org";
 import { AlertToggle } from "./alert-toggle";
+import { EvaluateButton } from "./evaluate-button";
 
 export const dynamic = "force-dynamic";
 
 const ENABLED_VARIANTS = { enabled: "default", disabled: "outline" } as const;
+const STATUS_VARIANTS = { ok: "secondary", warning: "default", exceeded: "destructive" } as const;
 
 function enabledLabel(enabled: boolean): string {
   if (enabled) {
     return "enabled";
   }
   return "disabled";
+}
+
+function statusLabel(status: string | null): string {
+  if (status === null) {
+    return "—";
+  }
+  return status;
 }
 
 export default async function AlertsPage({
@@ -65,6 +74,7 @@ export default async function AlertsPage({
       <PageHeader
         title="Alert rules"
         description="Thresholds that raise notifications and fire webhooks."
+        action={<EvaluateButton orgId={orgId} />}
       />
       <Card>
         <CardContent className="p-0">
@@ -76,14 +86,15 @@ export default async function AlertsPage({
                 <TableHead>Metric</TableHead>
                 <TableHead>Threshold</TableHead>
                 <TableHead>Action</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>Last status</TableHead>
+                <TableHead>Enabled</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rules.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
                     No alert rules.
                   </TableCell>
                 </TableRow>
@@ -95,6 +106,9 @@ export default async function AlertsPage({
                   <TableCell className="text-muted-foreground">{rule.metric}</TableCell>
                   <TableCell className="tabular-nums">{rule.threshold}</TableCell>
                   <TableCell className="text-muted-foreground">{rule.action}</TableCell>
+                  <TableCell>
+                    <ValueBadge value={statusLabel(rule.lastStatus)} variants={STATUS_VARIANTS} />
+                  </TableCell>
                   <TableCell>
                     <ValueBadge value={enabledLabel(rule.enabled)} variants={ENABLED_VARIANTS} />
                   </TableCell>

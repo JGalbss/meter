@@ -43,6 +43,9 @@ pub struct ReserveBody {
     pub reservation_id: ReservationId,
     pub amount: Credit,
     pub limit: LimitClass,
+    /// Optional hold expiry (RFC3339); an open hold past it is released by the sweep.
+    #[serde(with = "time::serde::rfc3339::option", default)]
+    pub expires_at: Option<OffsetDateTime>,
 }
 
 /// `POST /v1/reservations/{id}/settle`

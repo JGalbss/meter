@@ -3,6 +3,7 @@
 use async_trait::async_trait;
 use rust_decimal::Decimal;
 use sqlx::Row;
+use time::OffsetDateTime;
 use uuid::Uuid;
 
 use meter_core::{AccountId, Credit, EntryId, OrgId};
@@ -268,13 +269,14 @@ impl LedgerBackend for PgLedger {
         }
 
         sqlx::query(
-            "INSERT INTO ledger_holds (reservation_id, org_id, account_id, amount, status) \
-             VALUES ($1, $2, $3, $4, 'open')",
+            "INSERT INTO ledger_holds (reservation_id, org_id, account_id, amount, status, expires_at) \
+             VALUES ($1, $2, $3, $4, 'open', $5)",
         )
         .bind(req.reservation_id.as_uuid())
         .bind(org_id)
         .bind(req.account.as_uuid())
         .bind(req.amount.value())
+        .bind(req.expires_at)
         .execute(&mut *tx)
         .await
         .map_err(be)?;
@@ -439,6 +441,18 @@ impl LedgerBackend for PgLedger {
         };
         tx.commit().await.map_err(be)?;
         result
+    }
+
+    async fn void_expired_holds(&self, now: OffsetDateTime) -> Result<u64, LedgerError> {
+        let result = sqlx::query(
+            "UPDATE ledger_holds SET status = 'voided' \
+             WHERE status = 'open' AND expires_at IS NOT NULL AND expires_at <= $1",
+        )
+        .bind(now)
+        .execute(self.pool())
+        .await
+        .map_err(be)?;
+        Ok(result.rows_affected())
     }
 
     async fn open_lease(&self, req: LeaseRequest) -> Result<LedgerAccount, LedgerError> {

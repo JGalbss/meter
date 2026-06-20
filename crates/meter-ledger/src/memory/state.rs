@@ -37,6 +37,7 @@ pub(super) struct Hold {
     pub(super) amount: Credit,
     pub(super) status: HoldStatus,
     pub(super) settle_entry: Option<EntryId>,
+    pub(super) expires_at: Option<time::OffsetDateTime>,
 }
 
 /// All mutable ledger state behind a single mutex.

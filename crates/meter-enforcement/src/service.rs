@@ -58,6 +58,7 @@ impl<L: LedgerBackend> EnforcementService<L> {
                 reservation_id,
                 amount: priced.credits,
                 limit,
+                expires_at: None,
             })
             .await?;
         Ok(outcome)

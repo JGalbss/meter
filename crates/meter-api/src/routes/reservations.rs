@@ -25,6 +25,7 @@ pub async fn reserve(
             reservation_id: body.reservation_id,
             amount: body.amount,
             limit: body.limit,
+            expires_at: body.expires_at,
         })
         .await?;
     Ok(Json(outcome))

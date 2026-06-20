@@ -4,6 +4,7 @@
 
 use meter_core::{AccountId, Credit, OrgId};
 use serde::{Deserialize, Serialize};
+use time::OffsetDateTime;
 
 use crate::model::{AccountScope, CreditSource, LimitClass, ReservationId};
 
@@ -32,6 +33,9 @@ pub struct ReserveRequest {
     pub reservation_id: ReservationId,
     pub amount: Credit,
     pub limit: LimitClass,
+    /// Optional expiry; an open hold past this instant is released by
+    /// [`void_expired_holds`](crate::LedgerBackend::void_expired_holds). `None` never expires.
+    pub expires_at: Option<OffsetDateTime>,
 }
 
 /// The result of a [`ReserveRequest`].

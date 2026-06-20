@@ -176,6 +176,7 @@ impl LedgerBackend for InMemoryLedger {
                 amount: req.amount,
                 status: HoldStatus::Open,
                 settle_entry: None,
+                expires_at: req.expires_at,
             },
         );
         Ok(ReserveOutcome::Allowed {
@@ -296,6 +297,19 @@ impl LedgerBackend for InMemoryLedger {
                 HoldStatus::Settled => Err(LedgerError::ReservationClosed(reservation)),
             },
         }
+    }
+
+    async fn void_expired_holds(&self, now: OffsetDateTime) -> Result<u64, LedgerError> {
+        let mut state = self.lock();
+        let mut released = 0_u64;
+        for hold in state.holds.values_mut() {
+            let expired = hold.expires_at.is_some_and(|expiry| expiry <= now);
+            if hold.status == HoldStatus::Open && expired {
+                hold.status = HoldStatus::Voided;
+                released += 1;
+            }
+        }
+        Ok(released)
     }
 
     async fn open_lease(&self, req: LeaseRequest) -> Result<LedgerAccount, LedgerError> {

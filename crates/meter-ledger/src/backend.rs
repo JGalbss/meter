@@ -2,6 +2,7 @@
 
 use async_trait::async_trait;
 use meter_core::{AccountId, Credit};
+use time::OffsetDateTime;
 
 use crate::error::LedgerError;
 use crate::model::{Balance, LedgerAccount, LedgerEntry, ReservationId};
@@ -38,6 +39,11 @@ pub trait LedgerBackend: Send + Sync {
 
     /// Release an open reservation without charging it (e.g. a failed or abandoned run).
     async fn void(&self, reservation: ReservationId) -> Result<(), LedgerError>;
+
+    /// Release every open hold whose `expires_at` is at or before `now`, returning the count released.
+    /// This is the auto-void sweep for stranded reservations; it never touches settled or unexpired
+    /// holds, so the released credits return to the account exactly as a manual [`void`](Self::void).
+    async fn void_expired_holds(&self, now: OffsetDateTime) -> Result<u64, LedgerError>;
 
     /// Lease credits from a parent pool into a fresh per-session sub-balance (hot-account mitigation).
     /// Moves `amount` from the parent to a new `Session` child via a conserving transfer; refuses to

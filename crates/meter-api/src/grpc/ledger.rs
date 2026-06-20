@@ -133,6 +133,7 @@ impl v1::ledger_service_server::LedgerService for LedgerGrpc {
                 )?),
                 amount: credit_from_proto(req.amount.as_ref(), "amount")?,
                 limit: limit_class(req.limit)?,
+                expires_at: None,
             })
             .await
             .map_err(|error| status_from_ledger(&error))?;

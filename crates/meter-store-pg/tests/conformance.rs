@@ -107,6 +107,7 @@ async fn concurrent_reserves_never_overdraft() {
                     reservation_id: ReservationId::new(),
                     amount: Credit::from(10_i64),
                     limit: LimitClass::Hard,
+                    expires_at: None,
                 })
                 .await
         }));
@@ -178,6 +179,7 @@ async fn concurrent_reserve_settle_conserves_credits() {
                         reservation_id: reservation,
                         amount: Credit::from(RESERVE),
                         limit: LimitClass::Hard,
+                        expires_at: None,
                     })
                     .await
                     .expect("reserve");

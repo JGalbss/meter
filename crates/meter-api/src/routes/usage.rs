@@ -90,6 +90,7 @@ pub async fn reserve_usage(
             reservation_id: body.reservation_id,
             amount: priced.credits,
             limit: body.limit,
+            expires_at: None,
         })
         .await?;
     let mut value = serde_json::to_value(outcome)

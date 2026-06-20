@@ -14,6 +14,7 @@ use meter_ratecards::rate_card_for;
 use meter_store_pg::PgLedger;
 use rust_decimal::Decimal;
 use sqlx::postgres::PgPoolOptions;
+use time::OffsetDateTime;
 use uuid::Uuid;
 
 #[derive(Parser)]
@@ -78,6 +79,12 @@ enum Command {
         #[arg(long, default_value = "0.000001")]
         credit_value_usd: Decimal,
     },
+    /// Release expired open holds (auto-void sweep for stranded reservations).
+    Sweep {
+        /// Postgres connection string (defaults to $`METER_DATABASE_URL`).
+        #[arg(long, env = "METER_DATABASE_URL")]
+        database_url: String,
+    },
 }
 
 #[tokio::main]
@@ -112,7 +119,18 @@ async fn main() -> anyhow::Result<()> {
             output,
             credit_value_usd,
         ),
+        Command::Sweep { database_url } => sweep(&database_url).await,
     }
+}
+
+async fn sweep(database_url: &str) -> anyhow::Result<()> {
+    let released = connect(database_url)
+        .await?
+        .void_expired_holds(OffsetDateTime::now_utc())
+        .await
+        .map_err(|error| anyhow::anyhow!("sweeping expired holds: {error}"))?;
+    println!("released {released} expired holds");
+    Ok(())
 }
 
 fn price(

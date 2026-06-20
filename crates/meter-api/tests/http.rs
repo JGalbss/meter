@@ -739,6 +739,28 @@ async fn audit_log_over_http() {
             .is_empty(),
         "audit entry should record a request id"
     );
+
+    // Filtering: by method, and by time window.
+    let (_status, posts) = call(&app, "GET", "/v1/audit?method=POST", &Value::Null).await;
+    assert!(!posts.as_array().expect("array").is_empty());
+    let (_status, deletes) = call(&app, "GET", "/v1/audit?method=DELETE", &Value::Null).await;
+    assert!(deletes.as_array().expect("array").is_empty());
+    let (_status, old) = call(
+        &app,
+        "GET",
+        "/v1/audit?until=2000-01-01T00:00:00Z",
+        &Value::Null,
+    )
+    .await;
+    assert!(old.as_array().expect("array").is_empty());
+    let (_status, recent) = call(
+        &app,
+        "GET",
+        "/v1/audit?since=2000-01-01T00:00:00Z",
+        &Value::Null,
+    )
+    .await;
+    assert!(!recent.as_array().expect("array").is_empty());
 }
 
 #[tokio::test]

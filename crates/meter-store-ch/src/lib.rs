@@ -63,6 +63,15 @@ struct CountRow {
     n: u64,
 }
 
+/// Optional filters for [`ChStore::list_audit`]. `None` fields are unconstrained.
+#[derive(Debug, Clone, Default)]
+pub struct AuditFilter {
+    pub actor: Option<String>,
+    pub method: Option<String>,
+    pub since: Option<OffsetDateTime>,
+    pub until: Option<OffsetDateTime>,
+}
+
 /// One recorded mutating action (ADR 0004). Returned by reads; serialized for the API.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct AuditEntry {
@@ -208,17 +217,46 @@ impl ChStore {
         Ok(())
     }
 
-    /// The most recent audit entries, newest first.
-    pub async fn list_audit(&self, limit: i64) -> Result<Vec<AuditEntry>, ChError> {
-        let rows = self
-            .client
-            .query(
-                "SELECT id, actor, method, path, status, request_id, created_at \
-                 FROM audit ORDER BY created_at DESC, id DESC LIMIT ?",
-            )
-            .bind(limit)
-            .fetch_all::<AuditRow>()
-            .await?;
+    /// The most recent audit entries matching `filter`, newest first.
+    pub async fn list_audit(
+        &self,
+        limit: i64,
+        filter: &AuditFilter,
+    ) -> Result<Vec<AuditEntry>, ChError> {
+        // Build the WHERE from whichever filters are set, binding in the same order.
+        let mut sql = String::from(
+            "SELECT id, actor, method, path, status, request_id, created_at FROM audit WHERE 1 = 1",
+        );
+        if filter.actor.is_some() {
+            sql.push_str(" AND actor = ?");
+        }
+        if filter.method.is_some() {
+            sql.push_str(" AND method = ?");
+        }
+        // Compare the DateTime64 column via Unix millis to avoid datetime-bind format pitfalls.
+        if filter.since.is_some() {
+            sql.push_str(" AND toUnixTimestamp64Milli(created_at) >= ?");
+        }
+        if filter.until.is_some() {
+            sql.push_str(" AND toUnixTimestamp64Milli(created_at) < ?");
+        }
+        sql.push_str(" ORDER BY created_at DESC, id DESC LIMIT ?");
+
+        let to_millis = |time: OffsetDateTime| (time.unix_timestamp_nanos() / 1_000_000) as i64;
+        let mut query = self.client.query(&sql);
+        if let Some(actor) = &filter.actor {
+            query = query.bind(actor);
+        }
+        if let Some(method) = &filter.method {
+            query = query.bind(method);
+        }
+        if let Some(since) = filter.since {
+            query = query.bind(to_millis(since));
+        }
+        if let Some(until) = filter.until {
+            query = query.bind(to_millis(until));
+        }
+        let rows = query.bind(limit).fetch_all::<AuditRow>().await?;
         Ok(rows.into_iter().map(audit_row_to_entry).collect())
     }
 

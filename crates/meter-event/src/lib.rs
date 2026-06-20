@@ -22,4 +22,4 @@ pub use error::EventError;
 pub use event::{Event, EventStatus};
 pub use memory::InMemoryEventStore;
 pub use request::{AmendEvent, RecordEvent};
-pub use store::EventStore;
+pub use store::{idempotent_event_id, EventStore};

@@ -24,11 +24,6 @@ macro_rules! event_columns {
     };
 }
 
-const SELECT_BY_KEY: &str = concat!(
-    "SELECT ",
-    event_columns!(),
-    " FROM events FINAL WHERE org_id = ? AND idempotency_key = ? LIMIT 1"
-);
 const SELECT_BY_ID: &str = concat!(
     "SELECT ",
     event_columns!(),
@@ -105,9 +100,10 @@ fn row_to_event(row: EventRow) -> Result<Event, EventError> {
 }
 
 impl ChStore {
-    /// Insert one event version (assigns the next version for the `ReplacingMergeTree`).
-    async fn insert_event(&self, event: &Event) -> Result<(), EventError> {
-        let row = EventRow {
+    /// Build the `RowBinary` row for one event version, assigning the next `ReplacingMergeTree` version
+    /// (so a later status change supersedes the prior row).
+    fn event_to_row(&self, event: &Event) -> Result<EventRow, EventError> {
+        Ok(EventRow {
             id: event.id.as_uuid(),
             org_id: event.org_id.as_uuid(),
             idempotency_key: event.idempotency_key.clone(),
@@ -120,50 +116,43 @@ impl ChStore {
             supersedes: event.supersedes.map(|id| id.as_uuid()),
             created_at: event.created_at,
             version: self.next_version(),
-        };
+        })
+    }
+
+    /// Insert one event version. Used by the single-row amend/void paths; the firehose ingest path
+    /// uses [`record_batch`](EventStore::record_batch), which writes a whole batch in one insert.
+    async fn insert_event(&self, event: &Event) -> Result<(), EventError> {
+        let row = self.event_to_row(event)?;
         let mut insert = self.client.insert("events").map_err(backend)?;
         insert.write(&row).await.map_err(backend)?;
         insert.end().await.map_err(backend)?;
         Ok(())
-    }
-
-    async fn find_by_key(&self, org_id: OrgId, key: &str) -> Result<Option<Event>, EventError> {
-        let rows = self
-            .client
-            .query(SELECT_BY_KEY)
-            .bind(org_id.as_uuid())
-            .bind(key)
-            .fetch_all::<EventRow>()
-            .await
-            .map_err(backend)?;
-        match rows.into_iter().next() {
-            None => Ok(None),
-            Some(row) => Ok(Some(row_to_event(row)?)),
-        }
     }
 }
 
 #[async_trait]
 impl EventStore for ChStore {
     async fn record(&self, req: RecordEvent) -> Result<Event, EventError> {
-        if let Some(existing) = self.find_by_key(req.org_id, &req.idempotency_key).await? {
-            return Ok(existing);
-        }
-        let event = Event {
-            id: EventId::new(),
-            org_id: req.org_id,
-            idempotency_key: req.idempotency_key,
-            event_time: req.event_time,
-            meter: req.meter,
-            account_id: req.account_id,
-            run_id: req.run_id,
-            properties: req.properties,
-            status: EventStatus::Recorded,
-            supersedes: None,
-            created_at: OffsetDateTime::now_utc(),
-        };
+        let event = req.into_event();
         self.insert_event(&event).await?;
         Ok(event)
+    }
+
+    async fn record_batch(&self, reqs: Vec<RecordEvent>) -> Result<Vec<Event>, EventError> {
+        if reqs.is_empty() {
+            return Ok(Vec::new());
+        }
+        // The firehose path: build every event (content-addressed id ⇒ idempotency needs no read) and
+        // write the whole batch in a single ClickHouse insert. Duplicate keys collapse on
+        // `(org_id, id)` via the `ReplacingMergeTree`, so no read-before-write is required.
+        let events: Vec<Event> = reqs.into_iter().map(RecordEvent::into_event).collect();
+        let mut insert = self.client.insert("events").map_err(backend)?;
+        for event in &events {
+            let row = self.event_to_row(event)?;
+            insert.write(&row).await.map_err(backend)?;
+        }
+        insert.end().await.map_err(backend)?;
+        Ok(events)
     }
 
     async fn get(&self, id: EventId) -> Result<Event, EventError> {

@@ -75,6 +75,40 @@ pub async fn amend_supersedes<S: EventStore>(store: &S) {
     assert_eq!(current[0].properties["input"], json!(1200));
 }
 
+/// A batch records every event, returns them in request order, and is idempotent per key.
+pub async fn record_batch_is_idempotent_and_ordered<S: EventStore>(store: &S) {
+    let (org, account) = (OrgId::new(), AccountId::new());
+    let reqs = vec![
+        record_req(org, account, "batch-1", None),
+        record_req(org, account, "batch-2", None),
+        record_req(org, account, "batch-3", None),
+    ];
+    let recorded = store.record_batch(reqs).await.expect("record_batch");
+    assert_eq!(recorded.len(), 3);
+    assert_eq!(recorded[0].idempotency_key, "batch-1");
+    assert_eq!(recorded[2].idempotency_key, "batch-3");
+
+    // Re-recording overlapping keys (mixed batch + single) is idempotent: ids are stable and the
+    // live set never double-counts a key.
+    let again = store
+        .record_batch(vec![
+            record_req(org, account, "batch-2", None),
+            record_req(org, account, "batch-4", None),
+        ])
+        .await
+        .expect("record_batch again");
+    assert_eq!(again[0].id, recorded[1].id);
+    let single = store
+        .record(record_req(org, account, "batch-1", None))
+        .await
+        .expect("record");
+    assert_eq!(single.id, recorded[0].id);
+    assert_eq!(
+        store.list_for_account(account).await.expect("list").len(),
+        4
+    );
+}
+
 /// Voiding a run voids every current event of that run.
 pub async fn void_run_voids_events<S: EventStore>(store: &S) {
     let (org, account, run) = (OrgId::new(), AccountId::new(), RunId::new());
@@ -98,6 +132,7 @@ pub async fn void_run_voids_events<S: EventStore>(store: &S) {
 pub async fn run_all_scenarios<S: EventStore>(store: &S) {
     record_and_get(store).await;
     record_is_idempotent(store).await;
+    record_batch_is_idempotent_and_ordered(store).await;
     amend_supersedes(store).await;
     void_run_voids_events(store).await;
 }

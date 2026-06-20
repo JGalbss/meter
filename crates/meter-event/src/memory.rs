@@ -27,32 +27,31 @@ impl InMemoryEventStore {
     fn lock(&self) -> MutexGuard<'_, Vec<Event>> {
         self.events.lock().expect("event store mutex poisoned")
     }
+
+    /// Record one event under an already-held lock, deduplicating on the content-addressed id so the
+    /// oracle matches a `ReplacingMergeTree`'s `(org_id, id)` dedup (same key → same id → counted once).
+    fn record_locked(events: &mut Vec<Event>, req: RecordEvent) -> Event {
+        let event = req.into_event();
+        if let Some(existing) = events.iter().find(|stored| stored.id == event.id) {
+            return existing.clone();
+        }
+        events.push(event.clone());
+        event
+    }
 }
 
 #[async_trait]
 impl EventStore for InMemoryEventStore {
     async fn record(&self, req: RecordEvent) -> Result<Event, EventError> {
+        Ok(Self::record_locked(&mut self.lock(), req))
+    }
+
+    async fn record_batch(&self, reqs: Vec<RecordEvent>) -> Result<Vec<Event>, EventError> {
         let mut events = self.lock();
-        if let Some(existing) = events.iter().find(|event| {
-            event.org_id == req.org_id && event.idempotency_key == req.idempotency_key
-        }) {
-            return Ok(existing.clone());
-        }
-        let event = Event {
-            id: EventId::new(),
-            org_id: req.org_id,
-            idempotency_key: req.idempotency_key,
-            event_time: req.event_time,
-            meter: req.meter,
-            account_id: req.account_id,
-            run_id: req.run_id,
-            properties: req.properties,
-            status: EventStatus::Recorded,
-            supersedes: None,
-            created_at: OffsetDateTime::now_utc(),
-        };
-        events.push(event.clone());
-        Ok(event)
+        Ok(reqs
+            .into_iter()
+            .map(|req| Self::record_locked(&mut events, req))
+            .collect())
     }
 
     async fn get(&self, id: EventId) -> Result<Event, EventError> {

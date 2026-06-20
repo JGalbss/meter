@@ -41,6 +41,17 @@ impl<T> Id<T> {
     pub const fn as_uuid(&self) -> Uuid {
         self.value
     }
+
+    /// Derive a *stable* id from a namespace UUID and a name (UUIDv5).
+    ///
+    /// Same inputs always yield the same id. This enables content-addressed idempotency on the hot
+    /// path: an event's id is a pure function of `(org_id, idempotency_key)`, so re-recording the same
+    /// key produces the same id and a `ReplacingMergeTree` keyed on the id collapses the duplicate —
+    /// no read-before-write is needed to deduplicate.
+    #[must_use]
+    pub fn deterministic(namespace: Uuid, name: &[u8]) -> Self {
+        Self::from_uuid(Uuid::new_v5(&namespace, name))
+    }
 }
 
 impl<T> Default for Id<T> {
@@ -168,6 +179,27 @@ mod tests {
         assert_eq!(json, format!("\"{id}\""));
         let back: UserId = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(id, back);
+    }
+
+    #[test]
+    fn deterministic_ids_are_stable_and_namespaced() {
+        let org_a = OrgId::new().as_uuid();
+        let org_b = OrgId::new().as_uuid();
+        // Same namespace + name → identical id (the basis for read-free idempotency).
+        assert_eq!(
+            EventId::deterministic(org_a, b"key-1"),
+            EventId::deterministic(org_a, b"key-1")
+        );
+        // Different name → different id.
+        assert_ne!(
+            EventId::deterministic(org_a, b"key-1"),
+            EventId::deterministic(org_a, b"key-2")
+        );
+        // Same name, different namespace → different id (no cross-tenant collisions).
+        assert_ne!(
+            EventId::deterministic(org_a, b"key-1"),
+            EventId::deterministic(org_b, b"key-1")
+        );
     }
 
     #[test]

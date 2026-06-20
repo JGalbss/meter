@@ -65,11 +65,17 @@ impl ModelCatalogEntry {
     }
 }
 
-/// The curated catalog. Anthropic flagship models are seeded with established standard-context price
-/// points (USD per token); other providers are populated by the hosted scraper.
+/// The curated catalog. Flagship models from the major providers are seeded with established
+/// standard-context price points (USD per token); coverage is extended by the hosted scraper.
+///
+/// Where a provider has no distinct cache-write price (prompt caching is automatic, charged at the
+/// standard input rate), `cache_write_per_token` equals `input_per_token` — a best-effort mapping
+/// onto meter's per-dimension model. Prices are best-effort as of [`CATALOG_AS_OF`]; verify against
+/// the provider before billing.
 #[must_use]
 pub fn catalog() -> Vec<ModelCatalogEntry> {
     vec![
+        // --- Anthropic (explicit 5-min cache-write surcharge of 1.25x input). ---
         ModelCatalogEntry {
             provider: "anthropic",
             model_id: "claude-opus-4-8",
@@ -93,6 +99,40 @@ pub fn catalog() -> Vec<ModelCatalogEntry> {
             cache_read_per_token: dec!(0.0000001),
             cache_write_per_token: dec!(0.00000125),
             output_per_token: dec!(0.000005),
+        },
+        // --- OpenAI (cached input billed at the discounted read rate; no separate write charge). ---
+        ModelCatalogEntry {
+            provider: "openai",
+            model_id: "gpt-5",
+            input_per_token: dec!(0.00000125),
+            cache_read_per_token: dec!(0.000000125),
+            cache_write_per_token: dec!(0.00000125),
+            output_per_token: dec!(0.00001),
+        },
+        ModelCatalogEntry {
+            provider: "openai",
+            model_id: "gpt-5-mini",
+            input_per_token: dec!(0.00000025),
+            cache_read_per_token: dec!(0.000000025),
+            cache_write_per_token: dec!(0.00000025),
+            output_per_token: dec!(0.000002),
+        },
+        // --- Google (Gemini; standard <=200k context tier; cached billed at the read rate). ---
+        ModelCatalogEntry {
+            provider: "google",
+            model_id: "gemini-2.5-pro",
+            input_per_token: dec!(0.00000125),
+            cache_read_per_token: dec!(0.00000031),
+            cache_write_per_token: dec!(0.00000125),
+            output_per_token: dec!(0.00001),
+        },
+        ModelCatalogEntry {
+            provider: "google",
+            model_id: "gemini-2.5-flash",
+            input_per_token: dec!(0.0000003),
+            cache_read_per_token: dec!(0.000000075),
+            cache_write_per_token: dec!(0.0000003),
+            output_per_token: dec!(0.0000025),
         },
     ]
 }
@@ -122,6 +162,45 @@ mod tests {
         assert!(!catalog().is_empty());
         assert!(find("claude-opus-4-8").is_some());
         assert!(find("nonexistent-model").is_none());
+    }
+
+    #[test]
+    fn covers_the_major_providers() {
+        for model in ["claude-opus-4-8", "gpt-5", "gemini-2.5-pro"] {
+            assert!(find(model).is_some(), "{model} should be in the catalog");
+        }
+        let providers: std::collections::BTreeSet<_> =
+            catalog().iter().map(|entry| entry.provider).collect();
+        assert!(providers.contains("anthropic"));
+        assert!(providers.contains("openai"));
+        assert!(providers.contains("google"));
+    }
+
+    #[test]
+    fn every_entry_builds_a_four_component_card() {
+        for entry in catalog() {
+            let card = entry.provider_cost_card();
+            assert_eq!(card.components.len(), 4, "{} components", entry.model_id);
+            assert_eq!(card.kind, RateCardKind::ProviderCost);
+            assert_eq!(card.margin, Margin::NONE);
+        }
+    }
+
+    #[test]
+    fn prices_openai_and_google_models() {
+        // gpt-5: 1000 input @ $1.25/M + 500 output @ $10/M = 0.00125 + 0.005 = 0.00625
+        let gpt5 = rate_card_for("gpt-5").expect("gpt-5 in catalog");
+        let usage = Usage::new(Modality::Text, ContextTier::Standard)
+            .with(PricingDimension::InputUncached, dec!(1000))
+            .with(PricingDimension::Output, dec!(500));
+        assert_eq!(cost(&usage, &gpt5).expect("priced").amount(), dec!(0.00625));
+
+        // gemini-2.5-flash: 1000 input @ $0.30/M + 500 output @ $2.50/M = 0.0003 + 0.00125 = 0.00155
+        let flash = rate_card_for("gemini-2.5-flash").expect("gemini flash in catalog");
+        assert_eq!(
+            cost(&usage, &flash).expect("priced").amount(),
+            dec!(0.00155)
+        );
     }
 
     #[test]

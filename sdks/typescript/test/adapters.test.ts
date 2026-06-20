@@ -5,6 +5,7 @@ import {
   anthropicUsage,
   bedrockUsage,
   geminiUsage,
+  meterModelUsage,
   meteredCall,
   openaiUsage,
   recordModelUsage,
@@ -127,5 +128,48 @@ describe("meteredCall", () => {
 
     expect(result).toBe(providerResponse);
     expect(recorded.some((url) => url.endsWith("/v1/events"))).toBe(true);
+  });
+});
+
+describe("meterModelUsage", () => {
+  it("prices and charges via /v1/usage", async () => {
+    let url: string | undefined;
+    let body: Record<string, unknown> | undefined;
+    const fetchMock = async (requestUrl: string, init?: RequestInit): Promise<Response> => {
+      url = requestUrl;
+      body = JSON.parse((init?.body as string) ?? "{}") as Record<string, unknown>;
+      return jsonResponse(200, {
+        credits: "52500",
+        cogs_usd: "0.0525",
+        customer_price_usd: "0.0525",
+        event_id: "evt-1",
+        charged: true,
+        settled: "947500",
+        available: "947500",
+      });
+    };
+    const client = new MeterClient({
+      baseUrl: "http://engine",
+      fetch: fetchMock as unknown as typeof fetch,
+    });
+
+    const result = await meterModelUsage(client, {
+      orgId: "org-1",
+      account: "acc-1",
+      model: "claude-opus-4-8",
+      idempotencyKey: "run-1",
+      runId: "run-1",
+      usage: anthropicUsage({ input_tokens: 1000, output_tokens: 500 }),
+    });
+
+    expect(url).toBe("http://engine/v1/usage");
+    expect(body).toMatchObject({
+      model: "claude-opus-4-8",
+      account: "acc-1",
+      run_id: "run-1",
+      usage: { input_uncached: 1000, output: 500 },
+    });
+    expect(result.charged).toBe(true);
+    expect(result.credits).toBe("52500");
   });
 });

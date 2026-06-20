@@ -107,6 +107,29 @@ class MeterClient:
         query = urlencode({"start": start, "end": end})
         return self._get(f"/v1/accounts/{account}/invoice?{query}")
 
+    def meter_usage(
+        self,
+        *,
+        org_id: str,
+        account: str,
+        model: str,
+        idempotency_key: str,
+        usage: dict[str, int],
+        run_id: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """Price token usage via the catalog, record the event, and charge credits (idempotent)."""
+        return self._post(
+            "/v1/usage",
+            {
+                "org_id": org_id,
+                "account": account,
+                "model": model,
+                "idempotency_key": idempotency_key,
+                "run_id": run_id,
+                "usage": usage,
+            },
+        )
+
     def _get(self, path: str) -> Any:
         return self._send("GET", path, None)
 

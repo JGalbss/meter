@@ -12,6 +12,7 @@ from meter import (
     anthropic_usage,
     bedrock_usage,
     gemini_usage,
+    meter_model_usage,
     openai_usage,
     record_model_usage,
     with_run,
@@ -115,6 +116,26 @@ class AdapterTests(unittest.TestCase):
             (usage.input_uncached, usage.cache_read, usage.cache_write, usage.output),
             (900, 100, 20, 300),
         )
+
+    def test_meter_model_usage_calls_usage_endpoint(self) -> None:
+        transport, calls = make_transport(
+            lambda _m, _u: (200, {"credits": "52500", "charged": True, "settled": "947500"})
+        )
+        client = MeterClient("http://engine", transport)
+        result = meter_model_usage(
+            client,
+            org_id="org-1",
+            account="acc-1",
+            model="claude-opus-4-8",
+            idempotency_key="run-1",
+            run_id="run-1",
+            usage=anthropic_usage({"input_tokens": 1000, "output_tokens": 500}),
+        )
+        self.assertTrue(result["charged"])
+        _method, url, body = calls[0]
+        self.assertTrue(url.endswith("/v1/usage"))
+        self.assertEqual(body["model"], "claude-opus-4-8")
+        self.assertEqual(body["usage"]["input_uncached"], 1000)
 
     def test_record_model_usage_emits_event(self) -> None:
         transport, calls = make_transport(lambda _m, _u: (200, {"id": "evt-1", "status": "recorded"}))

@@ -77,6 +77,33 @@ def bedrock_usage(usage: dict[str, Any]) -> TokenUsage:
     )
 
 
+def meter_model_usage(
+    client: MeterClient,
+    *,
+    org_id: str,
+    account: str,
+    model: str,
+    usage: TokenUsage,
+    idempotency_key: str,
+    run_id: Optional[str] = None,
+) -> dict[str, Any]:
+    """Price + charge normalized model usage in one idempotent call (records the event, debits credits)."""
+    return client.meter_usage(
+        org_id=org_id,
+        account=account,
+        model=model,
+        idempotency_key=idempotency_key,
+        run_id=run_id,
+        usage={
+            "input_uncached": usage.input_uncached,
+            "cache_read": usage.cache_read,
+            "cache_write": usage.cache_write,
+            "output": usage.output,
+            "reasoning": usage.reasoning,
+        },
+    )
+
+
 def record_model_usage(
     client: MeterClient,
     *,

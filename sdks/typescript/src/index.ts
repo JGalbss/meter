@@ -4,6 +4,7 @@ export { MeterClient } from "./client";
 export type {
   GrantInput,
   MeterClientOptions,
+  MeterUsageInput,
   OpenAccountInput,
   RecordEventInput,
   ReserveInput,
@@ -22,6 +23,8 @@ export {
   type LimitClass,
   type ReserveOutcome,
   type UsageEvent,
+  type UsageResult,
+  type UsageTokens,
   type Uuid,
 } from "./types";
 export {
@@ -29,6 +32,7 @@ export {
   bedrockUsage,
   geminiUsage,
   meteredCall,
+  meterModelUsage,
   openaiUsage,
   recordModelUsage,
   vercelAiUsage,
@@ -38,6 +42,7 @@ export type {
   AnthropicUsage,
   BedrockUsage,
   GeminiUsage,
+  MeterModelInput,
   MeterModelUsageInput,
   OpenAiUsage,
   TokenUsage,

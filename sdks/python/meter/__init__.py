@@ -7,6 +7,7 @@ from .adapters import (
     anthropic_usage,
     bedrock_usage,
     gemini_usage,
+    meter_model_usage,
     openai_usage,
     record_model_usage,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "anthropic_usage",
     "bedrock_usage",
     "gemini_usage",
+    "meter_model_usage",
     "openai_usage",
     "record_model_usage",
     "with_run",

@@ -1,7 +1,7 @@
 //! Instrumentation: emit normalized model usage to meter, and wrap provider calls.
 
-import type { MeterClient, RecordEventInput } from "../client";
-import type { UsageEvent, Uuid } from "../types";
+import type { MeterClient, MeterUsageInput, RecordEventInput } from "../client";
+import type { UsageEvent, UsageResult, Uuid } from "../types";
 import type { TokenUsage } from "./usage";
 
 export interface MeterModelUsageInput {
@@ -57,4 +57,34 @@ export async function meteredCall<R>(
   const response = await call();
   await recordModelUsage(client, { ...input, usage: extractUsage(response) });
   return response;
+}
+
+export interface MeterModelInput {
+  readonly orgId: Uuid;
+  readonly account: Uuid;
+  readonly model: string;
+  readonly idempotencyKey: string;
+  readonly runId?: Uuid;
+  readonly usage: TokenUsage;
+}
+
+/** Price + charge normalized model usage in one idempotent call (records the event and debits credits). */
+export function meterModelUsage(client: MeterClient, input: MeterModelInput): Promise<UsageResult> {
+  const base: MeterUsageInput = {
+    orgId: input.orgId,
+    account: input.account,
+    model: input.model,
+    idempotencyKey: input.idempotencyKey,
+    usage: {
+      input_uncached: input.usage.inputUncached,
+      cache_read: input.usage.cacheRead,
+      cache_write: input.usage.cacheWrite,
+      output: input.usage.output,
+      reasoning: input.usage.reasoning,
+    },
+  };
+  if (input.runId !== undefined) {
+    return client.meterUsage({ ...base, runId: input.runId });
+  }
+  return client.meterUsage(base);
 }

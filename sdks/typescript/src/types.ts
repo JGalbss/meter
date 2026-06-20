@@ -74,3 +74,23 @@ export interface Invoice {
   readonly total_credits: string;
   readonly settle_count: number;
 }
+
+/** Token counts sent to the usage-metering endpoint (the wire shape). */
+export interface UsageTokens {
+  readonly input_uncached?: number;
+  readonly cache_read?: number;
+  readonly cache_write?: number;
+  readonly output?: number;
+  readonly reasoning?: number;
+}
+
+/** The result of metering usage: the priced credits, whether it charged, and the new balance. */
+export interface UsageResult {
+  readonly credits: string;
+  readonly cogs_usd: string;
+  readonly customer_price_usd: string;
+  readonly event_id: Uuid;
+  readonly charged: boolean;
+  readonly settled: string;
+  readonly available: string;
+}

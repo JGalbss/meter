@@ -10,6 +10,8 @@ import type {
   LimitClass,
   ReserveOutcome,
   UsageEvent,
+  UsageResult,
+  UsageTokens,
   Uuid,
 } from "./types";
 
@@ -49,6 +51,15 @@ export interface RecordEventInput {
   readonly runId?: Uuid;
   readonly properties?: Record<string, unknown>;
   readonly eventTime?: string;
+}
+
+export interface MeterUsageInput {
+  readonly orgId: Uuid;
+  readonly account: Uuid;
+  readonly model: string;
+  readonly idempotencyKey: string;
+  readonly runId?: Uuid;
+  readonly usage: UsageTokens;
 }
 
 interface EngineErrorBody {
@@ -136,6 +147,18 @@ export class MeterClient {
   invoice(account: Uuid, start: string, end: string): Promise<Invoice> {
     const query = new URLSearchParams({ start, end }).toString();
     return this.#get<Invoice>(`/v1/accounts/${account}/invoice?${query}`);
+  }
+
+  /** Price token usage via the catalog, record the event, and charge credits — one idempotent call. */
+  meterUsage(input: MeterUsageInput): Promise<UsageResult> {
+    return this.#post<UsageResult>("/v1/usage", {
+      org_id: input.orgId,
+      account: input.account,
+      model: input.model,
+      idempotency_key: input.idempotencyKey,
+      run_id: input.runId ?? null,
+      usage: input.usage,
+    });
   }
 
   #get<T>(path: string): Promise<T> {

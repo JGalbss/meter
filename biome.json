@@ -2,7 +2,13 @@
   "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
   "organizeImports": { "enabled": true },
   "files": {
-    "ignore": ["**/dist/**", "**/.next/**", "**/node_modules/**", "**/target/**"]
+    "ignore": [
+      "**/dist/**",
+      "**/.next/**",
+      "**/node_modules/**",
+      "**/target/**",
+      "**/drizzle/**"
+    ]
   },
   "formatter": {
     "enabled": true,

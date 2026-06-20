@@ -5,6 +5,7 @@
   "type": "module",
   "description": "meter control plane: config CRUD (Effect + Drizzle) — the API the dashboard hits",
   "scripts": {
+    "dev": "node --experimental-strip-types src/main.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate"

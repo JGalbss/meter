@@ -371,6 +371,122 @@ async fn usage_metering_over_http() {
 }
 
 #[tokio::test]
+async fn lease_flow_over_http() {
+    let (_container, app) = app().await;
+    let org = "11111111-1111-1111-1111-111111111111";
+
+    // Parent account funded with 100 credits.
+    let (_status, parent) = call(
+        &app,
+        "POST",
+        "/v1/accounts",
+        &json!({ "org_id": org, "scope": "org", "no_overdraft": true }),
+    )
+    .await;
+    let parent_id = parent["id"].as_str().expect("parent id").to_owned();
+    call(
+        &app,
+        "POST",
+        &format!("/v1/accounts/{parent_id}/grants"),
+        &json!({ "amount": "100", "source": "paid" }),
+    )
+    .await;
+
+    // Open a lease for 60: a Session child funded by a conserving transfer from the parent.
+    let (status, lease) = call(
+        &app,
+        "POST",
+        "/v1/leases",
+        &json!({ "parent": parent_id, "amount": "60" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(lease["scope"], "session");
+    assert_eq!(lease["parent_id"], parent_id);
+    let lease_id = lease["id"].as_str().expect("lease id").to_owned();
+
+    // Credits are conserved: parent 40, lease 60.
+    let (_status, parent_balance) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{parent_id}/balance"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(parent_balance["settled"], "40");
+    let (_status, lease_balance) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{lease_id}/balance"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(lease_balance["settled"], "60");
+
+    // The session reserves 50 against the lease and settles 20 — lease settled becomes 40.
+    let reservation = "66666666-6666-6666-6666-666666666666";
+    let (_status, outcome) = call(
+        &app,
+        "POST",
+        "/v1/reservations",
+        &json!({
+            "account": lease_id,
+            "reservation_id": reservation,
+            "amount": "50",
+            "limit": "hard"
+        }),
+    )
+    .await;
+    assert_eq!(outcome["outcome"], "allowed");
+    call(
+        &app,
+        "POST",
+        &format!("/v1/reservations/{reservation}/settle"),
+        &json!({ "actual": "20" }),
+    )
+    .await;
+
+    // Close the lease: the unused 40 returns to the parent.
+    let (status, closed) = call(
+        &app,
+        "POST",
+        &format!("/v1/leases/{lease_id}/close"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(closed["returned"], "40");
+
+    // Conservation holds end to end: parent 80 + 20 spent == the original 100; the lease is drained.
+    let (_status, parent_after) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{parent_id}/balance"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(parent_after["settled"], "80");
+    let (_status, lease_after) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{lease_id}/balance"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(lease_after["settled"], "0");
+
+    // Over-leasing beyond the parent's available balance is refused (insufficient funds).
+    let (status, _err) = call(
+        &app,
+        "POST",
+        "/v1/leases",
+        &json!({ "parent": parent_id, "amount": "1000" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+}
+
+#[tokio::test]
 async fn budget_status_over_http() {
     let (_container, app) = app().await;
     let org = "11111111-1111-1111-1111-111111111111";

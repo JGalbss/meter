@@ -26,6 +26,13 @@ pub struct GrantBody {
     pub idempotency_key: Option<String>,
 }
 
+/// `POST /v1/leases`
+#[derive(Debug, Deserialize)]
+pub struct OpenLeaseBody {
+    pub parent: AccountId,
+    pub amount: Credit,
+}
+
 /// `POST /v1/reservations`
 #[derive(Debug, Deserialize)]
 pub struct ReserveBody {

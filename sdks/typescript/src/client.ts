@@ -43,6 +43,11 @@ export interface ReserveInput {
   readonly limit: LimitClass;
 }
 
+export interface OpenLeaseInput {
+  readonly parent: Uuid;
+  readonly amount: string;
+}
+
 export interface RecordEventInput {
   readonly orgId: Uuid;
   readonly idempotencyKey: string;
@@ -117,6 +122,17 @@ export class MeterClient {
 
   async voidReservation(reservationId: Uuid): Promise<void> {
     await this.#send<unknown>("POST", `/v1/reservations/${reservationId}/void`, undefined);
+  }
+
+  /** Open a per-session lease: a child account funded by a conserving transfer from the parent. */
+  openLease(input: OpenLeaseInput): Promise<Account> {
+    return this.#post<Account>("/v1/leases", { parent: input.parent, amount: input.amount });
+  }
+
+  /** Close a lease, returning its unused balance to the parent; resolves to the credits returned. */
+  async closeLease(leaseId: Uuid): Promise<string> {
+    const body = await this.#post<{ returned: string }>(`/v1/leases/${leaseId}/close`, undefined);
+    return body.returned;
   }
 
   recordEvent(input: RecordEventInput): Promise<UsageEvent> {

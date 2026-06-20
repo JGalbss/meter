@@ -78,6 +78,23 @@ POST /v1/reservations/{id}/settle   # body: { "actual": "<credits>" } — resolv
 POST /v1/reservations/{id}/void     # release the hold without charge
 ```
 
+### Leases (per-session budgets)
+
+```
+POST /v1/leases
+```
+
+Open a lease: a `Session` child account funded by a conserving transfer from the parent. Body:
+`{ "parent": <uuid>, "amount": "<credits>" }`. Returns the child account. Refused with `409` if the
+parent cannot cover the amount.
+
+```
+POST /v1/leases/{id}/close
+```
+
+Close a lease, returning its unused balance (`settled − held`) to the parent. Returns
+`{ "returned": "<credits>" }`. Credits are conserved end to end.
+
 ### Usage (the core loop)
 
 ```
@@ -172,5 +189,7 @@ POST /v1/notifications/{id}/ack
 
 ---
 
-> The control plane emits an OpenAPI document used to generate typed clients, and the engine ⇄
-> control-plane contract is defined in protobuf. Hand-mirrored wire types are never checked in.
+> **Contracts (roadmap).** The control-plane ⇄ client contract will be an OpenAPI document with
+> generated typed clients, and the engine ⇄ control-plane contract will be defined in protobuf — so wire
+> types are generated, never hand-mirrored. Both are tracked in the project tickets; until then the
+> engine API above is the stable surface.

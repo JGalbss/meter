@@ -50,6 +50,26 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(url, "http://engine/v1/accounts")
         self.assertEqual(body["org_id"], "org-1")
 
+    def test_open_and_close_lease(self) -> None:
+        def handler(_method: str, url: str):
+            if url.endswith("/leases"):
+                return 200, {"id": "lease-1", "scope": "session", "parent_id": "acc-1"}
+            return 200, {"returned": "40"}
+
+        transport, calls = make_transport(handler)
+        client = MeterClient("http://engine", transport)
+
+        lease = client.open_lease(parent="acc-1", amount="60")
+        self.assertEqual(lease["id"], "lease-1")
+        self.assertEqual(lease["scope"], "session")
+        _method, url, body = calls[0]
+        self.assertTrue(url.endswith("/v1/leases"))
+        self.assertEqual(body, {"parent": "acc-1", "amount": "60"})
+
+        returned = client.close_lease("lease-1")
+        self.assertEqual(returned, "40")
+        self.assertTrue(any(u.endswith("/v1/leases/lease-1/close") for _m, u, _b in calls))
+
     def test_non_2xx_raises_meter_error(self) -> None:
         transport, _ = make_transport(
             lambda _m, _u: (404, {"error": "not_found", "message": "account not found"})

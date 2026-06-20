@@ -6,6 +6,7 @@ export type {
   MeterClientOptions,
   MeterUsageInput,
   OpenAccountInput,
+  OpenLeaseInput,
   RecordEventInput,
   ReserveInput,
 } from "./client";

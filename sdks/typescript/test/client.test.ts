@@ -40,6 +40,41 @@ describe("MeterClient", () => {
     });
   });
 
+  it("opens and closes a lease", async () => {
+    const calls: string[] = [];
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push(`${init?.method ?? "GET"} ${url}`);
+      if (url.endsWith("/leases")) {
+        return jsonResponse(200, {
+          id: "lease-1",
+          org_id: "org-1",
+          scope: "session",
+          no_overdraft: true,
+          parent_id: "acc-1",
+        });
+      }
+      return jsonResponse(200, { returned: "40" });
+    });
+    const client = new MeterClient({
+      baseUrl: "http://engine",
+      fetch: fetchMock as unknown as typeof fetch,
+    });
+
+    const lease = await client.openLease({ parent: "acc-1", amount: "60" });
+    expect(lease.id).toBe("lease-1");
+    expect(lease.scope).toBe("session");
+    const openCall = fetchMock.mock.calls[0];
+    expect(openCall?.[0]).toBe("http://engine/v1/leases");
+    expect(JSON.parse((openCall?.[1] as RequestInit).body as string)).toEqual({
+      parent: "acc-1",
+      amount: "60",
+    });
+
+    const returned = await client.closeLease("lease-1");
+    expect(returned).toBe("40");
+    expect(calls).toContain("POST http://engine/v1/leases/lease-1/close");
+  });
+
   it("throws a MeterError carrying the engine code on a non-2xx response", async () => {
     const fetchMock = vi.fn(async () =>
       jsonResponse(404, { error: "not_found", message: "account not found" }),

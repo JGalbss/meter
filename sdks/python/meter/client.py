@@ -69,6 +69,15 @@ class MeterClient:
     def void_reservation(self, reservation_id: str) -> None:
         self._send("POST", f"/v1/reservations/{reservation_id}/void", None)
 
+    def open_lease(self, *, parent: str, amount: str) -> dict[str, Any]:
+        """Open a per-session lease: a child account funded by a conserving transfer from the parent."""
+        return self._post("/v1/leases", {"parent": parent, "amount": amount})
+
+    def close_lease(self, lease_id: str) -> str:
+        """Close a lease, returning its unused balance to the parent; returns the credits returned."""
+        body = self._post(f"/v1/leases/{lease_id}/close", None)
+        return str(body["returned"])
+
     def record_event(
         self,
         *,

@@ -61,6 +61,7 @@ meter-event = { path = "crates/meter-event" }
 meter-ledger = { path = "crates/meter-ledger" }
 meter-enforcement = { path = "crates/meter-enforcement" }
 meter-store-pg = { path = "crates/meter-store-pg" }
+meter-store-ch = { path = "crates/meter-store-ch" }
 meter-api = { path = "crates/meter-api" }
 
 [workspace.lints.clippy]

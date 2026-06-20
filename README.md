@@ -52,11 +52,12 @@ Docs: [VISION](docs/VISION.md) · [ARCHITECTURE](docs/ARCHITECTURE.md) · [SLO](
 ## Quickstart (engine)
 
 ```bash
-# 1. Start Postgres
-docker compose -f deploy/dev/docker-compose.yml up -d postgres
+# 1. Start Postgres (money-truth) + ClickHouse (events, ADR 0003)
+docker compose -f deploy/dev/docker-compose.yml up -d postgres clickhouse
 
-# 2. Run the engine (applies ledger migrations on boot)
-METER_DATABASE_URL=postgres://meter:meter@localhost:5432/meter cargo run -p meter-engine
+# 2. Run the engine (applies ledger migrations on Postgres + event migrations on ClickHouse on boot)
+METER_DATABASE_URL=postgres://meter:meter@localhost:5432/meter \
+  METER_CLICKHOUSE_URL=http://localhost:8123 cargo run -p meter-engine
 
 # 3. Exercise the ledger
 curl localhost:8080/health

@@ -8,24 +8,28 @@ use axum::Router;
 use http_body_util::BodyExt;
 use meter_api::{router, AppState};
 use meter_core::{Currency, Money};
-use meter_store_pg::{PgAuditLog, PgEventStore, PgLedger};
+use meter_store_ch::ChStore;
+use meter_store_pg::{PgAuditLog, PgLedger};
 use rust_decimal::Decimal;
 use serde_json::{json, Value};
 use sqlx::postgres::PgPoolOptions;
+use testcontainers_modules::clickhouse::ClickHouse;
 use testcontainers_modules::postgres::Postgres;
 use testcontainers_modules::testcontainers::runners::AsyncRunner;
 use testcontainers_modules::testcontainers::ContainerAsync;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tower::ServiceExt;
 
-// Bound concurrent Postgres containers so the suite is reliable regardless of the test-thread count
-// (spinning one container per test in full parallel overwhelms the Docker daemon).
+// Bound concurrent container sets so the suite is reliable regardless of the test-thread count
+// (spinning a container set per test in full parallel overwhelms the Docker daemon).
 static CONTAINER_LIMIT: LazyLock<Arc<Semaphore>> = LazyLock::new(|| Arc::new(Semaphore::new(2)));
 
-/// Keeps a test's container (and its concurrency permit) alive for the test's duration.
+/// Keeps a test's containers (and its concurrency permit) alive for the test's duration. Money-truth
+/// is Postgres; events live in ClickHouse (ADR 0003), so the engine needs both.
 struct TestApp {
     _permit: OwnedSemaphorePermit,
-    _container: ContainerAsync<Postgres>,
+    _postgres: ContainerAsync<Postgres>,
+    _clickhouse: ContainerAsync<ClickHouse>,
 }
 
 async fn app() -> (TestApp, Router) {
@@ -34,12 +38,13 @@ async fn app() -> (TestApp, Router) {
         .acquire_owned()
         .await
         .expect("container semaphore");
-    let container = Postgres::default().start().await.expect("start postgres");
-    let port = container
+
+    let postgres = Postgres::default().start().await.expect("start postgres");
+    let pg_port = postgres
         .get_host_port_ipv4(5432)
         .await
         .expect("postgres port");
-    let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
+    let url = format!("postgres://postgres:postgres@127.0.0.1:{pg_port}/postgres");
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&url)
@@ -47,13 +52,22 @@ async fn app() -> (TestApp, Router) {
         .expect("connect");
     let ledger = PgLedger::new(pool.clone());
     ledger.migrate().await.expect("migrate");
-    let events = PgEventStore::new(pool.clone());
     let audit = PgAuditLog::new(pool);
+
+    let clickhouse = ClickHouse::default().start().await.expect("start clickhouse");
+    let ch_port = clickhouse
+        .get_host_port_ipv4(8123)
+        .await
+        .expect("clickhouse port");
+    let events = ChStore::new(&format!("http://127.0.0.1:{ch_port}"));
+    events.migrate().await.expect("clickhouse migrate");
+
     // 1 credit = 1 micro-USD, so credits == COGS in micro-dollars.
     let credit_value = Money::new(Decimal::new(1, 6), Currency::new("USD").expect("usd"));
     let guard = TestApp {
         _permit: permit,
-        _container: container,
+        _postgres: postgres,
+        _clickhouse: clickhouse,
     };
     (
         guard,

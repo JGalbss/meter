@@ -1,0 +1,22 @@
+[package]
+name = "meter-core"
+description = "Core domain primitives for meter: typed ids, money, and credits"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+rust_decimal = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+rust_decimal_macros = { workspace = true }

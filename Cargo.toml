@@ -1,0 +1,59 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.88"
+license = "AGPL-3.0-only"
+repository = "https://github.com/JGalbss/meter"
+authors = ["Josh Galbreath"]
+
+[workspace.dependencies]
+# async runtime + web
+tokio = { version = "1", features = ["full"] }
+axum = "0.7"
+tower = "0.5"
+tower-http = { version = "0.6", features = ["trace", "cors"] }
+
+# serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# errors + observability
+thiserror = "1"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# domain primitives
+uuid = { version = "1", features = ["v7", "serde"] }
+rust_decimal = { version = "1", features = ["serde-with-str"] }
+rust_decimal_macros = "1"
+time = { version = "0.3", features = ["serde", "macros"] }
+
+# storage
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio",
+    "tls-rustls",
+    "postgres",
+    "uuid",
+    "rust_decimal",
+    "time",
+    "macros",
+    "migrate",
+] }
+
+# testing
+proptest = "1"
+
+# internal crates
+meter-core = { path = "crates/meter-core" }
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

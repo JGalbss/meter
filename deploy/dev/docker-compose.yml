@@ -1,0 +1,52 @@
+# Local development infrastructure for meter.
+#   docker compose -f deploy/dev/docker-compose.yml up -d
+#
+# Postgres is the system of record (money + config). ClickHouse holds the usage-event firehose and
+# analytics. Both are optional to run during early development of meter-core.
+
+name: meter-dev
+
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: meter
+      POSTGRES_PASSWORD: meter
+      POSTGRES_DB: meter
+    ports:
+      - "5432:5432"
+    volumes:
+      - meter_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U meter -d meter"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_USER: meter
+      CLICKHOUSE_PASSWORD: meter
+      CLICKHOUSE_DB: meter
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    ports:
+      - "8123:8123" # HTTP
+      - "9000:9000" # native
+    volumes:
+      - meter_ch:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8123/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  meter_pg:
+  meter_ch:

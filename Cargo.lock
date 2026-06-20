@@ -1852,8 +1852,12 @@ dependencies = [
 name = "meter-store-ch"
 version = "0.0.0"
 dependencies = [
+ "async-trait",
  "clickhouse",
+ "meter-core",
+ "meter-event",
  "serde",
+ "serde_json",
  "testcontainers-modules",
  "thiserror 1.0.69",
  "time",

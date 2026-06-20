@@ -26,6 +26,29 @@ ENGINE = ReplacingMergeTree(version)
 PARTITION BY toYYYYMM(ts)
 ORDER BY (org_id, event_id)";
 
+/// `CREATE TABLE events` — the editable event model (ADR 0002/0003): the system of record for usage
+/// events. A `ReplacingMergeTree(version)` keyed by `(org_id, id)`, so a status change (amend → the
+/// original becomes `amended`; `void_run` → `voided`) is a new row with a higher version; reads use
+/// `FINAL` to see the latest version of each event id. `properties` is the customer's JSON.
+pub const EVENTS: &str = "\
+CREATE TABLE IF NOT EXISTS events (
+    id              UUID,
+    org_id          UUID,
+    idempotency_key String,
+    event_time      DateTime64(3, 'UTC'),
+    meter           LowCardinality(String),
+    account_id      UUID,
+    run_id          Nullable(UUID),
+    properties      String,
+    status          LowCardinality(String),
+    supersedes      Nullable(UUID),
+    created_at      DateTime64(3, 'UTC'),
+    version         UInt64
+)
+ENGINE = ReplacingMergeTree(version)
+PARTITION BY toYYYYMM(event_time)
+ORDER BY (org_id, id)";
+
 /// `CREATE TABLE events_dead_letter` — events that failed validation/ingest, kept for inspection and
 /// replay (the raw payload plus the error).
 pub const EVENTS_DEAD_LETTER: &str = "\

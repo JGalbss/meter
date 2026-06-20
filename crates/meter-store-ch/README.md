@@ -24,6 +24,15 @@ store.record_dead_letter(&failed).await?;         // events that failed validati
 let dead = store.list_dead_letter(org).await?;    // inspect / replay
 ```
 
+## EventStore (ADR 0003)
+
+`ChStore` also implements `meter_event::EventStore` — the **system of record for events**. The editable
+model (record / get / list / amend / `void_run`, custom-field `properties`) lives in the `events`
+`ReplacingMergeTree`: a status change is a new row with the same `id` and a higher `version`, and reads
+use `FINAL` to resolve the latest version. It passes the **same** event conformance suite as the
+in-memory reference, against a real ClickHouse container.
+
+
 Verified by an integration test against a real ClickHouse container (`testcontainers-modules`):
 ingest → idempotent dedup via `FINAL` → aggregation by model.
 

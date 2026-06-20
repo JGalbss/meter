@@ -1,12 +1,17 @@
-//! ClickHouse analytics store for meter usage events (optional add-on).
+//! ClickHouse store for meter events + usage analytics.
 //!
-//! High-volume usage firehose + rollup queries for dashboards. This store is **analytics only** —
-//! money-truth lives in the engine's Postgres ledger (ADR 0001). Ingest is idempotent: `events_raw`
-//! is a `ReplacingMergeTree` keyed by `(org_id, event_id)`, so re-sending an event id dedups.
+//! Per ADR 0003 this is the **system of record for events** (the firehose), not just analytics:
+//! the editable event model (`EventStore`) lives here in `events`, alongside the `events_raw` usage
+//! rollup source and the `events_dead_letter` queue. Money-truth stays in the Postgres ledger
+//! (ADR 0001). Status changes are versioned rows in a `ReplacingMergeTree`; reads use `FINAL`.
 
 #![forbid(unsafe_code)]
 
+mod event_store;
 mod schema;
+
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 use clickhouse::Client;
 use serde::{Deserialize, Serialize};
@@ -80,22 +85,34 @@ struct CountRow {
     n: u64,
 }
 
-/// The analytics store over a ClickHouse server.
+/// The ClickHouse store over a ClickHouse server.
 #[derive(Clone)]
 pub struct ChStore {
     client: Client,
+    /// Strictly-increasing version source for the `events` ReplacingMergeTree (so a status change
+    /// always supersedes the prior row). Seeded from the wall clock; monotonic within a process.
+    version_seq: Arc<AtomicU64>,
 }
 
 impl ChStore {
     /// Connect to ClickHouse over its HTTP interface (e.g. `http://127.0.0.1:8123`).
     pub fn new(url: &str) -> Self {
+        let seed =
+            u64::try_from(OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000).unwrap_or(0);
         Self {
             client: Client::default().with_url(url),
+            version_seq: Arc::new(AtomicU64::new(seed)),
         }
     }
 
-    /// Apply the analytics schema (idempotent).
+    /// The next strictly-increasing version for an `events` row.
+    fn next_version(&self) -> u64 {
+        self.version_seq.fetch_add(1, Ordering::SeqCst)
+    }
+
+    /// Apply the schema (idempotent): events, the usage rollup source, and the dead-letter queue.
     pub async fn migrate(&self) -> Result<(), ChError> {
+        self.client.query(schema::EVENTS).execute().await?;
         self.client.query(schema::EVENTS_RAW).execute().await?;
         self.client
             .query(schema::EVENTS_DEAD_LETTER)

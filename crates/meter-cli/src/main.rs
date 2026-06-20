@@ -52,6 +52,15 @@ enum Command {
         #[arg(long)]
         account: Uuid,
     },
+    /// List an account's ledger entries (the immutable audit trail), oldest first.
+    Entries {
+        /// Postgres connection string (defaults to $`METER_DATABASE_URL`).
+        #[arg(long, env = "METER_DATABASE_URL")]
+        database_url: String,
+        /// The account id (UUID).
+        #[arg(long)]
+        account: Uuid,
+    },
     /// Grant credits to an existing account.
     Grant {
         /// Postgres connection string (defaults to $`METER_DATABASE_URL`).
@@ -120,6 +129,10 @@ async fn main() -> anyhow::Result<()> {
             database_url,
             account,
         } => balance(&database_url, AccountId::from_uuid(account)).await,
+        Command::Entries {
+            database_url,
+            account,
+        } => entries(&database_url, AccountId::from_uuid(account)).await,
         Command::Grant {
             database_url,
             account,
@@ -289,6 +302,25 @@ async fn balance(database_url: &str, account: AccountId) -> anyhow::Result<()> {
     println!("  settled   {} credits", balance.settled.value());
     println!("  held      {} credits", balance.held.value());
     println!("  available {} credits", balance.available().value());
+    Ok(())
+}
+
+async fn entries(database_url: &str, account: AccountId) -> anyhow::Result<()> {
+    let entries = connect(database_url)
+        .await?
+        .entries(account)
+        .await
+        .map_err(|error| anyhow::anyhow!("reading entries: {error}"))?;
+    println!("account {account} — {} entries", entries.len());
+    for entry in &entries {
+        println!(
+            "  {}  {:<8?}  delta {:>12}  balance {:>12}",
+            entry.created_at,
+            entry.entry_type,
+            entry.delta_credits.value().normalize(),
+            entry.balance_after.value().normalize(),
+        );
+    }
     Ok(())
 }
 

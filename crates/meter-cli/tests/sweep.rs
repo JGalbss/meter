@@ -163,6 +163,67 @@ async fn void_releases_a_specific_hold() {
 }
 
 #[tokio::test]
+async fn entries_lists_the_ledger_audit_trail() {
+    let postgres = Postgres::default().start().await.expect("start postgres");
+    let port = postgres
+        .get_host_port_ipv4(5432)
+        .await
+        .expect("postgres port");
+    let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&url)
+        .await
+        .expect("connect");
+    let ledger = PgLedger::new(pool);
+    ledger.migrate().await.expect("migrate");
+
+    let account = ledger
+        .open_account(NewAccount {
+            org_id: meter_core::OrgId::new(),
+            scope: AccountScope::Org,
+            no_overdraft: true,
+            parent_id: None,
+        })
+        .await
+        .expect("open")
+        .id;
+    ledger
+        .grant(GrantRequest {
+            account,
+            amount: Credit::from(100_i64),
+            source: CreditSource::Paid,
+            idempotency_key: None,
+        })
+        .await
+        .expect("grant");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_meterctl"))
+        .args([
+            "entries",
+            "--database-url",
+            &url,
+            "--account",
+            &account.to_string(),
+        ])
+        .output()
+        .expect("run meterctl entries");
+    assert!(
+        output.status.success(),
+        "entries failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // The grant shows up as one entry: a Grant with a +100 delta and 100 balance.
+    assert!(stdout.contains("1 entries"), "stdout: {stdout}");
+    assert!(stdout.contains("Grant"), "stdout: {stdout}");
+    assert!(
+        stdout.contains("delta") && stdout.contains("100"),
+        "stdout: {stdout}"
+    );
+}
+
+#[tokio::test]
 async fn void_run_reverses_a_runs_holds_and_settles() {
     let postgres = Postgres::default().start().await.expect("start postgres");
     let port = postgres

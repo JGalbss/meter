@@ -12,6 +12,9 @@ import { signPayload } from "./signature";
 
 const MAX_RETRIES = 2;
 const TIMEOUT_MS = 5000;
+// Bounded fan-out: cap concurrent outbound deliveries so a large endpoint list can't spawn an
+// unbounded fiber-per-endpoint burst with no backpressure.
+const DELIVERY_CONCURRENCY = 8;
 
 /** A non-2xx response or transport error. `responseStatus` is null when no response was received. */
 class DeliveryFailed {
@@ -26,6 +29,11 @@ function toDeliveryFailed(cause: unknown): DeliveryFailed {
     return cause;
   }
   return new DeliveryFailed(null, String(cause));
+}
+
+/** Retry only transient failures: a network error (no response) or a 5xx. A 4xx won't change on retry. */
+function isRetryable(failure: DeliveryFailed): boolean {
+  return failure.responseStatus === null || failure.responseStatus >= 500;
 }
 
 /** An empty event-type list means "all events". */
@@ -66,7 +74,8 @@ function deliver(
     const sendOnce = Effect.zipRight(
       Ref.update(attempts, (n) => n + 1),
       Effect.tryPromise({
-        try: async () => {
+        // Abort on either fiber interruption (Effect's signal) or the per-attempt timeout.
+        try: async (signal) => {
           const response = await fetch(webhook.url, {
             method: "POST",
             headers: {
@@ -75,7 +84,7 @@ function deliver(
               "x-meter-signature": signature,
             },
             body,
-            signal: AbortSignal.timeout(TIMEOUT_MS),
+            signal: AbortSignal.any([signal, AbortSignal.timeout(TIMEOUT_MS)]),
           });
           if (!response.ok) {
             throw new DeliveryFailed(response.status, `endpoint responded ${response.status}`);
@@ -90,7 +99,10 @@ function deliver(
       Schedule.recurs(MAX_RETRIES),
       Schedule.spaced(Duration.millis(50)),
     );
-    const outcome = yield* sendOnce.pipe(Effect.retry(schedule), Effect.either);
+    const outcome = yield* sendOnce.pipe(
+      Effect.retry({ schedule, while: isRetryable }),
+      Effect.either,
+    );
     const tries = yield* Ref.get(attempts);
 
     const record = Match.value(outcome).pipe(
@@ -133,10 +145,12 @@ export function dispatchForNotification(
     Effect.map((hooks) => hooks.filter((hook) => matchesEvent(hook.eventTypes, notification.type))),
     Effect.flatMap((hooks) =>
       Effect.forEach(hooks, (hook) => deliver(db, hook, notification), {
-        concurrency: "unbounded",
+        concurrency: DELIVERY_CONCURRENCY,
         discard: true,
       }),
     ),
-    Effect.catchAll(() => Effect.void),
+    // Best-effort: never fail the caller, but don't swallow silently — a failure here means the
+    // webhook list couldn't be read, which is worth a log line.
+    Effect.catchAll((cause) => Effect.logError("webhook dispatch failed", cause)),
   );
 }

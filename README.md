@@ -99,7 +99,8 @@ The Rust engine is functional and tested end-to-end against real Postgres:
 - **Pricing** — multi-dimensional rate cards; token→credit translation with margin (`meter-pricing`).
 - **Enforcement** — reserve→settle priced via rate cards (`meter-enforcement`).
 - **Events** — editable, custom-field usage events: record (idempotent), amend (append-only version),
-  `void_run`; latest-non-voided reads.
+  `void_run`; latest-non-voided reads. The system of record is **ClickHouse** (ADR 0003); conformance-
+  tested identically to the in-memory reference.
 - **Invoicing** — deterministic invoice summed from the ledger (`enforced == billed`).
 - **Catalog** — curated model rate-card snapshot (`meter-ratecards`).
 - **Engine** — the `meter` binary serving HTTP; `meterctl` admin CLI; Docker image + compose.

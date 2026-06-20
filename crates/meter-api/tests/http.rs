@@ -1108,6 +1108,14 @@ async fn openapi_document_is_served() {
     assert!(doc["paths"]["/v1/runs/{id}/void"]["post"].is_object());
     assert!(doc["components"]["schemas"]["RecordEventBody"].is_object());
     assert!(doc["components"]["schemas"]["AmendBody"].is_object());
+
+    // Usage (token-priced metering) group.
+    assert!(doc["paths"]["/v1/usage"]["post"].is_object());
+    assert!(doc["paths"]["/v1/usage/reserve"]["post"].is_object());
+    assert!(doc["paths"]["/v1/usage/reservations/{id}/settle"]["post"].is_object());
+    assert!(doc["paths"]["/v1/simulate"]["post"].is_object());
+    assert!(doc["components"]["schemas"]["MeterUsageBody"].is_object());
+    assert!(doc["components"]["schemas"]["UsageDimensions"].is_object());
 }
 
 #[tokio::test]

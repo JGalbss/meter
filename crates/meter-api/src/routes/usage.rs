@@ -16,6 +16,13 @@ use meter_ledger::{ChargeRequest, LedgerBackend, ReservationId, ReserveRequest, 
 use meter_pricing::price_usage;
 
 /// `POST /v1/usage`
+#[utoipa::path(
+    post,
+    path = "/v1/usage",
+    request_body = MeterUsageBody,
+    responses((status = 200, description = "Priced, recorded, and charged; returns credits + balance")),
+    tag = "usage"
+)]
 pub async fn meter_usage(
     State(state): State<AppState>,
     Json(body): Json<MeterUsageBody>,
@@ -75,6 +82,13 @@ pub async fn meter_usage(
 
 /// `POST /v1/usage/reserve` — price a worst-case estimate against a catalog model and place a hold.
 /// The engine computes the credits (ADR 0001). Returns the reserve outcome plus the reserved credits.
+#[utoipa::path(
+    post,
+    path = "/v1/usage/reserve",
+    request_body = ReserveUsageBody,
+    responses((status = 200, description = "Reserve outcome plus the reserved credits")),
+    tag = "usage"
+)]
 pub async fn reserve_usage(
     State(state): State<AppState>,
     Json(body): Json<ReserveUsageBody>,
@@ -107,6 +121,14 @@ pub async fn reserve_usage(
 
 /// `POST /v1/usage/reservations/{id}/settle` — price the actual usage against a catalog model and
 /// settle the reservation. Idempotent on the reservation id.
+#[utoipa::path(
+    post,
+    path = "/v1/usage/reservations/{id}/settle",
+    params(("id" = String, Path, description = "Reservation id (UUID)")),
+    request_body = SettleUsageBody,
+    responses((status = 200, description = "Credits charged + balance after")),
+    tag = "usage"
+)]
 pub async fn settle_usage(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,

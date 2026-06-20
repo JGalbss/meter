@@ -153,7 +153,7 @@ pub struct AmendBody {
 }
 
 /// Token counts for a metered usage event.
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Deserialize, ToSchema)]
 pub struct UsageDimensions {
     #[serde(default)]
     pub input_uncached: u64,
@@ -189,13 +189,16 @@ impl UsageDimensions {
 }
 
 /// `POST /v1/usage` — price token usage via the catalog, record the event, and charge credits.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct MeterUsageBody {
+    #[schema(value_type = String, format = "uuid")]
     pub org_id: OrgId,
+    #[schema(value_type = String, format = "uuid")]
     pub account: AccountId,
     pub model: String,
     pub idempotency_key: String,
     #[serde(default)]
+    #[schema(value_type = Option<String>, format = "uuid")]
     pub run_id: Option<RunId>,
     #[serde(default)]
     pub usage: UsageDimensions,
@@ -206,7 +209,7 @@ pub struct MeterUsageBody {
 
 /// `POST /v1/simulate` — re-rate a stream of usage events from one catalog model onto another to
 /// preview the credit impact of switching, without touching the ledger.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct SimulateBody {
     pub current_model: String,
     pub proposed_model: String,
@@ -216,25 +219,30 @@ pub struct SimulateBody {
 
 /// `POST /v1/usage/reserve` — price a worst-case usage estimate against a catalog model and place a
 /// hold before the call. The engine computes the credits (ADR 0001), not the caller.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct ReserveUsageBody {
+    #[schema(value_type = String, format = "uuid")]
     pub account: AccountId,
+    #[schema(value_type = String, format = "uuid")]
     pub reservation_id: ReservationId,
     pub model: String,
     #[serde(default)]
     pub estimate: UsageDimensions,
+    /// Limit class: `hard` (fail-closed) or `soft` (fail-open).
+    #[schema(value_type = String)]
     pub limit: LimitClass,
     /// Optional synced rate-card id to price against; defaults to the catalog card for `model`.
     #[serde(default)]
     pub rate_card_id: Option<String>,
     /// Optional agent run this hold belongs to; lets `POST /v1/runs/{id}/void` reverse it.
     #[serde(default)]
+    #[schema(value_type = Option<String>, format = "uuid")]
     pub run_id: Option<RunId>,
 }
 
 /// `POST /v1/usage/reservations/{id}/settle` — price the actual usage against a catalog model and
 /// settle the reservation. Idempotent on the reservation id.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct SettleUsageBody {
     pub model: String,
     #[serde(default)]

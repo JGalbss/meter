@@ -13,6 +13,16 @@ use crate::error::ApiError;
 use crate::AppState;
 
 /// `POST /v1/simulate`
+#[utoipa::path(
+    post,
+    path = "/v1/simulate",
+    request_body = SimulateBody,
+    responses(
+        (status = 200, description = "Credit totals for both models and the delta"),
+        (status = 404, description = "Unknown model")
+    ),
+    tag = "usage"
+)]
 pub async fn simulate(
     State(state): State<AppState>,
     Json(body): Json<SimulateBody>,

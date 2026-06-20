@@ -49,6 +49,22 @@ engine↔control-plane contract is protobuf; the dashboard/customer contract is 
 Docs: [VISION](docs/VISION.md) · [ARCHITECTURE](docs/ARCHITECTURE.md) · [SLO](docs/SLO.md) ·
 [DECISIONS](docs/DECISIONS.md) · [ADRs](docs/adr/) · [tickets](tickets/README.md).
 
+## Quickstart (engine)
+
+```bash
+# 1. Start Postgres
+docker compose -f deploy/dev/docker-compose.yml up -d postgres
+
+# 2. Run the engine (applies ledger migrations on boot)
+METER_DATABASE_URL=postgres://meter:meter@localhost:5432/meter cargo run -p meter-engine
+
+# 3. Exercise the ledger
+curl localhost:8080/health
+ACC=$(curl -s localhost:8080/v1/accounts -d '{"org_id":"11111111-1111-1111-1111-111111111111","scope":"org","no_overdraft":true}' | jq -r .id)
+curl -s localhost:8080/v1/accounts/$ACC/grants -d '{"amount":"100","source":"paid"}'
+curl -s localhost:8080/v1/accounts/$ACC/balance
+```
+
 ## Self-hosting
 
 Minimal footprint: the **engine** + **control plane** **+ PostgreSQL**. Add ClickHouse for high-volume

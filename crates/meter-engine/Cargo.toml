@@ -1,0 +1,26 @@
+[package]
+name = "meter-engine"
+description = "The meter engine binary: serves the HTTP API over Postgres"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "meter"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { workspace = true }
+axum = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+sqlx = { workspace = true }
+meter-api = { workspace = true }
+meter-store-pg = { workspace = true }

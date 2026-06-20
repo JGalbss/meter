@@ -6,15 +6,25 @@ use sqlx::Row;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use meter_core::{AccountId, Credit, EntryId};
+use meter_core::{AccountId, EntryId};
 use meter_ledger::{
     Balance, EntryType, GrantRequest, LedgerAccount, LedgerBackend, LedgerEntry, LedgerError,
     LimitClass, NewAccount, ReservationId, ReserveOutcome, ReserveRequest, SettleRequest,
     SYSTEM_ACCOUNT,
 };
 
-use crate::mapping::{be, entry_from_row, entry_type_to_str, scope_to_str, source_to_str};
+use crate::mapping::{
+    be, credit_from_db, entry_from_row, entry_type_to_str, scope_to_str, source_to_str,
+};
 use crate::PgLedger;
+
+/// Current UTC time truncated to microsecond precision (Postgres `TIMESTAMPTZ` resolution), so a value
+/// constructed in Rust equals the same value read back from the database.
+fn now_micros() -> OffsetDateTime {
+    let now = OffsetDateTime::now_utc();
+    now.replace_nanosecond(now.microsecond() * 1000)
+        .expect("microsecond-aligned nanoseconds are always in range")
+}
 
 async fn insert_entry(
     conn: &mut sqlx::PgConnection,
@@ -78,8 +88,7 @@ impl LedgerBackend for PgLedger {
             .await
             .map_err(be)?
             .ok_or(LedgerError::AccountNotFound(account))?;
-        let settled =
-            Credit::from_decimal(row.try_get::<Decimal, _>("settled_credits").map_err(be)?);
+        let settled = credit_from_db(row.try_get::<Decimal, _>("settled_credits").map_err(be)?);
         let held: Decimal = sqlx::query_scalar(
             "SELECT COALESCE(SUM(amount), 0) FROM ledger_holds \
              WHERE account_id = $1 AND status = 'open'",
@@ -90,7 +99,7 @@ impl LedgerBackend for PgLedger {
         .map_err(be)?;
         Ok(Balance {
             settled,
-            held: Credit::from_decimal(held),
+            held: credit_from_db(held),
         })
     }
 
@@ -140,13 +149,13 @@ impl LedgerBackend for PgLedger {
             paired_account_id: SYSTEM_ACCOUNT,
             entry_type: EntryType::Grant,
             delta_credits: req.amount,
-            balance_after: Credit::from_decimal(balance_after),
+            balance_after: credit_from_db(balance_after),
             source: Some(req.source),
             revenue_recognizable: false,
             reverses_entry_id: None,
             reservation_id: None,
             idempotency_key: req.idempotency_key.clone(),
-            created_at: OffsetDateTime::now_utc(),
+            created_at: now_micros(),
         };
         insert_entry(&mut tx, &entry, org_id).await?;
         tx.commit().await.map_err(be)?;
@@ -201,7 +210,7 @@ impl LedgerBackend for PgLedger {
         if hard && available < req.amount.value() {
             tx.commit().await.map_err(be)?;
             return Ok(ReserveOutcome::Denied {
-                available: Credit::from_decimal(available),
+                available: credit_from_db(available),
                 requested: req.amount,
             });
         }
@@ -274,13 +283,13 @@ impl LedgerBackend for PgLedger {
             paired_account_id: SYSTEM_ACCOUNT,
             entry_type: EntryType::Settle,
             delta_credits: -req.actual,
-            balance_after: Credit::from_decimal(balance_after),
+            balance_after: credit_from_db(balance_after),
             source: None,
             revenue_recognizable: true,
             reverses_entry_id: None,
             reservation_id: Some(req.reservation_id),
             idempotency_key: None,
-            created_at: OffsetDateTime::now_utc(),
+            created_at: now_micros(),
         };
         insert_entry(&mut tx, &entry, org_id).await?;
         sqlx::query(

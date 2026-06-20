@@ -3,6 +3,7 @@
 //! These are the verbs (`grant`, `reserve`, `settle`, …) as data, kept separate from the model nouns.
 
 use meter_core::{AccountId, Credit, OrgId};
+use serde::{Deserialize, Serialize};
 
 use crate::model::{AccountScope, CreditSource, LimitClass, ReservationId};
 
@@ -34,7 +35,8 @@ pub struct ReserveRequest {
 }
 
 /// The result of a [`ReserveRequest`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "outcome", rename_all = "snake_case")]
 pub enum ReserveOutcome {
     /// The hold was placed (or already existed); the caller may proceed to spend.
     Allowed { reservation: ReservationId },

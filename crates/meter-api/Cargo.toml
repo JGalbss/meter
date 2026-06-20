@@ -1,0 +1,29 @@
+[package]
+name = "meter-api"
+description = "The meter engine's HTTP API surface (axum)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+axum = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+tracing = { workspace = true }
+meter-core = { workspace = true }
+meter-ledger = { workspace = true }
+meter-store-pg = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+tower = "0.5"
+http-body-util = "0.1"
+sqlx = { workspace = true }
+testcontainers-modules = { version = "0.12", features = ["postgres"] }

@@ -16,6 +16,12 @@ pub(crate) fn be(error: sqlx::Error) -> LedgerError {
     LedgerError::Backend(error.to_string())
 }
 
+/// Build a [`Credit`] from a DB numeric, normalizing away the storage scale (e.g. `numeric(30,5)`
+/// returns `100.00000`; we present `100`). Value equality is unaffected; presentation is consistent.
+pub(crate) fn credit_from_db(value: Decimal) -> Credit {
+    Credit::from_decimal(value.normalize())
+}
+
 fn col<'r, T>(row: &'r PgRow, name: &str) -> Result<T, LedgerError>
 where
     T: sqlx::Decode<'r, sqlx::Postgres> + sqlx::Type<sqlx::Postgres>,
@@ -105,8 +111,8 @@ pub(crate) fn entry_from_row(row: &PgRow) -> Result<LedgerEntry, LedgerError> {
         account_id: AccountId::from_uuid(col::<Uuid>(row, "account_id")?),
         paired_account_id: AccountId::from_uuid(col::<Uuid>(row, "paired_account_id")?),
         entry_type: entry_type_from_str(&col::<String>(row, "entry_type")?)?,
-        delta_credits: Credit::from_decimal(col::<Decimal>(row, "delta_credits")?),
-        balance_after: Credit::from_decimal(col::<Decimal>(row, "balance_after")?),
+        delta_credits: credit_from_db(col::<Decimal>(row, "delta_credits")?),
+        balance_after: credit_from_db(col::<Decimal>(row, "balance_after")?),
         source,
         revenue_recognizable: col::<bool>(row, "revenue_recognizable")?,
         reverses_entry_id: reverses.map(EntryId::from_uuid),

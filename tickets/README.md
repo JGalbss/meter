@@ -65,7 +65,11 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 - [ ] Query API for dashboards (read rollups, never raw on hot path), workload isolation
 
 ## EPIC 08 — Engine binary & CLI
-- [ ] `meter-api` (gRPC/HTTP surface), `meter-engine` binary (role-selectable services), config/secrets, health/readiness, tracing
+- [x] `meter-api` HTTP surface: accounts (open/balance/grant/entries), reservations (reserve/settle/void), health; typed error→HTTP mapping
+- [x] `meter-engine` binary: serves HTTP over Postgres, runs migrations on boot, env config (METER_DATABASE_URL/METER_LISTEN_ADDR), tracing
+- [x] e2e HTTP test (open→grant→balance→reserve→settle→deny) green against real Postgres
+- [ ] gRPC surface (proto) for control-plane RPC; role-selectable services
+- [ ] OpenAPI emission + typed client codegen
 - [ ] `meter-cli`: migrate, seed, admin ops
 
 ## EPIC 09 — Control plane (TypeScript: Effect + Drizzle)

@@ -59,7 +59,11 @@ unknown resources return `404 {"error":"not_found", ...}`.
 each budget rule's account usage over its rolling window against its `creditLimit`. The control plane
 computes no money — it reacts to the engine's `ok`/`warning`/`exceeded` status. Alerts fire on
 *escalation* (status transitions up), so a sustained breach does not spam; each raised notification
-also dispatches matching webhooks. Run it on a schedule (cron) or on demand.
+also dispatches matching webhooks.
+
+Set `METER_EVALUATION_INTERVAL_SECONDS` (> 0) to run the built-in scheduler, which evaluates every
+organization's budget rules on that interval; leave it unset (0) to evaluate only on demand via the
+endpoint.
 
 ### Webhook signing
 

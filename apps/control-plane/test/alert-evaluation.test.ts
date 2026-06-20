@@ -8,6 +8,7 @@ import { HttpClient, HttpClientRequest } from "@effect/platform";
 import { Effect } from "effect";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { evaluateAllOrgs } from "../src/alerts/evaluate";
 import { freshDb, run } from "./support";
 
 interface Sink {
@@ -145,6 +146,32 @@ describe("budget alert evaluation", () => {
     expect(result.notifications).toHaveLength(1);
     expect(result.notifications[0]).toMatchObject({ type: "budget", severity: "critical" });
     expect(webhook.received).toHaveLength(1);
+  });
+
+  it("evaluates budget rules across every organization (scheduler unit of work)", async () => {
+    const engine = await sink(() => ({ status: 200, body: budgetBody("exceeded", "1.2", "1200") }));
+    process.env.METER_ENGINE_URL = engine.url;
+
+    const db = await freshDb();
+    await run(
+      db,
+      Effect.gen(function* () {
+        const client = yield* HttpClient.HttpClient;
+        for (const slug of ["one", "two"]) {
+          const created = yield* client.execute(
+            HttpClientRequest.post("/v1/organizations").pipe(
+              HttpClientRequest.bodyUnsafeJson({ slug, name: slug }),
+            ),
+          );
+          const org = (yield* created.json) as { id: string };
+          yield* createBudgetRule(client, org.id);
+        }
+      }),
+    );
+
+    const summary = await Effect.runPromise(evaluateAllOrgs(db));
+    expect(summary.orgs).toBe(2);
+    expect(summary.raised).toBe(2);
   });
 
   it("does not alert while the budget is healthy", async () => {

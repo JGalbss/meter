@@ -1,12 +1,14 @@
-//! Control-plane entrypoint: apply config migrations, then serve the CRUD API over Postgres.
+//! Control-plane entrypoint: apply config migrations, optionally start the alert-evaluation
+//! scheduler, then serve the CRUD API over Postgres.
 
 import { createServer } from "node:http";
 
 import { HttpServer } from "@effect/platform";
 import { NodeHttpServer, NodeRuntime } from "@effect/platform-node";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
-import { Layer } from "effect";
+import { Duration, Effect, Layer, Schedule } from "effect";
 
+import { evaluateAllOrgs } from "./alerts/evaluate";
 import { makeDb } from "./db/client";
 import { Database } from "./db/service";
 import { router } from "./http/router";
@@ -15,6 +17,10 @@ const port = Number.parseInt(process.env.METER_CONTROL_PLANE_PORT ?? "8090", 10)
 const databaseUrl =
   process.env.METER_CONTROL_PLANE_DATABASE_URL ??
   "postgres://postgres:postgres@127.0.0.1:5432/postgres";
+const evaluationIntervalSeconds = Number.parseInt(
+  process.env.METER_EVALUATION_INTERVAL_SECONDS ?? "0",
+  10,
+);
 
 const db = makeDb(databaseUrl);
 await migrate(db, { migrationsFolder: "./drizzle" });
@@ -24,4 +30,20 @@ const HttpLive = HttpServer.serve(router).pipe(
   Layer.provide(NodeHttpServer.layer(() => createServer(), { port })),
 );
 
-NodeRuntime.runMain(Layer.launch(HttpLive));
+// Periodically evaluate budget alert rules. Disabled (interval 0) unless configured.
+const SchedulerLive = Layer.scopedDiscard(
+  Effect.forkScoped(
+    evaluateAllOrgs(db).pipe(
+      Effect.repeat(Schedule.spaced(Duration.seconds(evaluationIntervalSeconds))),
+    ),
+  ),
+);
+
+function appLayer(): Layer.Layer<never, unknown> {
+  if (evaluationIntervalSeconds > 0) {
+    return Layer.merge(HttpLive, SchedulerLive);
+  }
+  return HttpLive;
+}
+
+NodeRuntime.runMain(Layer.launch(appLayer()));

@@ -45,6 +45,7 @@ services:
       METER_CONTROL_PLANE_DATABASE_URL: postgres://meter:meter@postgres:5432/meter
       METER_CONTROL_PLANE_PORT: "8090"
       METER_ENGINE_URL: http://engine:8080
+      METER_EVALUATION_INTERVAL_SECONDS: "60"
     ports:
       - "8090:8090"
     depends_on:

@@ -7,6 +7,7 @@ import { Effect } from "effect";
 import type { Db } from "../db/client";
 import { type BudgetStatus, fetchBudgetStatus } from "../engine/client";
 import { createNotification } from "../notifications/repository";
+import { listOrganizations } from "../organizations/repository";
 import { dispatchForNotification } from "../webhooks/dispatch";
 import { type EvaluableRule, evaluableRules, setAlertRuleStatus } from "./repository";
 
@@ -16,6 +17,12 @@ const NOTIFICATION_SEVERITY: Record<string, string> = { warning: "warning", exce
 const DAY_MS = 86_400_000;
 
 export interface EvaluationSummary {
+  readonly evaluated: number;
+  readonly raised: number;
+}
+
+export interface AllOrgsSummary {
+  readonly orgs: number;
   readonly evaluated: number;
   readonly raised: number;
 }
@@ -74,4 +81,24 @@ export function evaluateOrgAlertRules(
     ),
     Effect.catchAll(() => Effect.succeed({ evaluated: 0, raised: 0 })),
   );
+}
+
+/** Evaluate budget rules across every organization (the scheduler's unit of work). Best-effort.
+ * Wrapped in `suspend` so each scheduled run samples a fresh timestamp. */
+export function evaluateAllOrgs(db: Db): Effect.Effect<AllOrgsSummary, never> {
+  return Effect.suspend(() => {
+    const now = new Date();
+    return listOrganizations(db).pipe(
+      Effect.flatMap((orgs) =>
+        Effect.forEach(orgs, (org) => evaluateOrgAlertRules(db, org.id, now)).pipe(
+          Effect.map((summaries) => ({
+            orgs: orgs.length,
+            evaluated: summaries.reduce((total, summary) => total + summary.evaluated, 0),
+            raised: summaries.reduce((total, summary) => total + summary.raised, 0),
+          })),
+        ),
+      ),
+      Effect.catchAll(() => Effect.succeed({ orgs: 0, evaluated: 0, raised: 0 })),
+    );
+  });
 }

@@ -1054,6 +1054,14 @@ async fn usage_prices_with_a_synced_rate_card() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["credits"], "50000");
 
+    // The recorded event captures the pricing provenance (EPIC 04): which synced card + version, so
+    // the charge can be re-derived later.
+    let event_id = body["event_id"].as_str().expect("event id");
+    let (_status, event) = call(&app, "GET", &format!("/v1/events/{event_id}"), &Value::Null).await;
+    assert_eq!(event["properties"]["rate_card_id"], card_id.to_string());
+    assert_eq!(event["properties"]["rate_card_version"], json!(1));
+    assert_eq!(event["properties"]["priced_via"], "synced");
+
     // An unknown rate_card_id is a 404.
     let (status, _) = call(
         &app,

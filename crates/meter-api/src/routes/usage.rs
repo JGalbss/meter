@@ -19,6 +19,14 @@ use meter_ledger::{
 };
 use meter_pricing::price_usage;
 
+/// Where a usage charge was priced: a control-plane-`synced` rate card, or the hosted `catalog`.
+fn pricing_source(rate_card_id: Option<&str>) -> &'static str {
+    match rate_card_id {
+        Some(_) => "synced",
+        None => "catalog",
+    }
+}
+
 /// `POST /v1/usage` result: the priced amounts, the recorded event id, and the resulting balance.
 /// Credit/USD amounts are exact decimal strings.
 #[derive(Debug, Serialize, ToSchema)]
@@ -86,6 +94,11 @@ pub async fn meter_usage(
                 "reasoning": body.usage.reasoning,
                 "cogs_usd": priced.cogs.amount().normalize().to_string(),
                 "credits": priced.credits.value().normalize().to_string(),
+                // Pricing provenance, so a charge can always be re-derived/reconciled: which synced
+                // rate card (null = the hosted catalog) and which version priced this event.
+                "rate_card_id": body.rate_card_id,
+                "rate_card_version": card.version,
+                "priced_via": pricing_source(body.rate_card_id.as_deref()),
             }),
         })
         .await?;

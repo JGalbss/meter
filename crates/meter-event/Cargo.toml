@@ -26,6 +26,7 @@ thiserror = { workspace = true }
 async-trait = { workspace = true }
 time = { workspace = true }
 uuid = { workspace = true }
+utoipa = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true }

@@ -1139,10 +1139,16 @@ async fn openapi_document_is_served() {
     assert!(doc["components"]["schemas"]["LedgerAccount"].is_object());
     assert!(doc["components"]["schemas"]["Balance"].is_object());
     assert!(doc["components"]["schemas"]["LedgerEntry"].is_object());
+    assert!(doc["components"]["schemas"]["Event"].is_object());
     assert_eq!(
         doc["paths"]["/v1/accounts/{id}/balance"]["get"]["responses"]["200"]["content"]
             ["application/json"]["schema"]["$ref"],
         "#/components/schemas/Balance"
+    );
+    assert_eq!(
+        doc["paths"]["/v1/events/{id}"]["get"]["responses"]["200"]["content"]["application/json"]
+            ["schema"]["$ref"],
+        "#/components/schemas/Event"
     );
 }
 

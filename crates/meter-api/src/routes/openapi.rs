@@ -6,6 +6,7 @@
 use axum::Json;
 use utoipa::OpenApi;
 
+use meter_event::{Event, EventStatus};
 use meter_ledger::{
     AccountScope, Balance, CreditSource, EntryType, LedgerAccount, LedgerEntry, ReserveOutcome,
 };
@@ -82,7 +83,9 @@ use crate::dto::{
         EntryType,
         CreditSource,
         AccountScope,
-        ReserveOutcome
+        ReserveOutcome,
+        Event,
+        EventStatus
     )),
     tags(
         (name = "health", description = "Liveness and readiness probes"),

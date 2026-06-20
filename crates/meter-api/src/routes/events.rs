@@ -19,7 +19,7 @@ use crate::AppState;
     post,
     path = "/v1/events",
     request_body = RecordEventBody,
-    responses((status = 200, description = "Event recorded (idempotent on org + key)")),
+    responses((status = 200, description = "Event recorded (idempotent on org + key)", body = Event)),
     tag = "events"
 )]
 pub async fn record(
@@ -61,7 +61,7 @@ pub async fn record_batch(
     path = "/v1/events/{id}",
     params(("id" = String, Path, description = "Event id (UUID)")),
     responses(
-        (status = 200, description = "The event"),
+        (status = 200, description = "The event", body = Event),
         (status = 404, description = "Unknown event")
     ),
     tag = "events"
@@ -79,7 +79,7 @@ pub async fn get(
     get,
     path = "/v1/accounts/{id}/events",
     params(("id" = String, Path, description = "Account id (UUID)")),
-    responses((status = 200, description = "The account's latest (non-voided) events")),
+    responses((status = 200, description = "The account's latest (non-voided) events", body = Vec<Event>)),
     tag = "events"
 )]
 pub async fn list_for_account(
@@ -99,7 +99,7 @@ pub async fn list_for_account(
     path = "/v1/events/{id}/amend",
     params(("id" = String, Path, description = "Event id (UUID) to amend")),
     request_body = AmendBody,
-    responses((status = 200, description = "New event version superseding the prior")),
+    responses((status = 200, description = "New event version superseding the prior", body = Event)),
     tag = "events"
 )]
 pub async fn amend(

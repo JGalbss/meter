@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package meter.v1;
+
+import "meter/v1/common.proto";
+
+// Whether a card records provider cost (COGS) or what a customer is charged.
+enum RateCardKind {
+  RATE_CARD_KIND_UNSPECIFIED = 0;
+  RATE_CARD_KIND_PROVIDER_COST = 1;
+  RATE_CARD_KIND_CUSTOMER = 2;
+}
+
+// One priced cell of a rate card's dimensional matrix. The matrix axes are carried as strings (their
+// proto enums live in the pricing layer); the engine validates them on apply.
+message PriceComponent {
+  string dimension = 1;
+  string modality = 2;
+  string context_tier = 3;
+  string unit = 4;
+  string charge_model = 5;
+  Money unit_price = 6;
+}
+
+message RateCard {
+  string id = 1;
+  RateCardKind kind = 2;
+  string currency = 3;
+  uint32 version = 4;
+  // Decimal multiplier, e.g. "1.30" for a 30% markup.
+  string margin = 5;
+  repeated PriceComponent components = 6;
+}
+
+message PutRateCardRequest {
+  RateCard card = 1;
+}
+
+message PutRateCardResponse {
+  string rate_card_id = 1;
+}
+
+// A spend limit applied to an account over a recurring period.
+message Budget {
+  string account_id = 1;
+  Credit limit = 2;
+  // Period label, e.g. "monthly".
+  string period = 3;
+}
+
+message SetBudgetRequest {
+  Budget budget = 1;
+}
+
+message SetBudgetResponse {}
+
+// Config-sync: the control plane pushes pricing and budget configuration to the engine. The engine
+// owns the money math; this only supplies the rules it applies.
+service ConfigService {
+  rpc PutRateCard(PutRateCardRequest) returns (PutRateCardResponse);
+  rpc SetBudget(SetBudgetRequest) returns (SetBudgetResponse);
+}

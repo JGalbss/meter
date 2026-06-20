@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package meter.v1;
+
+import "meter/v1/common.proto";
+
+message UsageByModelRequest {
+  string org_id = 1;
+}
+
+// Usage aggregated by model for an organization.
+message ModelUsage {
+  string model = 1;
+  uint64 events = 2;
+  uint64 input_tokens = 3;
+  uint64 output_tokens = 4;
+  // Decimal string.
+  string credits = 5;
+}
+
+message UsageByModelResponse {
+  repeated ModelUsage models = 1;
+}
+
+message UsageByDayRequest {
+  string org_id = 1;
+}
+
+// Daily totals for an organization.
+message DayUsage {
+  // Calendar day, YYYY-MM-DD.
+  string day = 1;
+  uint64 events = 2;
+  // Decimal string.
+  string credits = 3;
+}
+
+message UsageByDayResponse {
+  repeated DayUsage days = 1;
+}
+
+message EventCountRequest {
+  string org_id = 1;
+}
+
+message EventCountResponse {
+  uint64 count = 1;
+}
+
+message InvoiceRequest {
+  string account_id = 1;
+  // RFC3339 window bounds.
+  string start = 2;
+  string end = 3;
+}
+
+message InvoiceResponse {
+  Credit total_credits = 1;
+  uint64 entries = 2;
+}
+
+// Read-side analytics and billing queries, derived from the engine's authoritative stores.
+service QueryService {
+  rpc UsageByModel(UsageByModelRequest) returns (UsageByModelResponse);
+  rpc UsageByDay(UsageByDayRequest) returns (UsageByDayResponse);
+  rpc EventCount(EventCountRequest) returns (EventCountResponse);
+  rpc Invoice(InvoiceRequest) returns (InvoiceResponse);
+}

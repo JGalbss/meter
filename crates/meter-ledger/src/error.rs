@@ -1,6 +1,6 @@
 //! The ledger error type.
 
-use meter_core::AccountId;
+use meter_core::{AccountId, Credit};
 use thiserror::Error;
 
 use crate::model::ReservationId;
@@ -20,6 +20,12 @@ pub enum LedgerError {
     /// A grant or reservation amount was not strictly positive.
     #[error("amount must be positive")]
     NonPositiveAmount,
+    /// Leasing more than a no-overdraft pool's available balance.
+    #[error("insufficient funds: {available} available, {requested} requested")]
+    InsufficientFunds { available: Credit, requested: Credit },
+    /// `close_lease` was called on an account that is not a lease (it has no parent pool).
+    #[error("account is not a lease: {0}")]
+    NotALease(AccountId),
     /// A backend-specific failure (storage, network, serialization).
     #[error("backend error: {0}")]
     Backend(String),

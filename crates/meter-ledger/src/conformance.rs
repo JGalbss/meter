@@ -8,9 +8,11 @@
 use meter_core::{AccountId, Credit, OrgId};
 
 use crate::backend::LedgerBackend;
+use crate::error::LedgerError;
 use crate::model::{AccountScope, CreditSource, LimitClass};
 use crate::request::{
-    ChargeRequest, GrantRequest, NewAccount, ReserveOutcome, ReserveRequest, SettleRequest,
+    ChargeRequest, GrantRequest, LeaseRequest, NewAccount, ReserveOutcome, ReserveRequest,
+    SettleRequest,
 };
 
 /// A whole-credit amount.
@@ -229,6 +231,116 @@ pub async fn charge_records_usage<L: LedgerBackend>(ledger: &L) {
     );
 }
 
+/// Leasing moves credits from the parent pool into a session sub-balance, conserving the total.
+pub async fn lease_moves_credits_and_conserves<L: LedgerBackend>(ledger: &L) {
+    let parent = open_no_overdraft_org(ledger).await;
+    ledger
+        .grant(GrantRequest {
+            account: parent,
+            amount: credits(100),
+            source: CreditSource::Paid,
+            idempotency_key: None,
+        })
+        .await
+        .expect("grant");
+    let lease = ledger
+        .open_lease(LeaseRequest {
+            parent,
+            amount: credits(40),
+        })
+        .await
+        .expect("open lease");
+    assert_eq!(lease.scope, AccountScope::Session);
+    assert_eq!(lease.parent_id, Some(parent));
+    assert_eq!(
+        ledger.balance(parent).await.expect("parent balance").settled,
+        credits(60)
+    );
+    let lease_balance = ledger.balance(lease.id).await.expect("lease balance");
+    assert_eq!(lease_balance.settled, credits(40));
+    assert_eq!(lease_balance.available(), credits(40));
+}
+
+/// A session reserves/settles against its lease; closing returns the unused remainder to the parent.
+pub async fn lease_spend_then_close_returns_remainder<L: LedgerBackend>(ledger: &L) {
+    let parent = open_no_overdraft_org(ledger).await;
+    ledger
+        .grant(GrantRequest {
+            account: parent,
+            amount: credits(100),
+            source: CreditSource::Paid,
+            idempotency_key: None,
+        })
+        .await
+        .expect("grant");
+    let lease = ledger
+        .open_lease(LeaseRequest {
+            parent,
+            amount: credits(40),
+        })
+        .await
+        .expect("open lease");
+    let reservation = Default::default();
+    let outcome = ledger
+        .reserve(ReserveRequest {
+            account: lease.id,
+            reservation_id: reservation,
+            amount: credits(30),
+            limit: LimitClass::Hard,
+        })
+        .await
+        .expect("reserve against lease");
+    assert!(matches!(outcome, ReserveOutcome::Allowed { .. }));
+    ledger
+        .settle(SettleRequest {
+            reservation_id: reservation,
+            actual: credits(25),
+        })
+        .await
+        .expect("settle against lease");
+    assert_eq!(
+        ledger.balance(lease.id).await.expect("lease balance").settled,
+        credits(15)
+    );
+
+    let returned = ledger.close_lease(lease.id).await.expect("close lease");
+    assert_eq!(returned, credits(15));
+    // Parent regained the remainder: 60 (after lease) + 15 = 75; net spent over the session is 25.
+    assert_eq!(
+        ledger.balance(parent).await.expect("parent balance").settled,
+        credits(75)
+    );
+    assert_eq!(
+        ledger.balance(lease.id).await.expect("lease balance").settled,
+        credits(0)
+    );
+}
+
+/// Leasing more than a no-overdraft parent's available balance is refused, leaving the parent intact.
+pub async fn over_lease_is_refused<L: LedgerBackend>(ledger: &L) {
+    let parent = open_no_overdraft_org(ledger).await;
+    ledger
+        .grant(GrantRequest {
+            account: parent,
+            amount: credits(10),
+            source: CreditSource::Paid,
+            idempotency_key: None,
+        })
+        .await
+        .expect("grant");
+    let result = ledger
+        .open_lease(LeaseRequest {
+            parent,
+            amount: credits(25),
+        })
+        .await;
+    assert!(matches!(result, Err(LedgerError::InsufficientFunds { .. })));
+    assert_eq!(
+        ledger.balance(parent).await.expect("parent balance").settled,
+        credits(10)
+    );
+}
+
 /// Run every self-contained scenario against a backend (each opens its own account).
 pub async fn run_all_scenarios<L: LedgerBackend>(ledger: &L) {
     grant_increases_balance(ledger).await;
@@ -238,6 +350,9 @@ pub async fn run_all_scenarios<L: LedgerBackend>(ledger: &L) {
     grant_is_idempotent_on_key(ledger).await;
     void_releases_a_failed_run(ledger).await;
     charge_records_usage(ledger).await;
+    lease_moves_credits_and_conserves(ledger).await;
+    lease_spend_then_close_returns_remainder(ledger).await;
+    over_lease_is_refused(ledger).await;
 }
 
 /// One operation in a model-based conformance sequence.

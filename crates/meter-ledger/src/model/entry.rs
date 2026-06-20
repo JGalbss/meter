@@ -20,6 +20,8 @@ pub enum EntryType {
     Settle,
     /// The unused remainder returned when actual < reserved.
     PartialReturn,
+    /// A credit movement between two real accounts (e.g. a parent pool ↔ a leased session balance).
+    Transfer,
     /// A released (cancelled) reservation.
     Void,
     /// A reversal that returns credits (references the entry it reverses).

@@ -62,3 +62,12 @@ pub struct ChargeRequest {
     pub amount: Credit,
     pub idempotency_key: Option<String>,
 }
+
+/// Lease `amount` credits from a parent pool into a fresh per-session sub-balance, to keep hot-account
+/// contention off the parent. The session then reserves/settles against the lease; `close_lease`
+/// returns the unused remainder to the parent.
+#[derive(Debug, Clone)]
+pub struct LeaseRequest {
+    pub parent: AccountId,
+    pub amount: Credit,
+}

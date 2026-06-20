@@ -60,7 +60,10 @@ fn ledger_status(error: &LedgerError) -> (StatusCode, &'static str) {
             (StatusCode::NOT_FOUND, "not_found")
         }
         LedgerError::ReservationClosed(_) => (StatusCode::CONFLICT, "conflict"),
-        LedgerError::NonPositiveAmount => (StatusCode::BAD_REQUEST, "bad_request"),
+        LedgerError::NonPositiveAmount | LedgerError::NotALease(_) => {
+            (StatusCode::BAD_REQUEST, "bad_request")
+        }
+        LedgerError::InsufficientFunds { .. } => (StatusCode::CONFLICT, "insufficient_funds"),
         LedgerError::Backend(_) => (StatusCode::INTERNAL_SERVER_ERROR, "internal"),
     }
 }

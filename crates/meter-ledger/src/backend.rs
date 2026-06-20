@@ -1,12 +1,13 @@
 //! The ledger backend trait — the seam every storage backend implements.
 
 use async_trait::async_trait;
-use meter_core::AccountId;
+use meter_core::{AccountId, Credit};
 
 use crate::error::LedgerError;
 use crate::model::{Balance, LedgerAccount, LedgerEntry, ReservationId};
 use crate::request::{
-    ChargeRequest, GrantRequest, NewAccount, ReserveOutcome, ReserveRequest, SettleRequest,
+    ChargeRequest, GrantRequest, LeaseRequest, NewAccount, ReserveOutcome, ReserveRequest,
+    SettleRequest,
 };
 
 /// A pluggable double-entry credit ledger.
@@ -37,6 +38,15 @@ pub trait LedgerBackend: Send + Sync {
 
     /// Release an open reservation without charging it (e.g. a failed or abandoned run).
     async fn void(&self, reservation: ReservationId) -> Result<(), LedgerError>;
+
+    /// Lease credits from a parent pool into a fresh per-session sub-balance (hot-account mitigation).
+    /// Moves `amount` from the parent to a new `Session` child via a conserving transfer; refuses to
+    /// overdraw a no-overdraft parent. The session then reserves/settles against the returned account.
+    async fn open_lease(&self, req: LeaseRequest) -> Result<LedgerAccount, LedgerError>;
+
+    /// Return a lease's unused balance (`settled − held`) to its parent and report the amount returned.
+    /// Safe to call with holds still open — it only returns what is not reserved.
+    async fn close_lease(&self, lease: AccountId) -> Result<Credit, LedgerError>;
 
     /// Every entry touching an account, for audit and conformance checks.
     async fn entries(&self, account: AccountId) -> Result<Vec<LedgerEntry>, LedgerError>;

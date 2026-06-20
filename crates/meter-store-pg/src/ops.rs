@@ -5,11 +5,11 @@ use rust_decimal::Decimal;
 use sqlx::Row;
 use uuid::Uuid;
 
-use meter_core::{AccountId, EntryId};
+use meter_core::{AccountId, Credit, EntryId, OrgId};
 use meter_ledger::{
-    Balance, ChargeRequest, EntryType, GrantRequest, LedgerAccount, LedgerBackend, LedgerEntry,
-    LedgerError, LimitClass, NewAccount, ReservationId, ReserveOutcome, ReserveRequest,
-    SettleRequest, SYSTEM_ACCOUNT,
+    AccountScope, Balance, ChargeRequest, EntryType, GrantRequest, LeaseRequest, LedgerAccount,
+    LedgerBackend, LedgerEntry, LedgerError, LimitClass, NewAccount, ReservationId, ReserveOutcome,
+    ReserveRequest, SettleRequest, SYSTEM_ACCOUNT,
 };
 
 use crate::mapping::{
@@ -44,6 +44,67 @@ async fn insert_entry(
     .execute(conn)
     .await
     .map_err(be)?;
+    Ok(())
+}
+
+/// Post a conserving double-entry transfer between two accounts within an open transaction. Both
+/// accounts must already be locked/created by the caller.
+async fn post_transfer(
+    tx: &mut sqlx::PgConnection,
+    org_id: Uuid,
+    from: AccountId,
+    to: AccountId,
+    amount: Credit,
+) -> Result<(), LedgerError> {
+    let from_after: Decimal = sqlx::query_scalar(
+        "UPDATE ledger_accounts SET settled_credits = settled_credits - $2 \
+         WHERE id = $1 RETURNING settled_credits",
+    )
+    .bind(from.as_uuid())
+    .bind(amount.value())
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(be)?;
+    let to_after: Decimal = sqlx::query_scalar(
+        "UPDATE ledger_accounts SET settled_credits = settled_credits + $2 \
+         WHERE id = $1 RETURNING settled_credits",
+    )
+    .bind(to.as_uuid())
+    .bind(amount.value())
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(be)?;
+
+    let from_entry = LedgerEntry {
+        id: EntryId::new(),
+        account_id: from,
+        paired_account_id: to,
+        entry_type: EntryType::Transfer,
+        delta_credits: -amount,
+        balance_after: credit_from_db(from_after),
+        source: None,
+        revenue_recognizable: false,
+        reverses_entry_id: None,
+        reservation_id: None,
+        idempotency_key: None,
+        created_at: now_micros(),
+    };
+    insert_entry(tx, &from_entry, org_id).await?;
+    let to_entry = LedgerEntry {
+        id: EntryId::new(),
+        account_id: to,
+        paired_account_id: from,
+        entry_type: EntryType::Transfer,
+        delta_credits: amount,
+        balance_after: credit_from_db(to_after),
+        source: None,
+        revenue_recognizable: false,
+        reverses_entry_id: None,
+        reservation_id: None,
+        idempotency_key: None,
+        created_at: now_micros(),
+    };
+    insert_entry(tx, &to_entry, org_id).await?;
     Ok(())
 }
 
@@ -378,6 +439,108 @@ impl LedgerBackend for PgLedger {
         };
         tx.commit().await.map_err(be)?;
         result
+    }
+
+    async fn open_lease(&self, req: LeaseRequest) -> Result<LedgerAccount, LedgerError> {
+        if !req.amount.is_positive() {
+            return Err(LedgerError::NonPositiveAmount);
+        }
+        let mut tx = self.pool().begin().await.map_err(be)?;
+        let parent = sqlx::query(
+            "SELECT org_id, settled_credits, no_overdraft FROM ledger_accounts \
+             WHERE id = $1 FOR UPDATE",
+        )
+        .bind(req.parent.as_uuid())
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(be)?
+        .ok_or(LedgerError::AccountNotFound(req.parent))?;
+        let org_id: Uuid = parent.try_get("org_id").map_err(be)?;
+        let settled: Decimal = parent.try_get("settled_credits").map_err(be)?;
+        let no_overdraft: bool = parent.try_get("no_overdraft").map_err(be)?;
+
+        let held: Decimal = sqlx::query_scalar(
+            "SELECT COALESCE(SUM(amount), 0) FROM ledger_holds \
+             WHERE account_id = $1 AND status = 'open'",
+        )
+        .bind(req.parent.as_uuid())
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(be)?;
+
+        let available = settled - held;
+        if no_overdraft && available < req.amount.value() {
+            tx.commit().await.map_err(be)?;
+            return Err(LedgerError::InsufficientFunds {
+                available: credit_from_db(available),
+                requested: req.amount,
+            });
+        }
+
+        let child_id = AccountId::new();
+        sqlx::query(
+            "INSERT INTO ledger_accounts (id, org_id, scope, no_overdraft, parent_id) \
+             VALUES ($1, $2, $3, true, $4)",
+        )
+        .bind(child_id.as_uuid())
+        .bind(org_id)
+        .bind(scope_to_str(AccountScope::Session))
+        .bind(req.parent.as_uuid())
+        .execute(&mut *tx)
+        .await
+        .map_err(be)?;
+
+        post_transfer(&mut tx, org_id, req.parent, child_id, req.amount).await?;
+        tx.commit().await.map_err(be)?;
+        Ok(LedgerAccount {
+            id: child_id,
+            org_id: OrgId::from_uuid(org_id),
+            scope: AccountScope::Session,
+            no_overdraft: true,
+            parent_id: Some(req.parent),
+        })
+    }
+
+    async fn close_lease(&self, lease: AccountId) -> Result<Credit, LedgerError> {
+        let mut tx = self.pool().begin().await.map_err(be)?;
+        let row = sqlx::query(
+            "SELECT org_id, settled_credits, parent_id FROM ledger_accounts \
+             WHERE id = $1 FOR UPDATE",
+        )
+        .bind(lease.as_uuid())
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(be)?
+        .ok_or(LedgerError::AccountNotFound(lease))?;
+        let org_id: Uuid = row.try_get("org_id").map_err(be)?;
+        let settled: Decimal = row.try_get("settled_credits").map_err(be)?;
+        let parent_id: Option<Uuid> = row.try_get("parent_id").map_err(be)?;
+        let parent = match parent_id {
+            None => {
+                tx.commit().await.map_err(be)?;
+                return Err(LedgerError::NotALease(lease));
+            }
+            Some(parent) => parent,
+        };
+
+        let held: Decimal = sqlx::query_scalar(
+            "SELECT COALESCE(SUM(amount), 0) FROM ledger_holds \
+             WHERE account_id = $1 AND status = 'open'",
+        )
+        .bind(lease.as_uuid())
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(be)?;
+
+        let available = settled - held;
+        if available <= Decimal::ZERO {
+            tx.commit().await.map_err(be)?;
+            return Ok(Credit::ZERO);
+        }
+        let amount = credit_from_db(available);
+        post_transfer(&mut tx, org_id, lease, AccountId::from_uuid(parent), amount).await?;
+        tx.commit().await.map_err(be)?;
+        Ok(amount)
     }
 
     async fn entries(&self, account: AccountId) -> Result<Vec<LedgerEntry>, LedgerError> {

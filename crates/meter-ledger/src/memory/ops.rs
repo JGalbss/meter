@@ -1,18 +1,64 @@
 //! The [`LedgerBackend`] implementation for [`InMemoryLedger`].
 
 use async_trait::async_trait;
-use meter_core::{AccountId, EntryId};
+use meter_core::{AccountId, Credit, EntryId};
 use time::OffsetDateTime;
 
 use crate::backend::LedgerBackend;
 use crate::error::LedgerError;
-use crate::model::{Balance, EntryType, LedgerAccount, LedgerEntry, LimitClass, ReservationId};
+use crate::model::{
+    AccountScope, Balance, EntryType, LedgerAccount, LedgerEntry, LimitClass, ReservationId,
+};
 use crate::request::{
-    ChargeRequest, GrantRequest, NewAccount, ReserveOutcome, ReserveRequest, SettleRequest,
+    ChargeRequest, GrantRequest, LeaseRequest, NewAccount, ReserveOutcome, ReserveRequest,
+    SettleRequest,
 };
 
-use super::state::{AccountRow, Hold, HoldStatus};
+use super::state::{AccountRow, Hold, HoldStatus, State};
 use super::InMemoryLedger;
+
+/// Post a conserving double-entry transfer between two existing accounts (both must be present).
+fn post_transfer(state: &mut State, from: AccountId, to: AccountId, amount: Credit) {
+    let from_after = {
+        let row = state.accounts.get_mut(&from).expect("transfer source exists");
+        row.settled -= amount;
+        row.settled
+    };
+    let to_after = {
+        let row = state.accounts.get_mut(&to).expect("transfer destination exists");
+        row.settled += amount;
+        row.settled
+    };
+    let now = OffsetDateTime::now_utc();
+    state.entries.push(LedgerEntry {
+        id: EntryId::new(),
+        account_id: from,
+        paired_account_id: to,
+        entry_type: EntryType::Transfer,
+        delta_credits: -amount,
+        balance_after: from_after,
+        source: None,
+        revenue_recognizable: false,
+        reverses_entry_id: None,
+        reservation_id: None,
+        idempotency_key: None,
+        created_at: now,
+    });
+    state.entries.push(LedgerEntry {
+        id: EntryId::new(),
+        account_id: to,
+        paired_account_id: from,
+        entry_type: EntryType::Transfer,
+        delta_credits: amount,
+        balance_after: to_after,
+        source: None,
+        revenue_recognizable: false,
+        reverses_entry_id: None,
+        reservation_id: None,
+        idempotency_key: None,
+        created_at: now,
+    });
+}
 
 #[async_trait]
 impl LedgerBackend for InMemoryLedger {
@@ -244,6 +290,57 @@ impl LedgerBackend for InMemoryLedger {
                 HoldStatus::Settled => Err(LedgerError::ReservationClosed(reservation)),
             },
         }
+    }
+
+    async fn open_lease(&self, req: LeaseRequest) -> Result<LedgerAccount, LedgerError> {
+        if !req.amount.is_positive() {
+            return Err(LedgerError::NonPositiveAmount);
+        }
+        let mut state = self.lock();
+        let (org_id, no_overdraft) = match state.accounts.get(&req.parent) {
+            None => return Err(LedgerError::AccountNotFound(req.parent)),
+            Some(row) => (row.account.org_id, row.account.no_overdraft),
+        };
+        let available = {
+            let settled = state.accounts.get(&req.parent).expect("parent checked").settled;
+            settled - state.held(req.parent)
+        };
+        if no_overdraft && available < req.amount {
+            return Err(LedgerError::InsufficientFunds {
+                available,
+                requested: req.amount,
+            });
+        }
+        let child = LedgerAccount {
+            id: AccountId::new(),
+            org_id,
+            scope: AccountScope::Session,
+            no_overdraft: true,
+            parent_id: Some(req.parent),
+        };
+        state.accounts.insert(child.id, AccountRow::new(child.clone()));
+        post_transfer(&mut state, req.parent, child.id, req.amount);
+        Ok(child)
+    }
+
+    async fn close_lease(&self, lease: AccountId) -> Result<Credit, LedgerError> {
+        let mut state = self.lock();
+        let parent = match state.accounts.get(&lease) {
+            None => return Err(LedgerError::AccountNotFound(lease)),
+            Some(row) => match row.account.parent_id {
+                None => return Err(LedgerError::NotALease(lease)),
+                Some(parent) => parent,
+            },
+        };
+        let available = {
+            let settled = state.accounts.get(&lease).expect("lease checked").settled;
+            settled - state.held(lease)
+        };
+        if !available.is_positive() {
+            return Ok(Credit::ZERO);
+        }
+        post_transfer(&mut state, lease, parent, available);
+        Ok(available)
     }
 
     async fn entries(&self, account: AccountId) -> Result<Vec<LedgerEntry>, LedgerError> {

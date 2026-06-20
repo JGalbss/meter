@@ -53,6 +53,12 @@ export const alertRules = pgTable(
     threshold: numeric("threshold").notNull(),
     action: text("action").notNull(),
     enabled: boolean("enabled").notNull().default(true),
+    // Budget evaluation: the engine account to watch and its credit cap, evaluated over a rolling
+    // window. `lastStatus` records the last classification so we only alert on escalation.
+    accountId: uuid("account_id"),
+    creditLimit: numeric("credit_limit"),
+    windowDays: integer("window_days").notNull().default(30),
+    lastStatus: text("last_status"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({

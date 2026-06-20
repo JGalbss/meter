@@ -36,9 +36,10 @@ unknown resources return `404 {"error":"not_found", ...}`.
 | `GET /v1/notifications?orgId&status?` | Pull notifications (optionally filter by `status`). |
 | `POST /v1/notifications/:id/read` | Mark read. |
 | `POST /v1/notifications/:id/ack` | Acknowledge. |
-| `POST /v1/alert-rules` | Create an alert rule (`orgId`, `name`, `scope`, `metric`, `threshold`, `action`, `enabled?`). |
+| `POST /v1/alert-rules` | Create an alert rule (`orgId`, `name`, `scope`, `metric`, `threshold`, `action`, `enabled?`; budget rules also take `accountId`, `creditLimit`, `windowDays?`). |
 | `GET /v1/alert-rules?orgId` | List alert rules. |
 | `POST /v1/alert-rules/:id/enabled` | Enable/disable (`enabled`). |
+| `POST /v1/alert-rules/evaluate?orgId` | Evaluate budget rules against the engine; raise notifications + fire webhooks on escalation. Returns `{ evaluated, raised }`. |
 | `POST /v1/webhooks` | Register a webhook (`orgId`, `url`, `secret`, `eventTypes?`). The secret is never returned. |
 | `GET /v1/webhooks?orgId` | List webhooks (secret omitted). |
 | `POST /v1/webhooks/:id/enabled` | Enable/disable (`enabled`). |
@@ -51,6 +52,14 @@ unknown resources return `404 {"error":"not_found", ...}`.
 - alert-rule `scope`: `org` · `team` · `user` · `product`
 - alert-rule `metric`: `budget` · `credit` · `spend`
 - alert-rule `action`: `notify` · `webhook` · `enforce`
+
+### Budget alert evaluation
+
+`POST /v1/alert-rules/evaluate` asks the **engine** (`METER_ENGINE_URL`, default `:8081`) to classify
+each budget rule's account usage over its rolling window against its `creditLimit`. The control plane
+computes no money — it reacts to the engine's `ok`/`warning`/`exceeded` status. Alerts fire on
+*escalation* (status transitions up), so a sustained breach does not spam; each raised notification
+also dispatches matching webhooks. Run it on a schedule (cron) or on demand.
 
 ### Webhook signing
 

@@ -1,7 +1,7 @@
 //! Alert-rules repository — thresholds that raise notifications (and later drive webhooks/enforce).
 //! Effect-wrapped Drizzle queries with typed error channels.
 
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { Effect } from "effect";
 
 import type { Db } from "../db/client";
@@ -17,6 +17,10 @@ export interface AlertRule {
   readonly threshold: string;
   readonly action: string;
   readonly enabled: boolean;
+  readonly accountId: string | null;
+  readonly creditLimit: string | null;
+  readonly windowDays: number;
+  readonly lastStatus: string | null;
   readonly createdAt: string;
 }
 
@@ -28,6 +32,20 @@ export interface NewAlertRule {
   readonly threshold: string;
   readonly action: string;
   readonly enabled?: boolean | undefined;
+  readonly accountId?: string | undefined;
+  readonly creditLimit?: string | undefined;
+  readonly windowDays?: number | undefined;
+}
+
+/** An alert rule with everything required to evaluate a budget against the engine. */
+export interface EvaluableRule {
+  readonly id: string;
+  readonly orgId: string;
+  readonly name: string;
+  readonly accountId: string;
+  readonly creditLimit: string;
+  readonly windowDays: number;
+  readonly lastStatus: string | null;
 }
 
 function toAlertRule(row: typeof alertRules.$inferSelect): AlertRule {
@@ -40,7 +58,26 @@ function toAlertRule(row: typeof alertRules.$inferSelect): AlertRule {
     threshold: row.threshold,
     action: row.action,
     enabled: row.enabled,
+    accountId: row.accountId,
+    creditLimit: row.creditLimit,
+    windowDays: row.windowDays,
+    lastStatus: row.lastStatus,
     createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function toEvaluable(row: typeof alertRules.$inferSelect): EvaluableRule | null {
+  if (row.accountId === null || row.creditLimit === null) {
+    return null;
+  }
+  return {
+    id: row.id,
+    orgId: row.orgId,
+    name: row.name,
+    accountId: row.accountId,
+    creditLimit: row.creditLimit,
+    windowDays: row.windowDays,
+    lastStatus: row.lastStatus,
   };
 }
 
@@ -65,6 +102,9 @@ export function createAlertRule(db: Db, input: NewAlertRule): Effect.Effect<Aler
           threshold: input.threshold,
           action: input.action,
           enabled: input.enabled ?? true,
+          accountId: input.accountId ?? null,
+          creditLimit: input.creditLimit ?? null,
+          windowDays: input.windowDays ?? 30,
         })
         .returning();
       if (row === undefined) {
@@ -114,4 +154,40 @@ export function setAlertRuleEnabled(
     Effect.flatMap((row) => requireRow(row, id)),
     Effect.map(toAlertRule),
   );
+}
+
+/** Enabled budget rules for an org that have an account + credit limit to evaluate. */
+export function evaluableRules(
+  db: Db,
+  orgId: string,
+): Effect.Effect<readonly EvaluableRule[], RepoError> {
+  return Effect.tryPromise({
+    try: () =>
+      db
+        .select()
+        .from(alertRules)
+        .where(and(eq(alertRules.orgId, orgId), eq(alertRules.metric, "budget"))),
+    catch: (cause) => new RepoError({ cause }),
+  }).pipe(
+    Effect.map((rows) =>
+      rows
+        .filter((row) => row.enabled)
+        .map(toEvaluable)
+        .filter((rule): rule is EvaluableRule => rule !== null),
+    ),
+  );
+}
+
+/** Record the most recent budget classification, so we only alert on escalation. */
+export function setAlertRuleStatus(
+  db: Db,
+  id: string,
+  status: string,
+): Effect.Effect<void, RepoError> {
+  return Effect.tryPromise({
+    try: async () => {
+      await db.update(alertRules).set({ lastStatus: status }).where(eq(alertRules.id, id));
+    },
+    catch: (cause) => new RepoError({ cause }),
+  });
 }

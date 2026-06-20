@@ -7,9 +7,12 @@
 
 use anyhow::Context;
 use clap::{Parser, Subcommand};
-use meter_core::{AccountId, Credit, OrgId};
+use meter_core::{AccountId, Credit, Currency, Money, OrgId};
 use meter_ledger::{AccountScope, CreditSource, GrantRequest, LedgerBackend, NewAccount};
+use meter_pricing::{price_usage, ContextTier, Modality, PricingDimension, Usage};
+use meter_ratecards::rate_card_for;
 use meter_store_pg::PgLedger;
+use rust_decimal::Decimal;
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
 
@@ -58,6 +61,23 @@ enum Command {
         #[arg(long)]
         credits: u64,
     },
+    /// Price token usage for a catalog model (no database needed) — cost in USD and credits.
+    Price {
+        /// The catalog model id (e.g. `gpt-5`).
+        #[arg(long)]
+        model: String,
+        #[arg(long, default_value_t = 0)]
+        input: u64,
+        #[arg(long, default_value_t = 0)]
+        cache_read: u64,
+        #[arg(long, default_value_t = 0)]
+        cache_write: u64,
+        #[arg(long, default_value_t = 0)]
+        output: u64,
+        /// The cash value of one credit, in USD.
+        #[arg(long, default_value = "0.000001")]
+        credit_value_usd: Decimal,
+    },
 }
 
 #[tokio::main]
@@ -77,7 +97,58 @@ async fn main() -> anyhow::Result<()> {
             account,
             credits,
         } => grant(&database_url, AccountId::from_uuid(account), credits).await,
+        Command::Price {
+            model,
+            input,
+            cache_read,
+            cache_write,
+            output,
+            credit_value_usd,
+        } => price(
+            &model,
+            input,
+            cache_read,
+            cache_write,
+            output,
+            credit_value_usd,
+        ),
     }
+}
+
+fn price(
+    model: &str,
+    input: u64,
+    cache_read: u64,
+    cache_write: u64,
+    output: u64,
+    credit_value_usd: Decimal,
+) -> anyhow::Result<()> {
+    let card = rate_card_for(model).with_context(|| format!("unknown model: {model}"))?;
+    let usd = Currency::new("USD").map_err(|error| anyhow::anyhow!("currency: {error}"))?;
+    let credit_value = Money::new(credit_value_usd, usd);
+
+    let mut usage = Usage::new(Modality::Text, ContextTier::Standard);
+    for (dimension, quantity) in [
+        (PricingDimension::InputUncached, input),
+        (PricingDimension::CacheRead, cache_read),
+        (PricingDimension::CacheWrite, cache_write),
+        (PricingDimension::Output, output),
+    ] {
+        if quantity > 0 {
+            usage = usage.with(dimension, Decimal::from(quantity));
+        }
+    }
+
+    let priced = price_usage(&usage, &card, &credit_value)
+        .map_err(|error| anyhow::anyhow!("pricing: {error}"))?;
+    println!("model   {model}");
+    println!("  cogs    {} USD", priced.cogs.amount().normalize());
+    println!(
+        "  price   {} USD",
+        priced.customer_price.amount().normalize()
+    );
+    println!("  credits {}", priced.credits.value().normalize());
+    Ok(())
 }
 
 async fn connect(database_url: &str) -> anyhow::Result<PgLedger> {

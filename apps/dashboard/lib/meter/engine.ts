@@ -172,6 +172,33 @@ export async function fetchEntries(
   }
 }
 
+// Amend an event's custom properties (append-only: records a corrected version). Returns the new event.
+export async function amendEvent(
+  eventId: string,
+  properties: unknown
+): Promise<Result<UsageEvent>> {
+  try {
+    const response = await fetch(
+      `${ENGINE_URL}/v1/events/${encodeURIComponent(eventId)}/amend`,
+      {
+        method: "POST",
+        cache: "no-store",
+        headers: { "content-type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ properties }),
+      }
+    )
+    if (!response.ok) {
+      return { ok: false, error: `engine responded ${response.status}` }
+    }
+    return { ok: true, data: (await response.json()) as UsageEvent }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "engine unreachable",
+    }
+  }
+}
+
 // Void every event for a run (reverses its ledger effects). Returns the number of events voided.
 export async function voidRun(runId: string): Promise<Result<number>> {
   try {

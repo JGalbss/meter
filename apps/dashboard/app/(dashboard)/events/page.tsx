@@ -16,6 +16,7 @@ import {
 import { unwrapOr } from "@/lib/meter/client"
 import { fetchEventsForAccount } from "@/lib/meter/engine"
 import { resolveOrgScope } from "@/lib/meter/org"
+import { AmendEventButton } from "./amend-event-button"
 import { VoidRunButton } from "./void-run-button"
 
 export const dynamic = "force-dynamic"
@@ -36,6 +37,15 @@ function summarize(properties: unknown): string {
 // A run can be voided from the UI only while it is the live (recorded) version and has a run id.
 function canVoidRun(runId: string | null, status: string): boolean {
   return runId !== null && status === "recorded"
+}
+
+// Only the live version is amendable (amending a voided/superseded event is rejected by the engine).
+function isRecorded(status: string): boolean {
+  return status === "recorded"
+}
+
+function prettyProperties(properties: unknown): string {
+  return JSON.stringify(properties ?? {}, null, 2)
 }
 
 export default async function EventsPage({
@@ -115,10 +125,18 @@ export default async function EventsPage({
                       {summarize(event.properties)}
                     </TableCell>
                     <TableCell className="text-right">
-                      {canVoidRun(event.run_id, event.status) &&
-                        event.run_id !== null && (
-                          <VoidRunButton runId={event.run_id} />
+                      <div className="flex justify-end gap-2">
+                        {isRecorded(event.status) && (
+                          <AmendEventButton
+                            eventId={event.id}
+                            properties={prettyProperties(event.properties)}
+                          />
                         )}
+                        {canVoidRun(event.run_id, event.status) &&
+                          event.run_id !== null && (
+                            <VoidRunButton runId={event.run_id} />
+                          )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

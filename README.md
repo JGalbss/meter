@@ -119,33 +119,40 @@ The Rust engine is functional and tested end-to-end against real Postgres:
   status (`ok` / `warning` ≥80% / `exceeded` ≥100%).
 
 Engine HTTP endpoints under `/v1`: `usage` (meter), `accounts` (open · balance · grants · entries ·
-events · invoice · budget · usage-by-day), `reservations` (reserve · settle · void), `events`
-(record · get · amend), `runs/{id}/void`, `audit`.
+events · invoice · budget · usage-by-day), `reservations` (reserve · settle · void), `leases`
+(open · close), `events` (record · batch · get · amend), `runs/{id}/void`, `orgs` (usage-by-model ·
+usage-by-day · event-count), `audit`.
 
 Beyond the engine:
 
 - **Control plane** (`apps/control-plane`, TypeScript · Effect + Drizzle) — the config + ops API the
-  dashboard hits: organizations, products, notifications (pull/read/ack), alert rules with a
-  **budget-evaluation loop** (asks the engine to classify usage, raises notifications on escalation),
-  and **signed, retried webhooks** with a dead-letter log. Applies migrations on boot; Docker image +
-  compose service; e2e-tested over an in-process server.
+  dashboard hits: organizations, products, **API keys with RBAC** (viewer/member/admin roles enforced
+  by the auth middleware), notifications (pull/read/ack), alert rules with a **budget-evaluation loop**
+  (asks the engine to classify usage, raises notifications on escalation), and **signed, retried
+  webhooks** with a dead-letter log. Request-id + structured access-log middleware for tracing. Applies
+  migrations on boot; Docker image + compose service; e2e-tested over an in-process server.
 - **Audit log** — engine middleware records every mutating request; `GET /v1/audit`. Stored in
   ClickHouse (ADR 0004) — a high-velocity append-only firehose, kept off the money database.
 - **SDKs** (`sdks/typescript`, `sdks/python`) — drop-in client + run governance (`withRun`) + usage
   adapters for Anthropic, OpenAI, Vercel AI SDK, Gemini/Vertex, Bedrock, and LangChain/LangGraph.
-- **Dashboard** (`apps/dashboard`, Next.js + shadcn preset) — overview, organizations, products,
-  API keys, notifications, alert rules, and webhooks (wired to the control plane), plus usage analytics
-  read from the engine: per-org usage-by-model and per-account daily credit burn.
+- **Dashboard** (`apps/dashboard`, Next.js + shadcn preset) — a full operator console: overview (with a
+  top-models-by-spend summary), organizations, products, API keys (mint + RBAC role select),
+  notifications, alert rules, and webhooks (wired to the control plane); plus engine-read views — usage
+  analytics (usage-by-model + daily credit burn), an events explorer with **amend / void-run** actions,
+  accounts (balance + ledger entries), invoices (month-to-date statement), and the audit log. Shipped
+  as a Docker image; run-verified.
 - **Docs site** (`apps/docs`, Next.js + MDX) — concepts, full API reference (engine + control plane),
   SDK guides with provider adapters, and self-host instructions. Built and typechecked in CI.
 
-- **Analytics (ClickHouse, optional):** `meter-store-ch` — `events_raw` firehose
-  (`ReplacingMergeTree`, idempotent on `org_id`+`event_id`) + usage-by-model rollups, integration-tested
-  against a real ClickHouse container. Money-truth stays in the engine; ClickHouse is analytics only.
+- **ClickHouse** (`meter-store-ch`, required) — the **system of record for events** (editable model:
+  record/amend/void via `ReplacingMergeTree` + `FINAL`) plus the **audit log** and **usage analytics**
+  (ADR 0003/0004). Integration-tested against a real ClickHouse container. Money-truth stays in the
+  Postgres ledger; the high-velocity firehoses live here.
+- **Deployment** — engine, control-plane, and dashboard Docker images; a 5-service docker-compose; a
+  Helm chart (toggleable in-cluster Postgres/ClickHouse, Ingress/TLS) and a GHCR publish workflow.
 
-In progress (see [tickets](tickets/README.md)): OpenAPI emission + Stainless-generated SDKs, protobuf
-engine⇄control-plane contract, ClickHouse rollup MVs + query API, RBAC, dashboard usage charts,
-throughput benchmarks.
+In progress (see [tickets](tickets/README.md)): the OpenAPI/protobuf contract surfaces (generated
+typed clients), and a rate-card catalog scraper for more providers.
 
 ## Self-hosting
 

@@ -1160,3 +1160,48 @@ async fn responses_carry_a_request_id() {
         .expect("response");
     assert_eq!(response.headers().get("x-request-id").unwrap(), "corr-123");
 }
+
+#[tokio::test]
+async fn synced_rate_card_is_readable() {
+    let (_container, app, ledger, _events) = app_with_stores().await;
+
+    let card_id = uuid::Uuid::now_v7();
+    PgConfig::new(ledger.pool().clone())
+        .put_rate_card(&RateCardRecord {
+            id: card_id,
+            version: 1,
+            kind: "customer".to_owned(),
+            currency: "USD".to_owned(),
+            margin: Decimal::new(13, 1),
+            components: json!([{
+                "dimension": "output", "modality": "text", "context_tier": "standard",
+                "unit": "token", "charge_model": "standard",
+                "unit_price": { "amount": "0.0001", "currency": "USD" }
+            }]),
+        })
+        .await
+        .expect("put card");
+
+    let (status, body) = call(
+        &app,
+        "GET",
+        &format!("/v1/rate-cards/{card_id}"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["kind"], "customer");
+    assert_eq!(body["version"], json!(1));
+    assert_eq!(body["components"].as_array().expect("components").len(), 1);
+
+    // An un-synced id is a 404.
+    let unknown = uuid::Uuid::now_v7();
+    let (status, _) = call(
+        &app,
+        "GET",
+        &format!("/v1/rate-cards/{unknown}"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}

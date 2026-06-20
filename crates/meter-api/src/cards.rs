@@ -40,6 +40,16 @@ fn rate_card_from_record(record: RateCardRecord) -> Result<RateCard, ApiError> {
     })
 }
 
+/// The live synced rate card for `id` (latest version), reconstructed as a pricing [`RateCard`].
+/// `404` if no card with that id has been synced.
+pub async fn load_stored_card(state: &AppState, id: Uuid) -> Result<RateCard, ApiError> {
+    let record = PgConfig::new(state.ledger.pool().clone())
+        .latest_rate_card(id)
+        .await?
+        .ok_or_else(|| ApiError::not_found(format!("unknown rate card: {id}")))?;
+    rate_card_from_record(record)
+}
+
 /// The card to price against: the synced card `rate_card_id` (its latest version) when given, else the
 /// catalog card for `model`. `404` if the chosen source has no such card.
 pub async fn resolve_card(
@@ -53,11 +63,7 @@ pub async fn resolve_card(
         Some(id) => {
             let uuid = Uuid::parse_str(id)
                 .map_err(|_| ApiError::unprocessable(format!("invalid rate_card_id: {id}")))?;
-            let record = PgConfig::new(state.ledger.pool().clone())
-                .latest_rate_card(uuid)
-                .await?
-                .ok_or_else(|| ApiError::not_found(format!("unknown rate card: {id}")))?;
-            rate_card_from_record(record)
+            load_stored_card(state, uuid).await
         }
     }
 }

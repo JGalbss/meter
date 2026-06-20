@@ -9,6 +9,7 @@ mod events;
 mod health;
 mod invoices;
 mod leases;
+mod rate_cards;
 mod request_id;
 mod reservations;
 mod simulate;
@@ -51,6 +52,7 @@ pub fn router(state: AppState) -> Router {
         .route("/simulate", post(simulate::simulate))
         .route("/catalog", get(catalog::list))
         .route("/catalog/:model_id", get(catalog::get_card))
+        .route("/rate-cards/:id", get(rate_cards::get))
         .route("/audit", get(audit::list));
 
     Router::new()

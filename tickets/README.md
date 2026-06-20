@@ -29,8 +29,11 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
   notifications, webhooks, webhook-deliveries), so the doc fully describes 200/201 bodies — typed arrays
   for lists, `201 Created` for creates, `CreatedApiKey` with the one-time token. Schemas are **named
   under `components/schemas` and `$ref`'d** (codegen-ready), a checked-in `apps/control-plane/openapi.json`
-  is emitted by `openapi:emit`, and a test fails if it drifts from the served doc. Typed **client
-  codegen** off the spec + the protobuf engine⇄control-plane contract remain.
+  is emitted by `openapi:emit`, and a test fails if it drifts from the served doc. **Typed client
+  codegen done**: the dashboard's control-plane types are generated from the spec via
+  `openapi-typescript` (`gen:api` → `control-plane.gen.ts`) — the hand-mirrored types are gone, and CI
+  fails if the generated client drifts from `openapi.json`. The protobuf engine⇄control-plane contract
+  remains (engine has no gRPC surface yet).
 - [ ] Wire-protocol versioning policy
 
 ## EPIC 02 — Engine schemas & migrations (Postgres, sqlx)

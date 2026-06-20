@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated (openapi-typescript) — owned by codegen, not hand-edited.
+    "**/*.gen.ts",
   ]),
 ]);
 

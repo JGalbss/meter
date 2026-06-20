@@ -1,58 +1,25 @@
-//! Response shapes from the meter control plane. Mirrors `apps/control-plane` repositories.
+//! Response types the dashboard consumes.
+//!
+//! Control-plane types are **generated** from its OpenAPI spec (`bun run gen:api` →
+//! `control-plane.gen.ts`), so they can't drift from the API. Engine read-models are still hand-written
+//! (the engine doesn't emit OpenAPI yet).
 
-export interface Organization {
-  readonly id: string
-  readonly slug: string
-  readonly name: string
-  readonly defaultCurrency: string
-}
+import type { components } from "./control-plane.gen"
 
-export interface Product {
-  readonly id: string
-  readonly orgId: string
-  readonly key: string
-  readonly name: string
-}
+// --- Control plane (generated) -------------------------------------------------------------------
+type CpSchemas = components["schemas"]
 
-export interface Notification {
-  readonly id: string
-  readonly orgId: string
-  readonly type: string
-  readonly severity: string
-  readonly title: string
-  readonly body: string
-  readonly data: unknown
-  readonly status: string
-  readonly createdAt: string
-  readonly readAt: string | null
-  readonly ackedAt: string | null
-}
+export type Organization = CpSchemas["Organization"]
+export type Product = CpSchemas["Product"]
+export type Notification = CpSchemas["Notification"]
+export type AlertRule = CpSchemas["AlertRule"]
+export type Webhook = CpSchemas["Webhook"]
+export type WebhookDelivery = CpSchemas["WebhookDelivery"]
+export type ApiKey = CpSchemas["ApiKey"]
+export type CreatedApiKey = CpSchemas["CreatedApiKey"]
+export type ApiKeyRole = ApiKey["role"]
 
-export interface AlertRule {
-  readonly id: string
-  readonly orgId: string
-  readonly name: string
-  readonly scope: string
-  readonly metric: string
-  readonly threshold: string
-  readonly action: string
-  readonly enabled: boolean
-  readonly accountId: string | null
-  readonly creditLimit: string | null
-  readonly windowDays: number
-  readonly lastStatus: string | null
-  readonly createdAt: string
-}
-
-export interface Webhook {
-  readonly id: string
-  readonly orgId: string
-  readonly url: string
-  readonly eventTypes: readonly string[]
-  readonly enabled: boolean
-  readonly createdAt: string
-}
-
+// --- Engine read-models (hand-written until the engine emits OpenAPI) -----------------------------
 export interface DayUsage {
   readonly day: string
   readonly total_credits: string
@@ -131,34 +98,4 @@ export interface LedgerEntry {
   readonly reservation_id: string | null
   readonly idempotency_key: string | null
   readonly created_at: string
-}
-
-export type ApiKeyRole = "viewer" | "member" | "admin"
-
-export interface ApiKey {
-  readonly id: string
-  readonly orgId: string
-  readonly name: string
-  readonly role: ApiKeyRole
-  readonly prefix: string
-  readonly createdAt: string
-  readonly lastUsedAt: string | null
-  readonly revokedAt: string | null
-}
-
-export interface CreatedApiKey extends ApiKey {
-  readonly token: string
-}
-
-export interface WebhookDelivery {
-  readonly id: string
-  readonly webhookId: string
-  readonly notificationId: string | null
-  readonly event: string
-  readonly payload: unknown
-  readonly status: string
-  readonly responseStatus: number | null
-  readonly error: string | null
-  readonly attempts: number
-  readonly createdAt: string
 }

@@ -1784,6 +1784,7 @@ dependencies = [
  "tokio-stream",
  "tonic",
  "tower 0.5.3",
+ "tower-http",
  "tracing",
  "utoipa",
  "uuid",
@@ -3943,6 +3944,7 @@ dependencies = [
  "tower 0.5.3",
  "tower-layer",
  "tower-service",
+ "tracing",
  "url",
 ]
 

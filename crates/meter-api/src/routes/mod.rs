@@ -19,6 +19,8 @@ mod usage;
 use axum::middleware;
 use axum::routing::{get, post};
 use axum::Router;
+use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
+use tracing::Level;
 
 use crate::AppState;
 
@@ -67,7 +69,14 @@ pub fn router(state: AppState) -> Router {
             state.clone(),
             audit::audit_middleware,
         ))
-        // Outermost: every request/response carries a correlation id.
+        // Every request/response carries a correlation id.
         .layer(middleware::from_fn(request_id::propagate))
+        // Outermost: an info-level span per request with method, path, status, and latency, so the
+        // engine emits structured request traces at the default log level (EPIC 16 observability).
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
+                .on_response(DefaultOnResponse::new().level(Level::INFO)),
+        )
         .with_state(state)
 }

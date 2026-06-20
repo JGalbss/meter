@@ -2,6 +2,7 @@
 
 import {
   Bell,
+  BookOpen,
   Buildings,
   Calculator,
   ChartLineUp,
@@ -24,6 +25,7 @@ import type { ComponentType } from "react"
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -32,6 +34,12 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
+
+// The docs live in a separate app; self-hosters point this at their deployed docs site. The fallback
+// is the documentation in the repository, which is always valid.
+const DOCS_URL =
+  process.env.NEXT_PUBLIC_DOCS_URL ??
+  "https://github.com/JGalbss/meter/tree/main/docs"
 
 interface NavItem {
   readonly href: string
@@ -109,6 +117,19 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              render={<a href={DOCS_URL} target="_blank" rel="noreferrer" />}
+              tooltip="Documentation"
+            >
+              <BookOpen size={18} />
+              <span>Documentation</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
     </Sidebar>
   )
 }

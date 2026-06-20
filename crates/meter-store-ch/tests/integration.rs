@@ -1,4 +1,4 @@
-//! Integration test for the ClickHouse event store + usage analytics against a real ClickHouse
+//! Integration test for the `ClickHouse` event store + usage analytics against a real `ClickHouse`
 //! container. Analytics are derived from the `events` system of record, so this drives the real
 //! ingest path (`record` / `amend` / `void_run`) and asserts that idempotency, amends, and voids are
 //! reflected correctly in the aggregates.

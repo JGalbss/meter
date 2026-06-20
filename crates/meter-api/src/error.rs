@@ -54,7 +54,7 @@ impl From<EventError> for ApiError {
     }
 }
 
-fn ledger_status(error: &LedgerError) -> (StatusCode, &'static str) {
+const fn ledger_status(error: &LedgerError) -> (StatusCode, &'static str) {
     match error {
         LedgerError::AccountNotFound(_) | LedgerError::ReservationNotFound(_) => {
             (StatusCode::NOT_FOUND, "not_found")
@@ -68,7 +68,7 @@ fn ledger_status(error: &LedgerError) -> (StatusCode, &'static str) {
     }
 }
 
-fn event_status(error: &EventError) -> (StatusCode, &'static str) {
+const fn event_status(error: &EventError) -> (StatusCode, &'static str) {
     match error {
         EventError::NotFound(_) => (StatusCode::NOT_FOUND, "not_found"),
         EventError::Voided(_) => (StatusCode::CONFLICT, "conflict"),
@@ -79,9 +79,9 @@ fn event_status(error: &EventError) -> (StatusCode, &'static str) {
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let ((status, code), message) = match self {
-            ApiError::Ledger(error) => (ledger_status(&error), error.to_string()),
-            ApiError::Event(error) => (event_status(&error), error.to_string()),
-            ApiError::Status(status, code, message) => ((status, code), message),
+            Self::Ledger(error) => (ledger_status(&error), error.to_string()),
+            Self::Event(error) => (event_status(&error), error.to_string()),
+            Self::Status(status, code, message) => ((status, code), message),
         };
         (status, Json(json!({ "error": code, "message": message }))).into_response()
     }

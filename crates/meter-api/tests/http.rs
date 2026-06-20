@@ -25,7 +25,7 @@ use tower::ServiceExt;
 static CONTAINER_LIMIT: LazyLock<Arc<Semaphore>> = LazyLock::new(|| Arc::new(Semaphore::new(2)));
 
 /// Keeps a test's containers (and its concurrency permit) alive for the test's duration. Money-truth
-/// is Postgres; events live in ClickHouse (ADR 0003), so the engine needs both.
+/// is Postgres; events live in `ClickHouse` (ADR 0003), so the engine needs both.
 struct TestApp {
     _permit: OwnedSemaphorePermit,
     _postgres: ContainerAsync<Postgres>,
@@ -539,7 +539,7 @@ async fn org_usage_analytics_over_http() {
     assert_eq!(models[0]["events"], json!(2));
     assert_eq!(models[0]["input_tokens"], json!(2000));
     assert_eq!(models[0]["output_tokens"], json!(1000));
-    assert_eq!(models[0]["credits"], json!(105000.0));
+    assert_eq!(models[0]["credits"], json!(105_000.0));
 
     // Event count (live, recorded events for the org).
     let (status, count) = call(
@@ -564,7 +564,7 @@ async fn org_usage_analytics_over_http() {
     let days = by_day.as_array().expect("day array");
     assert_eq!(days.len(), 1);
     assert_eq!(days[0]["events"], json!(2));
-    assert_eq!(days[0]["credits"], json!(105000.0));
+    assert_eq!(days[0]["credits"], json!(105_000.0));
 }
 
 #[tokio::test]

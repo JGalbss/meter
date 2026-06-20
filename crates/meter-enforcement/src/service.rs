@@ -27,7 +27,7 @@ pub struct EnforcementService<L> {
 impl<L: LedgerBackend> EnforcementService<L> {
     /// Build a service over a ledger, with the cash value of one credit (e.g. `$0.02`).
     #[must_use]
-    pub fn new(ledger: L, credit_value: Money) -> Self {
+    pub const fn new(ledger: L, credit_value: Money) -> Self {
         Self {
             ledger,
             credit_value,
@@ -36,7 +36,7 @@ impl<L: LedgerBackend> EnforcementService<L> {
 
     /// The underlying ledger, for reads and composition.
     #[must_use]
-    pub fn ledger(&self) -> &L {
+    pub const fn ledger(&self) -> &L {
         &self.ledger
     }
 

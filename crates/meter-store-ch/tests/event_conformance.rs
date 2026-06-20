@@ -1,5 +1,5 @@
-//! The ClickHouse `EventStore` backend must pass the identical shared event conformance suite as the
-//! in-memory reference, executed against a real ClickHouse started by testcontainers (ADR 0003).
+//! The `ClickHouse` `EventStore` backend must pass the identical shared event conformance suite as the
+//! in-memory reference, executed against a real `ClickHouse` started by testcontainers (ADR 0003).
 
 use meter_event::conformance;
 use meter_store_ch::ChStore;

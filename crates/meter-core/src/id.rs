@@ -1,6 +1,6 @@
 //! Strongly-typed, time-ordered identifiers.
 //!
-//! [`Id<T>`] wraps a UUIDv7 (time-ordered, so it indexes well in Postgres) and is parameterised by a
+//! [`Id<T>`] wraps a `UUIDv7` (time-ordered, so it indexes well in Postgres) and is parameterised by a
 //! zero-sized marker type, so an [`OrgId`] can never be passed where a [`UserId`] is expected. The
 //! marker is carried as `PhantomData<fn() -> T>`, which keeps `Id<T>` `Copy + Send + Sync` regardless
 //! of `T`.
@@ -14,7 +14,7 @@ use core::str::FromStr;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
 
-/// A strongly-typed identifier for entity `T`, backed by a UUIDv7.
+/// A strongly-typed identifier for entity `T`, backed by a `UUIDv7`.
 pub struct Id<T> {
     value: Uuid,
     _marker: PhantomData<fn() -> T>,

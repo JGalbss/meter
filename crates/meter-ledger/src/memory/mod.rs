@@ -3,7 +3,7 @@
 //! The simplest correct double-entry ledger: every grant and settle is a paired transfer against a
 //! single system account, so the sum of all balances is always exactly zero (conservation). It exists
 //! to (1) let the reserve/settle and no-overdraft logic be property-tested before any database exists,
-//! and (2) act as the oracle the Postgres and TigerBeetle backends must match byte-for-byte.
+//! and (2) act as the oracle the Postgres and `TigerBeetle` backends must match byte-for-byte.
 
 mod ops;
 mod state;
@@ -49,7 +49,7 @@ impl InMemoryLedger {
 
     /// The id of the system account every transfer pairs against.
     #[must_use]
-    pub fn system_account(&self) -> AccountId {
+    pub const fn system_account(&self) -> AccountId {
         self.system
     }
 

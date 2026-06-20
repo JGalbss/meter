@@ -14,7 +14,7 @@ pub(super) struct AccountRow {
 }
 
 impl AccountRow {
-    pub(super) fn new(account: LedgerAccount) -> Self {
+    pub(super) const fn new(account: LedgerAccount) -> Self {
         Self {
             account,
             settled: Credit::ZERO,

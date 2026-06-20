@@ -1,6 +1,6 @@
 //! The meter engine binary.
 //!
-//! Connects to Postgres (money-truth) + ClickHouse (events, ADR 0003), applies migrations, and serves
+//! Connects to Postgres (money-truth) + `ClickHouse` (events, ADR 0003), applies migrations, and serves
 //! the HTTP API. Configuration is via environment: `METER_DATABASE_URL` and `METER_CLICKHOUSE_URL`
 //! (both required), and `METER_LISTEN_ADDR` (default `0.0.0.0:8080`).
 

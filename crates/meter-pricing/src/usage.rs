@@ -16,7 +16,7 @@ pub struct Usage {
 impl Usage {
     /// An empty usage at the given modality and context tier.
     #[must_use]
-    pub fn new(modality: Modality, context_tier: ContextTier) -> Self {
+    pub const fn new(modality: Modality, context_tier: ContextTier) -> Self {
         Self {
             modality,
             context_tier,

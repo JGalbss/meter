@@ -14,7 +14,7 @@ use meter_event::{AmendEvent, Event, EventError, EventStatus, EventStore, Record
 
 use crate::ChStore;
 
-/// The `events` columns in struct order — RowBinary reads positionally, so SELECTs must match.
+/// The `events` columns in struct order — `RowBinary` reads positionally, so SELECTs must match.
 /// A macro (not a `const`) so the list can be `concat!`-ed into compile-time query strings, keeping
 /// every read a static `&str` (no runtime `format!`, single source of truth for the column order).
 macro_rules! event_columns {
@@ -72,7 +72,7 @@ fn backend<E: std::fmt::Display>(error: E) -> EventError {
     EventError::Backend(error.to_string())
 }
 
-fn status_to_str(status: EventStatus) -> &'static str {
+const fn status_to_str(status: EventStatus) -> &'static str {
     match status {
         EventStatus::Recorded => "recorded",
         EventStatus::Amended => "amended",
@@ -105,7 +105,7 @@ fn row_to_event(row: EventRow) -> Result<Event, EventError> {
 }
 
 impl ChStore {
-    /// Insert one event version (assigns the next version for the ReplacingMergeTree).
+    /// Insert one event version (assigns the next version for the `ReplacingMergeTree`).
     async fn insert_event(&self, event: &Event) -> Result<(), EventError> {
         let row = EventRow {
             id: event.id.as_uuid(),

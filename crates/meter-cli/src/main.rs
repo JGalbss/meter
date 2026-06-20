@@ -21,7 +21,7 @@ struct Cli {
 enum Command {
     /// Apply the engine database migrations (idempotent).
     Migrate {
-        /// Postgres connection string (defaults to $METER_DATABASE_URL).
+        /// Postgres connection string (defaults to $`METER_DATABASE_URL`).
         #[arg(long, env = "METER_DATABASE_URL")]
         database_url: String,
     },

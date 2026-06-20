@@ -1,4 +1,4 @@
-//! ClickHouse store for meter events + usage analytics.
+//! `ClickHouse` store for meter events + usage analytics.
 //!
 //! Per ADR 0003 this is the **system of record for events**: the editable event model (`EventStore`)
 //! lives here in `events`, alongside the `events_dead_letter` queue. Usage analytics are derived
@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-/// A failure talking to ClickHouse.
+/// A failure talking to `ClickHouse`.
 #[derive(Debug, thiserror::Error)]
 pub enum ChError {
     #[error("clickhouse: {0}")]
@@ -45,7 +45,7 @@ pub struct DayUsage {
 }
 
 /// An event that failed validation/ingest, kept for inspection and replay.
-#[derive(clickhouse::Row, Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(clickhouse::Row, Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct DeadLetter {
     #[serde(with = "clickhouse::serde::uuid")]
     pub id: Uuid,
@@ -63,17 +63,17 @@ struct CountRow {
     n: u64,
 }
 
-/// The ClickHouse store over a ClickHouse server.
+/// The `ClickHouse` store over a `ClickHouse` server.
 #[derive(Clone)]
 pub struct ChStore {
     client: Client,
-    /// Strictly-increasing version source for the `events` ReplacingMergeTree (so a status change
+    /// Strictly-increasing version source for the `events` `ReplacingMergeTree` (so a status change
     /// always supersedes the prior row). Seeded from the wall clock; monotonic within a process.
     version_seq: Arc<AtomicU64>,
 }
 
 impl ChStore {
-    /// Connect to ClickHouse over its HTTP interface (e.g. `http://127.0.0.1:8123`).
+    /// Connect to `ClickHouse` over its HTTP interface (e.g. `http://127.0.0.1:8123`).
     pub fn new(url: &str) -> Self {
         let seed =
             u64::try_from(OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000).unwrap_or(0);

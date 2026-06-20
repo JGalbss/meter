@@ -17,7 +17,7 @@ pub struct Credit(#[serde(with = "rust_decimal::serde::str")] Decimal);
 
 impl Credit {
     /// Zero credits.
-    pub const ZERO: Credit = Credit(Decimal::ZERO);
+    pub const ZERO: Self = Self(Decimal::ZERO);
 
     /// Construct from an exact decimal amount.
     #[must_use]
@@ -33,19 +33,19 @@ impl Credit {
 
     /// Whether this is exactly zero.
     #[must_use]
-    pub fn is_zero(self) -> bool {
+    pub const fn is_zero(self) -> bool {
         self.0.is_zero()
     }
 
     /// Whether this is strictly negative.
     #[must_use]
-    pub fn is_negative(self) -> bool {
+    pub const fn is_negative(self) -> bool {
         self.0.is_sign_negative() && !self.0.is_zero()
     }
 
     /// Whether this is strictly positive.
     #[must_use]
-    pub fn is_positive(self) -> bool {
+    pub const fn is_positive(self) -> bool {
         !self.0.is_sign_negative() && !self.0.is_zero()
     }
 
@@ -69,19 +69,19 @@ impl From<u64> for Credit {
 }
 
 impl Add for Credit {
-    type Output = Credit;
+    type Output = Self;
     fn add(self, rhs: Self) -> Self {
         Self(self.0 + rhs.0)
     }
 }
 impl Sub for Credit {
-    type Output = Credit;
+    type Output = Self;
     fn sub(self, rhs: Self) -> Self {
         Self(self.0 - rhs.0)
     }
 }
 impl Neg for Credit {
-    type Output = Credit;
+    type Output = Self;
     fn neg(self) -> Self {
         Self(-self.0)
     }
@@ -97,8 +97,8 @@ impl SubAssign for Credit {
     }
 }
 impl Sum for Credit {
-    fn sum<I: Iterator<Item = Credit>>(iter: I) -> Self {
-        iter.fold(Credit::ZERO, Add::add)
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(Self::ZERO, Add::add)
     }
 }
 

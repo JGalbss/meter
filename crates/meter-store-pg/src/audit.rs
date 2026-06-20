@@ -6,7 +6,7 @@ use sqlx::Row;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-/// An audit-log backed by PostgreSQL.
+/// An audit-log backed by `PostgreSQL`.
 #[derive(Debug, Clone)]
 pub struct PgAuditLog {
     pool: PgPool,
@@ -27,7 +27,7 @@ pub struct AuditEntry {
 impl PgAuditLog {
     /// Wrap a connection pool (shares the engine database).
     #[must_use]
-    pub fn new(pool: PgPool) -> Self {
+    pub const fn new(pool: PgPool) -> Self {
         Self { pool }
     }
 

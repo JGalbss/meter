@@ -22,7 +22,7 @@ pub struct Margin(#[serde(with = "rust_decimal::serde::str")] Decimal);
 
 impl Margin {
     /// No markup (multiplier 1.00).
-    pub const NONE: Margin = Margin(Decimal::ONE);
+    pub const NONE: Self = Self(Decimal::ONE);
 
     /// Build a margin from a multiplier (e.g. `1.30` for +30%).
     #[must_use]

@@ -38,7 +38,7 @@ pub async fn usage_by_day(
 }
 
 /// `GET /v1/orgs/{id}/usage-by-model` — usage aggregated by model, derived from the event store
-/// (ClickHouse). Reflects amends and voids; ordered by spend, highest first.
+/// (`ClickHouse`). Reflects amends and voids; ordered by spend, highest first.
 pub async fn usage_by_model(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -51,7 +51,7 @@ pub async fn usage_by_model(
     Ok(Json(usage))
 }
 
-/// `GET /v1/orgs/{id}/usage-by-day` — daily event + credit totals from the event store (ClickHouse).
+/// `GET /v1/orgs/{id}/usage-by-day` — daily event + credit totals from the event store (`ClickHouse`).
 pub async fn org_usage_by_day(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,

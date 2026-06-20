@@ -56,7 +56,7 @@ impl<'de> Deserialize<'de> for Currency {
         D: serde::Deserializer<'de>,
     {
         let code = String::deserialize(deserializer)?;
-        Currency::new(code).map_err(serde::de::Error::custom)
+        Self::new(code).map_err(serde::de::Error::custom)
     }
 }
 
@@ -71,13 +71,13 @@ pub struct Money {
 impl Money {
     /// Construct an amount in the given currency.
     #[must_use]
-    pub fn new(amount: Decimal, currency: Currency) -> Self {
+    pub const fn new(amount: Decimal, currency: Currency) -> Self {
         Self { amount, currency }
     }
 
     /// Zero in the given currency.
     #[must_use]
-    pub fn zero(currency: Currency) -> Self {
+    pub const fn zero(currency: Currency) -> Self {
         Self {
             amount: Decimal::ZERO,
             currency,
@@ -86,53 +86,47 @@ impl Money {
 
     /// The signed amount.
     #[must_use]
-    pub fn amount(&self) -> Decimal {
+    pub const fn amount(&self) -> Decimal {
         self.amount
     }
 
     /// The currency.
     #[must_use]
-    pub fn currency(&self) -> &Currency {
+    pub const fn currency(&self) -> &Currency {
         &self.currency
     }
 
     /// Whether the amount is exactly zero.
     #[must_use]
-    pub fn is_zero(&self) -> bool {
+    pub const fn is_zero(&self) -> bool {
         self.amount.is_zero()
     }
 
     /// Whether the amount is strictly negative.
     #[must_use]
-    pub fn is_negative(&self) -> bool {
+    pub const fn is_negative(&self) -> bool {
         self.amount.is_sign_negative() && !self.amount.is_zero()
     }
 
     /// Add two amounts, requiring matching currencies.
-    pub fn try_add(&self, other: &Money) -> Result<Money, MoneyError> {
+    pub fn try_add(&self, other: &Self) -> Result<Self, MoneyError> {
         self.ensure_same_currency(other)?;
-        Ok(Money::new(
-            self.amount + other.amount,
-            self.currency.clone(),
-        ))
+        Ok(Self::new(self.amount + other.amount, self.currency.clone()))
     }
 
     /// Subtract `other` from `self`, requiring matching currencies.
-    pub fn try_sub(&self, other: &Money) -> Result<Money, MoneyError> {
+    pub fn try_sub(&self, other: &Self) -> Result<Self, MoneyError> {
         self.ensure_same_currency(other)?;
-        Ok(Money::new(
-            self.amount - other.amount,
-            self.currency.clone(),
-        ))
+        Ok(Self::new(self.amount - other.amount, self.currency.clone()))
     }
 
     /// Scale the amount by a dimensionless factor (e.g. quantity × unit price).
     #[must_use]
-    pub fn scale_by(&self, factor: Decimal) -> Money {
-        Money::new(self.amount * factor, self.currency.clone())
+    pub fn scale_by(&self, factor: Decimal) -> Self {
+        Self::new(self.amount * factor, self.currency.clone())
     }
 
-    fn ensure_same_currency(&self, other: &Money) -> Result<(), MoneyError> {
+    fn ensure_same_currency(&self, other: &Self) -> Result<(), MoneyError> {
         if self.currency != other.currency {
             return Err(MoneyError::CurrencyMismatch {
                 left: self.currency.clone(),

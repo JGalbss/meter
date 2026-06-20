@@ -53,7 +53,7 @@ fn bench_pricing(c: &mut Criterion) {
     let credit_value = Money::new(dec!(0.000001), usd()); // 1 credit = 1 micro-USD
 
     c.bench_function("cost_5_dimensions", |b| {
-        b.iter(|| cost(black_box(&usage), black_box(&card)).expect("cost"))
+        b.iter(|| cost(black_box(&usage), black_box(&card)).expect("cost"));
     });
 
     c.bench_function("price_usage_end_to_end", |b| {
@@ -64,7 +64,7 @@ fn bench_pricing(c: &mut Criterion) {
                 black_box(&credit_value),
             )
             .expect("price")
-        })
+        });
     });
 }
 

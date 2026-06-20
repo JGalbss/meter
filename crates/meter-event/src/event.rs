@@ -21,7 +21,7 @@ pub enum EventStatus {
 /// run. Amendments create a new event whose `supersedes` points back to the version it replaces.
 ///
 /// `Event` is not `Eq` because `properties` (a `serde_json::Value`) is only `PartialEq`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Event {
     pub id: EventId,
     pub org_id: OrgId,

@@ -16,7 +16,7 @@ use meter_store_pg::{PgAuditLog, PgLedger};
 
 pub use routes::router;
 
-/// Shared handler state. Money-truth (ledger, audit) is Postgres; events live in ClickHouse (ADR 0003).
+/// Shared handler state. Money-truth (ledger, audit) is Postgres; events live in `ClickHouse` (ADR 0003).
 #[derive(Clone)]
 pub struct AppState {
     pub ledger: PgLedger,
@@ -29,7 +29,12 @@ pub struct AppState {
 impl AppState {
     /// Build state over the engine stores, with the credit's cash value.
     #[must_use]
-    pub fn new(ledger: PgLedger, events: ChStore, audit: PgAuditLog, credit_value: Money) -> Self {
+    pub const fn new(
+        ledger: PgLedger,
+        events: ChStore,
+        audit: PgAuditLog,
+        credit_value: Money,
+    ) -> Self {
         Self {
             ledger,
             events,

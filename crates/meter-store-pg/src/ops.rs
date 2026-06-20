@@ -38,7 +38,7 @@ async fn insert_entry(
     .bind(entry.source.map(source_to_str))
     .bind(entry.revenue_recognizable)
     .bind(entry.reverses_entry_id.map(|id| id.as_uuid()))
-    .bind(entry.reservation_id.map(|id| id.as_uuid()))
+    .bind(entry.reservation_id.map(meter_ledger::ReservationId::as_uuid))
     .bind(entry.idempotency_key.as_deref())
     .bind(entry.created_at)
     .execute(conn)

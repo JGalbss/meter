@@ -12,7 +12,7 @@ use meter_store_pg::AuditEntry;
 use crate::error::ApiError;
 use crate::AppState;
 
-fn is_mutating(method: &Method) -> bool {
+const fn is_mutating(method: &Method) -> bool {
     matches!(
         *method,
         Method::POST | Method::PUT | Method::PATCH | Method::DELETE
@@ -54,7 +54,7 @@ pub struct AuditQuery {
     pub limit: i64,
 }
 
-fn default_limit() -> i64 {
+const fn default_limit() -> i64 {
     100
 }
 

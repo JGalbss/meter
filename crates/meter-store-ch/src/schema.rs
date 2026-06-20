@@ -1,4 +1,4 @@
-//! ClickHouse DDL for the event store (ADR 0003).
+//! `ClickHouse` DDL for the event store (ADR 0003).
 //!
 //! `events` is the system of record for usage events; usage analytics are derived from it directly
 //! (`FINAL` + `status = 'recorded'`, so amends and voids are reflected — see `lib.rs`). Money-truth

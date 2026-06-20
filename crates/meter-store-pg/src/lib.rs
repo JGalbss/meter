@@ -1,4 +1,4 @@
-//! PostgreSQL implementation of meter's [`meter_ledger::LedgerBackend`].
+//! `PostgreSQL` implementation of meter's [`meter_ledger::LedgerBackend`].
 //!
 //! The append-only double-entry ledger over Postgres. Per-account settled balances are kept on
 //! `ledger_accounts` and updated transactionally; reserve/settle serialize on the account row with
@@ -19,7 +19,7 @@ pub use report::{DayUsage, PeriodUsage};
 use meter_ledger::LedgerError;
 use sqlx::postgres::PgPool;
 
-/// A ledger backed by PostgreSQL.
+/// A ledger backed by `PostgreSQL`.
 #[derive(Debug, Clone)]
 pub struct PgLedger {
     pool: PgPool,
@@ -28,7 +28,7 @@ pub struct PgLedger {
 impl PgLedger {
     /// Wrap a connection pool.
     #[must_use]
-    pub fn new(pool: PgPool) -> Self {
+    pub const fn new(pool: PgPool) -> Self {
         Self { pool }
     }
 
@@ -42,7 +42,7 @@ impl PgLedger {
 
     /// The underlying pool (for composing higher-level engine services on the same database).
     #[must_use]
-    pub fn pool(&self) -> &PgPool {
+    pub const fn pool(&self) -> &PgPool {
         &self.pool
     }
 }

@@ -12,19 +12,19 @@ use meter_ledger::{
 };
 
 /// Map a sqlx error into a ledger backend error.
-pub(crate) fn be(error: sqlx::Error) -> LedgerError {
+pub fn be(error: sqlx::Error) -> LedgerError {
     LedgerError::Backend(error.to_string())
 }
 
 /// Build a [`Credit`] from a DB numeric, normalizing away the storage scale (e.g. `numeric(30,5)`
 /// returns `100.00000`; we present `100`). Value equality is unaffected; presentation is consistent.
-pub(crate) fn credit_from_db(value: Decimal) -> Credit {
+pub fn credit_from_db(value: Decimal) -> Credit {
     Credit::from_decimal(value.normalize())
 }
 
 /// Current UTC time truncated to microsecond precision (Postgres `TIMESTAMPTZ` resolution), so a value
 /// constructed in Rust equals the same value read back from the database.
-pub(crate) fn now_micros() -> OffsetDateTime {
+pub fn now_micros() -> OffsetDateTime {
     let now = OffsetDateTime::now_utc();
     now.replace_nanosecond(now.microsecond() * 1000)
         .expect("microsecond-aligned nanoseconds are always in range")
@@ -38,7 +38,7 @@ where
         .map_err(|error| LedgerError::Backend(format!("column {name}: {error}")))
 }
 
-pub(crate) fn scope_to_str(scope: AccountScope) -> &'static str {
+pub const fn scope_to_str(scope: AccountScope) -> &'static str {
     match scope {
         AccountScope::Org => "org",
         AccountScope::Team => "team",
@@ -54,7 +54,7 @@ pub(crate) fn scope_to_str(scope: AccountScope) -> &'static str {
     }
 }
 
-pub(crate) fn entry_type_to_str(entry_type: EntryType) -> &'static str {
+pub const fn entry_type_to_str(entry_type: EntryType) -> &'static str {
     match entry_type {
         EntryType::Grant => "grant",
         EntryType::Usage => "usage",
@@ -92,7 +92,7 @@ fn entry_type_from_str(value: &str) -> Result<EntryType, LedgerError> {
     Ok(entry_type)
 }
 
-pub(crate) fn source_to_str(source: CreditSource) -> &'static str {
+pub const fn source_to_str(source: CreditSource) -> &'static str {
     match source {
         CreditSource::Paid => "paid",
         CreditSource::Promo => "promo",
@@ -111,7 +111,7 @@ fn source_from_str(value: &str) -> Result<CreditSource, LedgerError> {
 }
 
 /// Build a [`LedgerEntry`] from a `ledger_entries` row.
-pub(crate) fn entry_from_row(row: &PgRow) -> Result<LedgerEntry, LedgerError> {
+pub fn entry_from_row(row: &PgRow) -> Result<LedgerEntry, LedgerError> {
     let source: Option<String> = col(row, "source")?;
     let source = source.map(|value| source_from_str(&value)).transpose()?;
     let reverses: Option<Uuid> = col(row, "reverses_entry_id")?;

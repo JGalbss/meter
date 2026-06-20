@@ -27,7 +27,7 @@ pub fn cost(usage: &Usage, card: &RateCard) -> Result<Money, PricingError> {
         let component = card
             .component(*dimension, usage.modality, usage.context_tier)
             .ok_or(PricingError::NoComponent(*dimension))?;
-        let line = component.unit_price.scale_by(*quantity);
+        let line = component.charge(*quantity)?;
         total = total
             .try_add(&line)
             .map_err(|_| PricingError::CurrencyMismatch)?;

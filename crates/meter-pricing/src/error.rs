@@ -16,4 +16,7 @@ pub enum PricingError {
     /// The cash value of a credit was zero or negative.
     #[error("credit value must be positive")]
     NonPositiveCreditValue,
+    /// A tiered charge model's schedule is empty, not ascending, or lacks an unbounded final tier.
+    #[error("invalid tier schedule: must be ascending and end with an unbounded tier")]
+    InvalidTierSchedule,
 }

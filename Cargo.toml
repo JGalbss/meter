@@ -56,6 +56,7 @@ proptest = "1"
 # internal crates
 meter-core = { path = "crates/meter-core" }
 meter-pricing = { path = "crates/meter-pricing" }
+meter-ratecards = { path = "crates/meter-ratecards" }
 meter-event = { path = "crates/meter-event" }
 meter-ledger = { path = "crates/meter-ledger" }
 meter-enforcement = { path = "crates/meter-enforcement" }

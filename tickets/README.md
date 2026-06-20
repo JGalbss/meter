@@ -92,7 +92,8 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 - [ ] Types codegen'd from OpenAPI/proto; e2e tests against a running engine
 
 ## EPIC 12 — Hosted model rate-card catalog
-- [ ] `meter-ratecards`: scrape provider prices (Anthropic/OpenAI/Google/DeepSeek/Qwen/…), versioned immutable snapshots, diff-and-alert, manual override; self-serve "use our model rate cards"
+- [~] `meter-ratecards`: curated, dated snapshot catalog (CATALOG_AS_OF) that builds provider-cost rate cards from a model id; Anthropic flagship models seeded; tested
+- [ ] Scraper + scheduled auto-update, versioned immutable snapshots, diff-and-alert, more providers (OpenAI/Google/DeepSeek/Qwen), manual override; serve via the catalog/control-plane API
 
 ## EPIC 13 — Notifications, alerts & webhooks
 - [ ] Alert rules: thresholds on budgets/credits/spend (e.g. 80% of cap, balance < X, burn-rate spike), per scope (org/team/user/product) and event type (budget, credit, invoice, run-failure)

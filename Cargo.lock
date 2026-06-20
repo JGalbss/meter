@@ -1491,6 +1491,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "meter-ratecards"
+version = "0.0.0"
+dependencies = [
+ "meter-core",
+ "meter-pricing",
+ "rust_decimal",
+ "rust_decimal_macros",
+ "serde",
+]
+
+[[package]]
 name = "meter-store-pg"
 version = "0.0.0"
 dependencies = [

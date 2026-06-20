@@ -115,3 +115,20 @@ jobs:
         run: bun run typecheck
       - name: build
         run: bun run build
+
+  proto:
+    name: proto — buf lint + breaking
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: proto
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          version: "1.56.0"
+      - name: lint
+        run: buf lint
+      - name: breaking
+        # Compare the module against the contract on main so no change breaks the wire format.
+        run: buf breaking --against "https://github.com/${{ github.repository }}.git#branch=main,subdir=proto"

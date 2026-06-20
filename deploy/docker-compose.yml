@@ -1,8 +1,9 @@
 # Production-style local stack: Postgres (money-truth) + ClickHouse (events) + the meter engine + the
-# control plane.
+# control plane + the dashboard + the docs site.
 #   docker compose -f deploy/docker-compose.yml up --build
 # The engine applies ledger migrations (Postgres) + event migrations (ClickHouse) on boot and serves on
-# :8080; the control plane applies its config migrations on boot, serves on :8090, calls the engine.
+# :8080; the control plane applies its config migrations on boot, serves on :8090, calls the engine; the
+# dashboard is on :3000 and the static docs site on :3001.
 
 name: meter
 
@@ -88,6 +89,16 @@ services:
     depends_on:
       control-plane:
         condition: service_started
+
+  # Static documentation site (Next.js export + Pagefind), served by nginx. Independent of the data
+  # plane — no dependencies. Browse at http://localhost:3001.
+  docs:
+    build:
+      context: ..
+      dockerfile: deploy/docs.Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3001:80"
 
 volumes:
   meter_pg:

@@ -3,8 +3,10 @@
 
 use axum::extract::{Path, State};
 use axum::Json;
+use serde::Serialize;
 use serde_json::{json, Value};
 use time::OffsetDateTime;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::cards::resolve_card;
@@ -15,18 +17,39 @@ use meter_event::{EventStore, RecordEvent};
 use meter_ledger::{ChargeRequest, LedgerBackend, ReservationId, ReserveRequest, SettleRequest};
 use meter_pricing::price_usage;
 
+/// `POST /v1/usage` result: the priced amounts, the recorded event id, and the resulting balance.
+/// Credit/USD amounts are exact decimal strings.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct MeterUsageResult {
+    pub credits: String,
+    pub cogs_usd: String,
+    pub customer_price_usd: String,
+    #[schema(value_type = String, format = "uuid")]
+    pub event_id: String,
+    pub charged: bool,
+    pub settled: String,
+    pub available: String,
+}
+
+/// `POST /v1/usage/reservations/{id}/settle` result.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct SettleUsageResult {
+    pub credits_charged: String,
+    pub balance_after: String,
+}
+
 /// `POST /v1/usage`
 #[utoipa::path(
     post,
     path = "/v1/usage",
     request_body = MeterUsageBody,
-    responses((status = 200, description = "Priced, recorded, and charged; returns credits + balance")),
+    responses((status = 200, description = "Priced, recorded, and charged; returns credits + balance", body = MeterUsageResult)),
     tag = "usage"
 )]
 pub async fn meter_usage(
     State(state): State<AppState>,
     Json(body): Json<MeterUsageBody>,
-) -> Result<Json<Value>, ApiError> {
+) -> Result<Json<MeterUsageResult>, ApiError> {
     let card = resolve_card(&state, &body.model, body.rate_card_id.as_deref()).await?;
 
     let usage = body.usage.to_usage();
@@ -69,15 +92,15 @@ pub async fn meter_usage(
 
     let balance = state.ledger.balance(body.account).await?;
 
-    Ok(Json(json!({
-        "credits": priced.credits.value().normalize().to_string(),
-        "cogs_usd": priced.cogs.amount().normalize().to_string(),
-        "customer_price_usd": priced.customer_price.amount().normalize().to_string(),
-        "event_id": event.id.to_string(),
-        "charged": charged,
-        "settled": balance.settled.value().normalize().to_string(),
-        "available": balance.available().value().normalize().to_string(),
-    })))
+    Ok(Json(MeterUsageResult {
+        credits: priced.credits.value().normalize().to_string(),
+        cogs_usd: priced.cogs.amount().normalize().to_string(),
+        customer_price_usd: priced.customer_price.amount().normalize().to_string(),
+        event_id: event.id.to_string(),
+        charged,
+        settled: balance.settled.value().normalize().to_string(),
+        available: balance.available().value().normalize().to_string(),
+    }))
 }
 
 /// `POST /v1/usage/reserve` — price a worst-case estimate against a catalog model and place a hold.
@@ -126,14 +149,14 @@ pub async fn reserve_usage(
     path = "/v1/usage/reservations/{id}/settle",
     params(("id" = String, Path, description = "Reservation id (UUID)")),
     request_body = SettleUsageBody,
-    responses((status = 200, description = "Credits charged + balance after")),
+    responses((status = 200, description = "Credits charged + balance after", body = SettleUsageResult)),
     tag = "usage"
 )]
 pub async fn settle_usage(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
     Json(body): Json<SettleUsageBody>,
-) -> Result<Json<Value>, ApiError> {
+) -> Result<Json<SettleUsageResult>, ApiError> {
     let card = resolve_card(&state, &body.model, body.rate_card_id.as_deref()).await?;
     let usage = body.actual.to_usage();
     let priced = price_usage(&usage, &card, &state.credit_value)
@@ -145,8 +168,8 @@ pub async fn settle_usage(
             actual: priced.credits,
         })
         .await?;
-    Ok(Json(json!({
-        "credits_charged": priced.credits.value().normalize().to_string(),
-        "balance_after": entry.balance_after.value().normalize().to_string(),
-    })))
+    Ok(Json(SettleUsageResult {
+        credits_charged: priced.credits.value().normalize().to_string(),
+        balance_after: entry.balance_after.value().normalize().to_string(),
+    }))
 }

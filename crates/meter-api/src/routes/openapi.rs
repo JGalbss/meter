@@ -109,7 +109,9 @@ use crate::dto::{
         EventDayUsage,
         ModelUsage,
         super::invoices::InvoiceResponse,
-        super::budgets::BudgetStatusResponse
+        super::budgets::BudgetStatusResponse,
+        super::usage::MeterUsageResult,
+        super::usage::SettleUsageResult
     )),
     tags(
         (name = "health", description = "Liveness and readiness probes"),

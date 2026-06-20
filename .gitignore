@@ -50,3 +50,9 @@ coverage/
 # Turbo / build caches
 .turbo/
 .cache/
+
+# Installed skills are pinned in skills-lock.json and restored with
+# `npx skills experimental_install`. We track our own authored skills only.
+/.agents/
+/.claude/skills/*
+!/.claude/skills/meter-design-system/

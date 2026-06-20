@@ -86,8 +86,17 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 ## EPIC 12 — Hosted model rate-card catalog
 - [ ] `meter-ratecards`: scrape provider prices (Anthropic/OpenAI/Google/DeepSeek/Qwen/…), versioned immutable snapshots, diff-and-alert, manual override; self-serve "use our model rate cards"
 
-## EPIC 13 — Notifications & webhooks
-- [ ] Webhooks (configurable URL + scopes, signed, retried), emails, in-app notifications; budget/credit/threshold/invoice events; IaC config
+## EPIC 13 — Notifications, alerts & webhooks
+- [ ] Alert rules: thresholds on budgets/credits/spend (e.g. 80% of cap, balance < X, burn-rate spike), per scope (org/team/user/product) and event type (budget, credit, invoice, run-failure)
+- [ ] Alert actions: notify (email + in-app), webhook (signed, retried, configurable URL + scopes), and enforce (hard cap = block) vs warn-only
+- [ ] Notifications as first-class records: pull/list via API, mark read / ack, react (acknowledge, snooze, top-up)
+- [ ] Subscriptions ("notify me when …") per user + delivery preferences
+- [ ] IaC-configurable; idempotent delivery; dead-letter for failed webhooks
+
+## EPIC 17 — Audit log
+- [ ] Immutable, append-only audit log of every action a principal takes (who, what, when, before/after, request id) across control plane + engine
+- [ ] Admin-facing query/filter by actor/resource/time + export
+- [ ] Covers config changes, grants, voids/amends, rate-card edits, RBAC changes, auth events; tamper-evident (hash chain)
 
 ## EPIC 14 — Dashboard (Next.js + design system)
 - [ ] Scaffold `apps/dashboard` via shadcn preset `b1z2hUjZ5c`; transitions.dev; Dropbox aesthetic

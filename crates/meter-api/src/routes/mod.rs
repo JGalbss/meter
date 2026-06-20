@@ -9,6 +9,7 @@ mod events;
 mod health;
 mod invoices;
 mod leases;
+mod request_id;
 mod reservations;
 mod simulate;
 mod usage;
@@ -60,5 +61,7 @@ pub fn router(state: AppState) -> Router {
             state.clone(),
             audit::audit_middleware,
         ))
+        // Outermost: every request/response carries a correlation id.
+        .layer(middleware::from_fn(request_id::propagate))
         .with_state(state)
 }

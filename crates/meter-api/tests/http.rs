@@ -1097,3 +1097,36 @@ async fn extend_hold_over_http() {
     .await;
     assert_eq!(status, StatusCode::CONFLICT);
 }
+
+#[tokio::test]
+async fn responses_carry_a_request_id() {
+    let (_container, app) = app().await;
+
+    // A correlation id is generated when the caller doesn't supply one.
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/health")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert!(response.headers().get("x-request-id").is_some());
+
+    // A caller-supplied id is echoed back for end-to-end correlation.
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/health")
+                .header("x-request-id", "corr-123")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(response.headers().get("x-request-id").unwrap(), "corr-123");
+}

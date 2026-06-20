@@ -1,0 +1,88 @@
+export const metadata = {
+  title: "Concepts",
+  description:
+    "The mental model behind meter: the double-entry ledger, credits, immutable events, reservations, leasing, and budgets.",
+};
+
+# Concepts
+
+The mental model behind meter. Once these click, the API is just verbs over them.
+
+## The double-entry ledger
+
+Every credit movement is an immutable **entry** against an account. Balances are never stored and
+mutated — they are **derived** by folding the entries. This is what makes the ledger auditable: the
+history is the source of truth, and any balance can be recomputed from scratch.
+
+Entries carry a type:
+
+| Entry type | Meaning |
+| --- | --- |
+| `Grant` | Credits added to an account (a top-up, a plan allowance). |
+| `Reserve` | A hold placed against available balance for in-flight work. |
+| `Settle` | A reservation resolved to its actual cost. |
+| `Void` | A reservation released without charge. |
+| `Charge` | A direct debit (e.g. metered usage). |
+| `Transfer` | A conserving movement between two real accounts (used for leasing). |
+
+Two balances matter: **settled** (what has actually been debited/credited) and **available** (settled
+minus outstanding reservations). Enforcement reads `available`.
+
+## Credits and money
+
+Credits are the unit of account inside the engine. One credit has a configurable cash value
+(`METER_CREDIT_VALUE`, default `$0.000001`). Pricing translates token usage → cost of goods (USD) →
+credits, using a rate card per model.
+
+Money is **never a float** — the engine uses fixed-point decimals everywhere near currency. The control
+plane never computes money; it only reads what the engine reports.
+
+## No overdraft, idempotent ingest
+
+Two invariants are property-tested against every ledger backend (in-memory reference, Postgres):
+
+- **No overdraft** — an account flagged `no_overdraft` can never go negative, even under concurrent
+  reserves. The hot path serializes per account.
+- **Idempotency** — every mutating call takes an idempotency key. Replays return the original result
+  instead of double-applying. Ingest is effectively-once.
+
+## Reservations: reserve → settle / void
+
+Agent work is often priced *after* it runs. meter models this as a two-phase commit:
+
+1. **Reserve** a conservative estimate against the account. This holds `available` balance.
+2. When the work finishes, **settle** with the actual cost (which may be more or less than the hold),
+   or **void** the reservation if the work failed.
+
+This is the safe way to gate expensive calls: reserve before you spend, settle the truth after.
+
+## Leasing: per-session budgets
+
+For long-running sessions you don't want a round-trip to the ledger on every token. A **lease** opens a
+child account funded by a conserving `Transfer` from the parent. The session spends locally against the
+lease; closing the lease transfers the remainder back. Credits are conserved end-to-end — the lease can
+never spend more than it was given.
+
+## Events: immutable, editable
+
+Usage events are immutable records with custom properties. You never edit one in place:
+
+- **`record`** — append a new event (idempotent on its key). The system of record is ClickHouse.
+- **`amend`** — record a *new version* of an event with corrected properties; reads return the latest
+  non-voided version.
+- **`void_run`** — mark every event for a run as voided and reverse its ledger effects.
+
+This is the append-only edit model: the audit trail is perfect, but reads behave as if you mutated the
+data. See [ADR 0003](/self-host) for why events live in ClickHouse rather than Postgres.
+
+## Budgets and alerts
+
+A **budget** is a policy evaluated against an account's usage. The control plane runs alert rules on a
+schedule, raises notifications, and fires signed webhooks when a threshold is crossed. Budgets inform;
+the ledger's `no_overdraft` flag enforces.
+
+## Invoicing
+
+An invoice is **deterministic**: it is summed directly from the ledger over a time window. Because every
+charge is an immutable entry, `enforced == billed` by construction — there is no separate billing
+pipeline to drift out of sync.

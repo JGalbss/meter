@@ -1,0 +1,65 @@
+export const metadata = {
+  title: "Overview",
+  description:
+    "meter is a ledger-first metering, billing, and invoicing engine for AI agents — open source and self-hostable.",
+};
+
+# meter
+
+Open-source, self-hostable metering, billing, and invoicing for AI agents. A double-entry ledger
+where credits are never lost, double-counted, or overspent — built so that **money-truth lives in one
+place** and every movement is an immutable, auditable transaction.
+
+meter prices model usage into credits, enforces balances on the hot path, and turns the resulting
+ledger into invoices. It ships an HTTP engine (Rust), a control plane (TypeScript), TypeScript and
+Python SDKs, and a dashboard.
+
+## Why meter
+
+- **The ledger is sacred.** Every credit movement is an immutable double-entry posting; balances are
+  always derived, never stored and mutated. No overdraft, idempotent ingest — both property-tested.
+- **Events are immutable; edits are append-only.** You never mutate an event. Editing an event records
+  a new version plus a delta; killing a failed run reverses its holds and settlements. The audit trail
+  is perfect, but the UX feels mutable.
+- **Money-truth in one engine.** The Rust engine is the sole owner of credits and balances. The control
+  plane configures products, keys, alerts, and webhooks — it never computes money.
+- **Performance is a feature.** Reserve/settle is a tight hot path with per-session leasing; analytics
+  events live in ClickHouse, money in Postgres.
+
+## Architecture at a glance
+
+| Surface | What it is | Owns |
+| --- | --- | --- |
+| **Engine** (Rust) | HTTP data plane | Ledger, pricing, enforcement, events. Money-truth. |
+| **Control plane** (TypeScript) | Effect + Drizzle API | Products, API keys, alerts, webhooks, notifications. No money. |
+| **Dashboard** (Next.js) | Operator console | Read views over engine + control plane. |
+| **SDKs** (TS + Python) | Client libraries | Hot path → engine; config → control plane. |
+| **Postgres** | Store | Money-truth (ledger, audit). |
+| **ClickHouse** | Store | Usage events (system of record, [ADR 0003](/concepts)). |
+
+## The core loop
+
+The product is one call: price token usage against a rate card, record an immutable event, and charge
+credits — atomically.
+
+```bash
+curl -X POST http://localhost:8080/v1/usage \
+  -H 'content-type: application/json' \
+  -d '{
+    "org_id": "00000000-0000-0000-0000-000000000001",
+    "account": "00000000-0000-0000-0000-000000000002",
+    "model": "claude-opus-4-8",
+    "idempotency_key": "turn-42",
+    "usage": { "input_uncached": 1200, "output": 800, "cache_read": 4096 }
+  }'
+```
+
+The response returns the credits charged, the cost of goods, the customer price, the new balance, and
+the recorded event id.
+
+## Next steps
+
+- [Concepts](/concepts) — the ledger, credits, events, reservations, leasing, and budgets.
+- [API reference](/api) — every engine and control-plane endpoint.
+- [SDKs & downloads](/sdks) — TypeScript and Python, with provider adapters.
+- [Self-host](/self-host) — run the full stack with Docker Compose.

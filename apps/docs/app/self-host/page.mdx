@@ -1,0 +1,75 @@
+export const metadata = {
+  title: "Self-host",
+  description:
+    "Run the full meter stack — Postgres, ClickHouse, the engine, and the control plane — with Docker Compose.",
+};
+
+# Self-host
+
+meter is self-hostable end to end. The production-style stack is four services: **Postgres**
+(money-truth), **ClickHouse** (usage events), the **engine**, and the **control plane**.
+
+## Docker Compose
+
+```bash
+docker compose -f deploy/docker-compose.yml up --build
+```
+
+This starts:
+
+| Service | Port | Role |
+| --- | --- | --- |
+| `postgres` | 5432 | Ledger + audit (money-truth). |
+| `clickhouse` | 8123 | Usage events (system of record). |
+| `engine` | 8080 | HTTP data plane. Applies ledger + event migrations on boot. |
+| `control-plane` | 8090 | Config API. Applies its config migrations on boot. |
+
+The engine applies Postgres ledger migrations **and** ClickHouse event migrations at startup; the
+control plane applies its config migrations at startup. No manual migration step is required for a
+fresh stack.
+
+## Engine configuration
+
+| Variable | Required | Default | Notes |
+| --- | --- | --- | --- |
+| `METER_DATABASE_URL` | yes | — | Postgres connection string (money-truth). |
+| `METER_CLICKHOUSE_URL` | yes | — | ClickHouse HTTP endpoint (events). |
+| `METER_LISTEN_ADDR` | no | `0.0.0.0:8080` | HTTP bind address. |
+| `METER_CREDIT_VALUE` | no | `0.000001` | Cash value (USD) of one credit. |
+
+## Control-plane configuration
+
+| Variable | Required | Default | Notes |
+| --- | --- | --- | --- |
+| `METER_CONTROL_PLANE_DATABASE_URL` | yes | — | Postgres connection string (config schema). |
+| `METER_CONTROL_PLANE_PORT` | no | `8090` | HTTP port. |
+| `METER_ENGINE_URL` | yes | — | Engine base URL the control plane calls. |
+| `METER_EVALUATION_INTERVAL_SECONDS` | no | `60` | Alert-rule evaluation cadence. |
+
+## Why two stores
+
+Money and events have different access patterns, so they live in different stores
+([ADR 0003](/concepts)):
+
+- **Postgres** holds the ledger and audit log. Strong transactional guarantees, row-level locking on
+  the hot path, no overdraft.
+- **ClickHouse** holds usage events. High-volume append, fast analytical rollups (`usage-by-day`,
+  per-model), versioned reads for the append-only edit model.
+
+Postgres is the single source of money-truth; ClickHouse is the single source of event-truth. Neither
+duplicates the other.
+
+## Health checks
+
+```bash
+curl http://localhost:8080/health    # engine
+curl http://localhost:8090/health    # control plane
+```
+
+Both return `{ "status": "ok" }` once migrations have applied and the service is serving.
+
+## Production notes
+
+- Back up Postgres as your money-truth of record; ClickHouse can be rebuilt from raw event ingest.
+- Run the engine behind your own auth/ingress; the control plane issues and verifies API keys.
+- Migrations are forward-only and applied on boot — deploy the engine before pointing traffic at it.

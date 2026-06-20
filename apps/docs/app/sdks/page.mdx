@@ -1,0 +1,116 @@
+export const metadata = {
+  title: "SDKs & downloads",
+  description:
+    "Official meter SDKs for TypeScript and Python — thin clients over the engine with provider usage adapters.",
+};
+
+# SDKs & downloads
+
+Official client libraries for the meter engine. Both are thin wrappers over the HTTP API: a
+`MeterClient`, a `withRun` helper for reserve/settle/void governance, and **provider adapters** that
+normalize token usage from Anthropic, OpenAI, Gemini, Bedrock, LangChain, and the Vercel AI SDK.
+
+| SDK | Package | Install |
+| --- | --- | --- |
+| TypeScript | `@meter/sdk` | `npm install @meter/sdk` |
+| Python | `meter-sdk` | `pip install meter-sdk` |
+
+> The packages are built from `sdks/typescript` and `sdks/python` in the repository. Until they are
+> published to npm / PyPI, install from a local checkout (`npm install ./sdks/typescript`,
+> `pip install ./sdks/python`) or from the GitHub release artifacts.
+
+## TypeScript
+
+```ts
+import { MeterClient, withRun, anthropicUsage, meterModelUsage } from "@meter/sdk";
+
+const meter = new MeterClient({ baseUrl: "http://localhost:8080" });
+
+// The core loop: price + record + charge in one idempotent call.
+const result = await meter.meterUsage({
+  orgId,
+  account,
+  model: "claude-opus-4-8",
+  idempotencyKey: "turn-42",
+  usage: { input_uncached: 1200, output: 800, cache_read: 4096 },
+});
+```
+
+### Governing a run (reserve → settle / void)
+
+`withRun` reserves a worst-case estimate before the work runs; if the reservation is denied the work
+never starts. Settle the actual usage via the handle — if `work` throws or never settles, the hold is
+voided automatically.
+
+```ts
+await withRun(meter, { account, estimate: "5000" }, async (run) => {
+  const completion = await callModel();
+  const { credits } = await meterModelUsage(meter, {
+    orgId,
+    account,
+    model: "claude-opus-4-8",
+    idempotencyKey: completion.id,
+    usage: anthropicUsage(completion.usage), // normalize provider tokens
+  });
+  await run.settle(credits);
+});
+```
+
+### Provider adapters
+
+Each adapter maps a provider's usage object to meter's normalized token dimensions:
+
+```ts
+import {
+  anthropicUsage, openaiUsage, geminiUsage, bedrockUsage, langchainUsage, vercelAiUsage,
+} from "@meter/sdk";
+```
+
+### `MeterClient` methods
+
+`openAccount`, `balance`, `grant`, `entries`, `reserve`, `settle`, `voidReservation`, `recordEvent`,
+`amendEvent`, `listEvents`, `voidRun`, `invoice`, `meterUsage`.
+
+## Python
+
+```python
+from meter import MeterClient, with_run, anthropic_usage, meter_model_usage
+
+meter = MeterClient(base_url="http://localhost:8080")
+
+result = meter.meter_usage(
+    org_id=org_id,
+    account=account,
+    model="claude-opus-4-8",
+    idempotency_key="turn-42",
+    usage={"input_uncached": 1200, "output": 800, "cache_read": 4096},
+)
+```
+
+### Governing a run
+
+```python
+def work(settle):
+    completion = call_model()
+    out = meter_model_usage(
+        meter,
+        org_id=org_id,
+        account=account,
+        model="claude-opus-4-8",
+        usage=anthropic_usage(completion["usage"]),
+        idempotency_key=completion["id"],
+    )
+    settle(out["credits"])
+
+with_run(meter, account=account, estimate="5000", work=work)
+```
+
+### Provider adapters
+
+`anthropic_usage`, `openai_usage`, `gemini_usage`, `bedrock_usage`, `langchain_usage`, plus
+`meter_model_usage` (price + charge) and `record_model_usage` (emit a usage event only).
+
+### `MeterClient` methods
+
+`open_account`, `balance`, `grant`, `reserve`, `settle`, `void_reservation`, `record_event`,
+`amend_event`, `list_events`, `void_run`, `invoice`, `meter_usage`.

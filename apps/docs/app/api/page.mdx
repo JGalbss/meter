@@ -1,0 +1,176 @@
+export const metadata = {
+  title: "API reference",
+  description:
+    "Every meter endpoint: the Rust engine (money-truth) on :8080 and the control plane (config) on :8090.",
+};
+
+# API reference
+
+meter exposes two HTTP surfaces:
+
+- **Engine** (`http://localhost:8080`) — the Rust data plane. Ledger, pricing, enforcement, events,
+  invoices. This is where money-truth lives.
+- **Control plane** (`http://localhost:8090`) — the TypeScript configuration API. Organizations,
+  products, API keys, alert rules, webhooks, notifications. Computes no money.
+
+All bodies are JSON. UUIDs are strings. Credit amounts are decimal strings (never floats).
+
+---
+
+## Engine
+
+Base path `/v1` (except `/health`). The engine derives all balances from the ledger; every mutating
+call is idempotent on its key.
+
+### Health
+
+```
+GET /health
+```
+
+Returns `{ "status": "ok" }` when the engine is serving.
+
+### Accounts
+
+```
+POST /v1/accounts
+```
+
+Open an account. Body:
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `org_id` | uuid | Owning organization. |
+| `scope` | enum | Account scope (e.g. organization / session). |
+| `no_overdraft` | bool | Defaults `false`. When `true`, the account can never go negative. |
+| `parent_id` | uuid? | Optional parent (for child/session accounts). |
+
+```
+GET  /v1/accounts/{id}/balance     # settled + available balance
+GET  /v1/accounts/{id}/entries     # the immutable entry history
+```
+
+```
+POST /v1/accounts/{id}/grants
+```
+
+Add credits. Body: `{ "amount": "1000", "source": <CreditSource>, "idempotency_key"?: string }`.
+
+### Reservations (reserve → settle / void)
+
+```
+POST /v1/reservations
+```
+
+Place a hold. Body:
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `account` | uuid | Account to hold against. |
+| `reservation_id` | uuid | Caller-supplied id (idempotent). |
+| `amount` | decimal string | Credits to hold. |
+| `limit` | enum | Limit class governing the hold. |
+
+Returns a `ReserveOutcome` (allowed or denied with the limiting balance).
+
+```
+POST /v1/reservations/{id}/settle   # body: { "actual": "<credits>" } — resolve to actual cost
+POST /v1/reservations/{id}/void     # release the hold without charge
+```
+
+### Usage (the core loop)
+
+```
+POST /v1/usage
+```
+
+Price token usage against the rate-card catalog, record an immutable event, and charge credits — in one
+call. Body:
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `org_id` | uuid | Owning organization. |
+| `account` | uuid | Account to charge. |
+| `model` | string | Model id resolved against the rate-card catalog. |
+| `idempotency_key` | string | Required; replays are no-ops. |
+| `run_id` | uuid? | Optional run grouping (enables `void_run`). |
+| `usage` | object | Token counts: `input_uncached`, `cache_read`, `cache_write`, `output`, `reasoning`. |
+
+Returns `{ credits, cogs_usd, customer_price_usd, event_id, charged, settled, available }`.
+
+### Events (immutable, append-only edits)
+
+```
+POST /v1/events                 # record an event (idempotent on idempotency_key)
+GET  /v1/events/{id}            # fetch latest non-voided version
+POST /v1/events/{id}/amend      # body: { "properties": {...} } — record a corrected version
+POST /v1/runs/{id}/void         # void_run: reverse a run's events and ledger effects
+GET  /v1/accounts/{id}/events   # list events for an account
+```
+
+`POST /v1/events` body: `{ org_id, idempotency_key, event_time?, meter, account, run_id?, properties }`.
+
+### Analytics, budgets, invoices, audit
+
+```
+GET /v1/accounts/{id}/usage-by-day   # daily usage rollup
+GET /v1/accounts/{id}/budget         # budget status
+GET /v1/accounts/{id}/invoice        # deterministic invoice summed from the ledger
+GET /v1/audit                        # the admin audit log
+```
+
+---
+
+## Control plane
+
+Base path `/v1`. Configuration only — the dashboard and customers talk to this surface for everything
+that is not a money movement.
+
+### Organizations & products
+
+```
+GET  /v1/organizations
+POST /v1/organizations
+GET  /v1/products
+POST /v1/products
+```
+
+### API keys
+
+```
+GET  /v1/api-keys
+POST /v1/api-keys
+POST /v1/api-keys/{id}/revoke
+```
+
+### Alert rules
+
+```
+GET  /v1/alert-rules
+POST /v1/alert-rules
+POST /v1/alert-rules/evaluate         # run rule evaluation now
+POST /v1/alert-rules/{id}/enabled     # toggle a rule
+```
+
+### Webhooks
+
+```
+GET  /v1/webhooks
+POST /v1/webhooks
+POST /v1/webhooks/{id}/enabled
+GET  /v1/webhook-deliveries           # delivery log (signed payloads)
+```
+
+### Notifications
+
+```
+GET  /v1/notifications
+POST /v1/notifications
+POST /v1/notifications/{id}/read
+POST /v1/notifications/{id}/ack
+```
+
+---
+
+> The control plane emits an OpenAPI document used to generate typed clients, and the engine ⇄
+> control-plane contract is defined in protobuf. Hand-mirrored wire types are never checked in.

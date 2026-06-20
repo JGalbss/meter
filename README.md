@@ -41,6 +41,7 @@ meter splits along a hard data-plane / control-plane seam:
 | **System of record** | PostgreSQL | **Money & config only** — the engine owns the ledger schema; the control plane owns the config schema. Events live in ClickHouse (ADR 0003). |
 | **Events & analytics** | ClickHouse | The usage **event firehose** (system of record for events) + rollups. Required (ADR 0003). |
 | **Dashboard** | Next.js / React | Dropbox-quality console on the shadcn design system. |
+| **Docs site** | Next.js + MDX | Public documentation: concepts, API reference, SDKs, self-host (`apps/docs`). |
 | **SDKs** | TypeScript, Python | Drop-in instrumentation; the hot path (ingest / reserve / settle) talks to the engine directly. |
 
 Money-truth lives only in the engine, so there is exactly one ledger and no cross-language drift. The
@@ -126,6 +127,8 @@ Beyond the engine:
   adapters for Anthropic, OpenAI, Vercel AI SDK, Gemini/Vertex, Bedrock, and LangChain/LangGraph.
 - **Dashboard** (`apps/dashboard`, Next.js + shadcn preset) — overview, organizations, notifications,
   alert rules, and webhooks, wired to the control plane.
+- **Docs site** (`apps/docs`, Next.js + MDX) — concepts, full API reference (engine + control plane),
+  SDK guides with provider adapters, and self-host instructions. Built and typechecked in CI.
 
 - **Analytics (ClickHouse, optional):** `meter-store-ch` — `events_raw` firehose
   (`ReplacingMergeTree`, idempotent on `org_id`+`event_id`) + usage-by-model rollups, integration-tested

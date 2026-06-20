@@ -12,6 +12,7 @@ pub mod component;
 pub mod dimension;
 pub mod error;
 pub mod price;
+pub mod simulate;
 pub mod usage;
 
 pub use card::{Margin, RateCard, RateCardKind};
@@ -19,4 +20,5 @@ pub use component::{ChargeModel, PriceComponent};
 pub use dimension::{ContextTier, Modality, PricingDimension, Unit};
 pub use error::PricingError;
 pub use price::{apply_margin, cost, price_usage, to_credits, PricedUsage};
+pub use simulate::{rerate_event, simulate_rerate, RerateLine, RerateSummary};
 pub use usage::Usage;

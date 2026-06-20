@@ -46,6 +46,13 @@ so they are **O(rollup groups), not O(events)** — latency does not grow with t
 | `event_count` (org) | < 25 ms | ~2–3 ms |
 | `usage_by_model` (org) | < 25 ms | ~3–6 ms |
 | `usage_by_day` (org) | < 25 ms | ~2–4 ms |
+| credit `balance` (account) | < 5 ms | O(1) by design† |
+
+† Balance reads never sum the full ledger: `settled_credits` is a denormalized running balance on
+`ledger_accounts`, and `held` sums only *open* holds via the partial index
+`ledger_holds_open_idx … WHERE status = 'open'` — so a balance read stays constant-time even with
+hundreds of millions of historical ledger entries. (User/team/product config reads are bounded sets,
+not part of the firehose.)
 
 > Method: `cargo test -p meter-store-ch --test throughput -- --ignored --nocapture` against a real
 > ClickHouse container (single node, laptop). The harness sweeps batch-size × concurrency, reports

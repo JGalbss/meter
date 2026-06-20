@@ -1,7 +1,7 @@
 //! Notification routes: raise, list (pull), mark read, and acknowledge.
 
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "@effect/platform";
-import { Effect, Schema } from "effect";
+import { Clock, Effect, Schema } from "effect";
 
 import { Database } from "../../db/service";
 import {
@@ -65,7 +65,8 @@ export function notificationRoutes<E, R>(
         Effect.gen(function* () {
           const db = yield* Database;
           const { id } = yield* HttpRouter.schemaPathParams(IdParam);
-          const updated = yield* markNotificationRead(db, id, new Date());
+          const now = new Date(yield* Clock.currentTimeMillis);
+          const updated = yield* markNotificationRead(db, id, now);
           return HttpServerResponse.unsafeJson(updated);
         }),
       ),
@@ -76,7 +77,8 @@ export function notificationRoutes<E, R>(
         Effect.gen(function* () {
           const db = yield* Database;
           const { id } = yield* HttpRouter.schemaPathParams(IdParam);
-          const updated = yield* ackNotification(db, id, new Date());
+          const now = new Date(yield* Clock.currentTimeMillis);
+          const updated = yield* ackNotification(db, id, now);
           return HttpServerResponse.unsafeJson(updated);
         }),
       ),

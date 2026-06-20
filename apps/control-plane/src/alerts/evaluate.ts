@@ -2,7 +2,7 @@
 //! notification (which dispatches webhooks) when the status escalates. State transitions, not levels,
 //! drive alerts — so a sustained `exceeded` does not spam, but `ok -> warning -> exceeded` each fire.
 
-import { Effect } from "effect";
+import { Clock, Effect } from "effect";
 
 import type { Db } from "../db/client";
 import { type BudgetStatus, fetchBudgetStatus } from "../engine/client";
@@ -15,6 +15,9 @@ const SEVERITY_RANK: Record<string, number> = { ok: 0, warning: 1, exceeded: 2 }
 const NOTIFICATION_SEVERITY: Record<string, string> = { warning: "warning", exceeded: "critical" };
 
 const DAY_MS = 86_400_000;
+// Bound concurrent budget evaluations (each makes one engine call) so a large org/rule set doesn't
+// fan out unbounded engine traffic.
+const EVALUATION_CONCURRENCY = 8;
 
 export interface EvaluationSummary {
   readonly evaluated: number;
@@ -72,7 +75,9 @@ export function evaluateOrgAlertRules(
 ): Effect.Effect<EvaluationSummary, never> {
   return evaluableRules(db, orgId).pipe(
     Effect.flatMap((rules) =>
-      Effect.forEach(rules, (rule) => processRule(db, rule, now)).pipe(
+      Effect.forEach(rules, (rule) => processRule(db, rule, now), {
+        concurrency: EVALUATION_CONCURRENCY,
+      }).pipe(
         Effect.map((raisedPerRule) => ({
           evaluated: rules.length,
           raised: raisedPerRule.reduce((total, raised) => total + raised, 0),
@@ -84,21 +89,21 @@ export function evaluateOrgAlertRules(
 }
 
 /** Evaluate budget rules across every organization (the scheduler's unit of work). Best-effort.
- * Wrapped in `suspend` so each scheduled run samples a fresh timestamp. */
+ * Reads the time from the Effect `Clock`, so each scheduled run samples a fresh (and, in tests,
+ * controllable) timestamp. */
 export function evaluateAllOrgs(db: Db): Effect.Effect<AllOrgsSummary, never> {
-  return Effect.suspend(() => {
-    const now = new Date();
-    return listOrganizations(db).pipe(
-      Effect.flatMap((orgs) =>
-        Effect.forEach(orgs, (org) => evaluateOrgAlertRules(db, org.id, now)).pipe(
-          Effect.map((summaries) => ({
-            orgs: orgs.length,
-            evaluated: summaries.reduce((total, summary) => total + summary.evaluated, 0),
-            raised: summaries.reduce((total, summary) => total + summary.raised, 0),
-          })),
-        ),
-      ),
-      Effect.catchAll(() => Effect.succeed({ orgs: 0, evaluated: 0, raised: 0 })),
+  return Effect.gen(function* () {
+    const now = new Date(yield* Clock.currentTimeMillis);
+    const orgs = yield* listOrganizations(db);
+    const summaries = yield* Effect.forEach(
+      orgs,
+      (org) => evaluateOrgAlertRules(db, org.id, now),
+      { concurrency: EVALUATION_CONCURRENCY },
     );
-  });
+    return {
+      orgs: orgs.length,
+      evaluated: summaries.reduce((total, summary) => total + summary.evaluated, 0),
+      raised: summaries.reduce((total, summary) => total + summary.raised, 0),
+    };
+  }).pipe(Effect.catchAll(() => Effect.succeed({ orgs: 0, evaluated: 0, raised: 0 })));
 }

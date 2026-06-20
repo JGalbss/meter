@@ -1,7 +1,7 @@
 //! API-key routes: mint (token shown once), list (never the token), and revoke.
 
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "@effect/platform";
-import { Effect, Schema } from "effect";
+import { Clock, Effect, Schema } from "effect";
 
 import { createApiKey, listApiKeys, revokeApiKey } from "../../api-keys/repository";
 import { Database } from "../../db/service";
@@ -47,7 +47,8 @@ export function apiKeyRoutes<E, R>(
         Effect.gen(function* () {
           const db = yield* Database;
           const { id } = yield* HttpRouter.schemaPathParams(IdParam);
-          const key = yield* revokeApiKey(db, id, new Date());
+          const now = new Date(yield* Clock.currentTimeMillis);
+          const key = yield* revokeApiKey(db, id, now);
           return HttpServerResponse.unsafeJson(key);
         }),
       ),

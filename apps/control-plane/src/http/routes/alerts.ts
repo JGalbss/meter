@@ -1,7 +1,7 @@
 //! Alert-rule routes: create, list, and enable/disable.
 
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "@effect/platform";
-import { Effect, Schema } from "effect";
+import { Clock, Effect, Schema } from "effect";
 
 import { evaluateOrgAlertRules } from "../../alerts/evaluate";
 import { createAlertRule, listAlertRules, setAlertRuleEnabled } from "../../alerts/repository";
@@ -79,7 +79,8 @@ export function alertRoutes<E, R>(
         Effect.gen(function* () {
           const db = yield* Database;
           const { orgId } = yield* HttpServerRequest.schemaSearchParams(OrgQuery);
-          const summary = yield* evaluateOrgAlertRules(db, orgId, new Date());
+          const now = new Date(yield* Clock.currentTimeMillis);
+          const summary = yield* evaluateOrgAlertRules(db, orgId, now);
           return HttpServerResponse.unsafeJson(summary);
         }),
       ),

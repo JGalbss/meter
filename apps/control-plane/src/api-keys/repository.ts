@@ -1,0 +1,136 @@
+//! API-keys repository. Tokens are random; only their SHA-256 hash is stored. The plaintext is
+//! returned exactly once (at creation). Verification hashes the presented token and looks it up.
+
+import { createHash, randomBytes } from "node:crypto";
+
+import { and, desc, eq, isNull } from "drizzle-orm";
+import { Effect } from "effect";
+
+import type { Db } from "../db/client";
+import { apiKeys } from "../db/schema";
+import { NotFound, RepoError } from "../repository/errors";
+
+export interface ApiKey {
+  readonly id: string;
+  readonly orgId: string;
+  readonly name: string;
+  readonly prefix: string;
+  readonly createdAt: string;
+  readonly lastUsedAt: string | null;
+  readonly revokedAt: string | null;
+}
+
+/** A freshly created key — the only time the plaintext token is available. */
+export interface CreatedApiKey extends ApiKey {
+  readonly token: string;
+}
+
+export interface NewApiKey {
+  readonly orgId: string;
+  readonly name: string;
+}
+
+function hashToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+function isoOrNull(at: Date | null): string | null {
+  if (at === null) {
+    return null;
+  }
+  return at.toISOString();
+}
+
+function toApiKey(row: typeof apiKeys.$inferSelect): ApiKey {
+  return {
+    id: row.id,
+    orgId: row.orgId,
+    name: row.name,
+    prefix: row.prefix,
+    createdAt: row.createdAt.toISOString(),
+    lastUsedAt: isoOrNull(row.lastUsedAt),
+    revokedAt: isoOrNull(row.revokedAt),
+  };
+}
+
+function requireRow<A>(row: A | undefined, id: string): Effect.Effect<A, NotFound> {
+  if (row === undefined) {
+    return Effect.fail(new NotFound({ resource: "api_key", id }));
+  }
+  return Effect.succeed(row);
+}
+
+/** Mint an API key. Returns the plaintext token once; only its hash is persisted. */
+export function createApiKey(db: Db, input: NewApiKey): Effect.Effect<CreatedApiKey, RepoError> {
+  return Effect.tryPromise({
+    try: async () => {
+      const token = `mk_${randomBytes(24).toString("base64url")}`;
+      const prefix = token.slice(0, 11);
+      const [row] = await db
+        .insert(apiKeys)
+        .values({ orgId: input.orgId, name: input.name, prefix, tokenHash: hashToken(token) })
+        .returning();
+      if (row === undefined) {
+        throw new Error("insert returned no row");
+      }
+      return { ...toApiKey(row), token };
+    },
+    catch: (cause) => new RepoError({ cause }),
+  });
+}
+
+/** List an organization's API keys (never the token or its hash). */
+export function listApiKeys(db: Db, orgId: string): Effect.Effect<readonly ApiKey[], RepoError> {
+  return Effect.tryPromise({
+    try: async () => {
+      const rows = await db
+        .select()
+        .from(apiKeys)
+        .where(eq(apiKeys.orgId, orgId))
+        .orderBy(desc(apiKeys.createdAt));
+      return rows.map(toApiKey);
+    },
+    catch: (cause) => new RepoError({ cause }),
+  });
+}
+
+/** Revoke an API key. */
+export function revokeApiKey(
+  db: Db,
+  id: string,
+  now: Date,
+): Effect.Effect<ApiKey, RepoError | NotFound> {
+  return Effect.tryPromise({
+    try: async () => {
+      const [row] = await db
+        .update(apiKeys)
+        .set({ revokedAt: now })
+        .where(eq(apiKeys.id, id))
+        .returning();
+      return row;
+    },
+    catch: (cause) => new RepoError({ cause }),
+  }).pipe(
+    Effect.flatMap((row) => requireRow(row, id)),
+    Effect.map(toApiKey),
+  );
+}
+
+/** Resolve a presented token to its org, or null if unknown/revoked. Stamps `last_used_at`. */
+export function verifyApiKey(db: Db, token: string): Effect.Effect<string | null, RepoError> {
+  return Effect.tryPromise({
+    try: async () => {
+      const [row] = await db
+        .select()
+        .from(apiKeys)
+        .where(and(eq(apiKeys.tokenHash, hashToken(token)), isNull(apiKeys.revokedAt)))
+        .limit(1);
+      if (row === undefined) {
+        return null;
+      }
+      await db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, row.id));
+      return row.orgId;
+    },
+    catch: (cause) => new RepoError({ cause }),
+  });
+}

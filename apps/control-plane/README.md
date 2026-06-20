@@ -44,6 +44,9 @@ unknown resources return `404 {"error":"not_found", ...}`.
 | `GET /v1/webhooks?orgId` | List webhooks (secret omitted). |
 | `POST /v1/webhooks/:id/enabled` | Enable/disable (`enabled`). |
 | `GET /v1/webhook-deliveries?orgId` | The delivery log (audit + dead-letter). |
+| `POST /v1/api-keys` | Mint an API key (`orgId`, `name`). Returns the plaintext token **once**. |
+| `GET /v1/api-keys?orgId` | List API keys (never the token or its hash). |
+| `POST /v1/api-keys/:id/revoke` | Revoke an API key. |
 
 ### Enumerations
 
@@ -64,6 +67,13 @@ also dispatches matching webhooks.
 Set `METER_EVALUATION_INTERVAL_SECONDS` (> 0) to run the built-in scheduler, which evaluates every
 organization's budget rules on that interval; leave it unset (0) to evaluate only on demand via the
 endpoint.
+
+### Authentication
+
+Set `METER_REQUIRE_AUTH=true` to require `Authorization: Bearer <token>` on every request except
+`/health`. Tokens are minted via `POST /v1/api-keys` (only the SHA-256 hash is stored; the plaintext
+is shown once). Bootstrap the first key with auth disabled or via a seed, then enable enforcement. The
+dashboard sends its key when `METER_CONTROL_PLANE_API_KEY` is set.
 
 ### Webhook signing
 

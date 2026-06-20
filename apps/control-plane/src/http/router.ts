@@ -7,6 +7,7 @@ import { Effect } from "effect";
 
 import type { Database } from "../db/service";
 import { alertRoutes } from "./routes/alerts";
+import { apiKeyRoutes } from "./routes/api-keys";
 import { notificationRoutes } from "./routes/notifications";
 import { organizationRoutes } from "./routes/organizations";
 import { productRoutes } from "./routes/products";
@@ -19,4 +20,5 @@ export const router: HttpRouter.HttpRouter<never, Database> = HttpRouter.empty.p
   notificationRoutes,
   alertRoutes,
   webhookRoutes,
+  apiKeyRoutes,
 );

@@ -89,6 +89,27 @@ export const notifications = pgTable(
   }),
 );
 
+// API keys: bearer tokens that authenticate control-plane requests. Only a SHA-256 hash of the token
+// is stored; the plaintext is shown once at creation. `prefix` is a non-secret display fragment.
+export const apiKeys = pgTable(
+  "api_keys",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    name: text("name").notNull(),
+    prefix: text("prefix").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (table) => ({
+    byOrg: index("api_keys_org").on(table.orgId),
+  }),
+);
+
 // Webhooks: signed HTTP callbacks. `eventTypes` is a list of notification types this endpoint wants;
 // an empty list means all types. `secret` keys the HMAC-SHA256 signature on every delivery.
 export const webhooks = pgTable(

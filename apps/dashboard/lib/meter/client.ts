@@ -29,9 +29,21 @@ function describe(error: unknown): string {
   return "control plane unreachable";
 }
 
+/** Bearer auth header when a control-plane API key is configured (server-side env). */
+function authHeaders(): Record<string, string> {
+  const key = process.env.METER_CONTROL_PLANE_API_KEY;
+  if (key === undefined || key.length === 0) {
+    return {};
+  }
+  return { authorization: `Bearer ${key}` };
+}
+
 async function getJson<T>(path: string): Promise<Result<T>> {
   try {
-    const response = await fetch(`${BASE_URL}${path}`, { cache: "no-store" });
+    const response = await fetch(`${BASE_URL}${path}`, {
+      cache: "no-store",
+      headers: authHeaders(),
+    });
     if (!response.ok) {
       return { ok: false, error: `control plane responded ${response.status}` };
     }
@@ -45,7 +57,7 @@ async function post(path: string, body?: unknown): Promise<void> {
   const response = await fetch(`${BASE_URL}${path}`, {
     method: "POST",
     cache: "no-store",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...authHeaders() },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!response.ok) {
@@ -126,7 +138,7 @@ export interface EvaluationSummary {
 export async function evaluateAlertRules(orgId: string): Promise<EvaluationSummary> {
   const response = await fetch(
     `${BASE_URL}/v1/alert-rules/evaluate?orgId=${encodeURIComponent(orgId)}`,
-    { method: "POST", cache: "no-store" },
+    { method: "POST", cache: "no-store", headers: authHeaders() },
   );
   if (!response.ok) {
     throw new Error(`control plane responded ${response.status}`);

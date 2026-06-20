@@ -11,6 +11,7 @@ import { Duration, Effect, Layer, Schedule } from "effect";
 import { evaluateAllOrgs } from "./alerts/evaluate";
 import { makeDb } from "./db/client";
 import { Database } from "./db/service";
+import { requireApiKey } from "./http/auth";
 import { router } from "./http/router";
 
 const port = Number.parseInt(process.env.METER_CONTROL_PLANE_PORT ?? "8090", 10);
@@ -22,10 +23,19 @@ const evaluationIntervalSeconds = Number.parseInt(
   10,
 );
 
+function isTrue(value: string | undefined): boolean {
+  if (value === undefined) {
+    return false;
+  }
+  return value.toLowerCase() === "true";
+}
+
+const requireAuth = isTrue(process.env.METER_REQUIRE_AUTH);
+
 const db = makeDb(databaseUrl);
 await migrate(db, { migrationsFolder: "./drizzle" });
 
-const HttpLive = HttpServer.serve(router).pipe(
+const HttpLive = HttpServer.serve(requireApiKey(db, requireAuth)(router)).pipe(
   Layer.provide(Layer.succeed(Database, db)),
   Layer.provide(NodeHttpServer.layer(() => createServer(), { port })),
 );

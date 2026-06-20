@@ -72,7 +72,7 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 - [x] e2e HTTP test (open→grant→balance→reserve→settle→deny) green against real Postgres
 - [ ] gRPC surface (proto) for control-plane RPC; role-selectable services
 - [ ] OpenAPI emission + typed client codegen
-- [ ] `meter-cli`: migrate, seed, admin ops
+- [~] `meter-cli` (`meterctl`): `migrate` command done (idempotent, env-configurable via METER_DATABASE_URL); seed + more admin ops pending
 
 ## EPIC 09 — Control plane (TypeScript: Effect + Drizzle)
 - [ ] `apps/control-plane`: Effect HttpApi + Effect Schema; Drizzle config schema + migrations; RLS/withTenant

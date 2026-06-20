@@ -1,0 +1,23 @@
+[package]
+name = "meter-cli"
+description = "meterctl: admin CLI for the meter engine (migrations, ops)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "meterctl"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { workspace = true }
+clap = { workspace = true }
+anyhow = { workspace = true }
+sqlx = { workspace = true }
+meter-store-pg = { workspace = true }

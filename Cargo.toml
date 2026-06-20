@@ -47,6 +47,9 @@ sqlx = { version = "0.8", default-features = false, features = [
     "migrate",
 ] }
 
+# cli
+clap = { version = "4", features = ["derive", "env"] }
+
 # testing
 proptest = "1"
 

@@ -16,14 +16,32 @@ this is the quick-reference index of what was decided and why.
 | 9 | Quality gates: clippy/rustfmt (Rust), **react-doctor** (millionco) for React, **agent-doctor** (JGalbss) for any Effect-TS | Enforce clean code automatically in CI | locked |
 | 10 | Repo: **public, `JGalbss/meter`**, no AI footprint | Founder directive | locked |
 
-## Deferred / to confirm in ARCHITECTURE.md
+## Confirmed by the ADR (`ARCHITECTURE.md`, 2026-06-19)
 
-- **Ingest log**: start with a simple durable path (Postgres outbox / NATS) and make Kafka/Redpanda an
-  opt-in scale-out component, rather than requiring Kafka for self-host. (Lago uses Kafka→ClickHouse at
-  scale; we want a smaller default footprint.)
-- **Hot-path balance store**: whether the reserve/settle counters live in Postgres (advisory locks /
-  `SELECT ... FOR UPDATE` on account rows) for v1 vs. a sharded in-memory/Redis layer at scale.
-- **Multi-tenancy isolation**: shared-schema + tenant_id (+ RLS) as the default; schema/DB-per-tenant for
-  single-tenant self-host. Confirm in ARCHITECTURE.md.
-- **TigerBeetle**: evaluated and deferred — excellent for balances/holds but can't do the rich queries we
-  need, and adds a stateful system to self-host. Revisit as an optional high-throughput ledger backend.
+The research + adversarial-design pass confirmed and detailed the deferred items. All money-truth lives in
+**one Postgres double-entry ledger** (the single source of truth); invoices are computed by **summing the
+ledger**, so *enforced == billed by construction*. Optional scale-out backends sit behind stable traits,
+each gated by a measured trigger:
+
+| Item | Decision |
+|---|---|
+| Ingest log | **Default = Postgres outbox** + the same Rust effectively-once worker. Redpanda is opt-in above a TPS trigger, keyed by `tenant_id` (+ composite bucket for whale tenants). |
+| Hot-path enforcement | **Default = Postgres** advisory-lock on a **per-session credit lease** (not the shared pool row). Redis is an opt-in sub-ms pre-filter that may only ever be *more* conservative than the ledger. |
+| Hot-account contention | **Per-session credit leasing is in v1** (the one scale optimization kept early — it makes the throughput claim true under contention). |
+| Multi-tenancy | Shared-schema, `NOT NULL org_id` everywhere, backed by Postgres **RLS** (ENABLE+FORCE). DB-per-tenant is an enterprise toggle reusing identical migrations. |
+| TigerBeetle | Optional **balances/holds accelerator** behind a `LedgerBackend` trait; ships only if it passes the conformance suite **and** a byte-identical bill-equivalence test. |
+| ClickHouse | First optional add-on (usage firehose + rollups + analytics + dispute evidence). **Analytics, not a billing authority.** |
+
+## Adopted defaults for the founder's open questions (ADR §15)
+
+The founder delegated these ("figure out the rest"). Recommended defaults adopted; revisit anytime.
+
+1. **Effect-TS control plane?** No — stay all-Rust (reopening requires an explicit RFC against Decision #1).
+2. **Reservation sizing:** worst-case for HARD pools; statistical p95 opt-in per (model, product); the bounded/alerted overage sub-account is always on.
+3. **Lease quantum:** small, and shrinks toward zero as the balance nears the limit so the final credits are always enforced centrally.
+4. **Invoice boundary:** short mutable Draft + grace window, then immutable finalize; late usage rolls forward via credit-note (never mutate a sealed invoice).
+5. **Outcome billing:** outcomes are ordinary metered events in v1; verification/dispute flows later.
+6. **Scale-out triggers:** derived from the Phase-1/2 load+chaos harness, then published — not hardcoded.
+7. **Hosted catalog:** best-effort + versioned immutable snapshots + diff-and-alert + manual override; no accuracy SLA in v1.
+8. **AGPL vs enterprise line:** all core metering/ledger/enforcement/invoicing is AGPL; only org-management & ops-scale features are enterprise.
+9. **CLA vs DCO:** DCO sign-off for v1; a narrow automated CLA only if a closed enterprise build later needs it.

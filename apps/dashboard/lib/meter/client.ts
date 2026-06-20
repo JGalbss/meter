@@ -10,7 +10,7 @@ import type {
   WebhookDelivery,
 } from "./types";
 
-const BASE_URL = process.env.METER_CONTROL_PLANE_URL ?? "http://127.0.0.1:8080";
+const BASE_URL = process.env.METER_CONTROL_PLANE_URL ?? "http://127.0.0.1:8090";
 
 export type Result<T> = { readonly ok: true; readonly data: T } | { readonly ok: false; readonly error: string };
 

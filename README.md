@@ -65,6 +65,22 @@ curl -s localhost:8080/v1/accounts/$ACC/grants -d '{"amount":"100","source":"pai
 curl -s localhost:8080/v1/accounts/$ACC/balance
 ```
 
+## Quickstart (full stack)
+
+Bring up Postgres + the engine (`:8080`) + the control plane (`:8090`), each applying its migrations on
+boot:
+
+```bash
+docker compose -f deploy/docker-compose.yml up --build
+```
+
+The control plane (config + notifications/alerts/webhooks) is the API the dashboard hits; it calls the
+engine for money-truth. Run the dashboard against it:
+
+```bash
+cd apps/dashboard && bun install && METER_CONTROL_PLANE_URL=http://localhost:8090 bun run dev
+```
+
 ## Status — what works today
 
 The Rust engine is functional and tested end-to-end against real Postgres:
@@ -88,8 +104,22 @@ Engine HTTP endpoints under `/v1`: `usage` (meter), `accounts` (open · balance 
 events · invoice · budget), `reservations` (reserve · settle · void), `events` (record · get · amend),
 `runs/{id}/void`.
 
-In progress (see [tickets](tickets/README.md)): TypeScript control plane (Effect + Drizzle), SDKs,
-dashboard, ClickHouse analytics, budgets/grants, notifications & alerts, audit log, rate-card scraper.
+Beyond the engine:
+
+- **Control plane** (`apps/control-plane`, TypeScript · Effect + Drizzle) — the config + ops API the
+  dashboard hits: organizations, products, notifications (pull/read/ack), alert rules with a
+  **budget-evaluation loop** (asks the engine to classify usage, raises notifications on escalation),
+  and **signed, retried webhooks** with a dead-letter log. Applies migrations on boot; Docker image +
+  compose service; e2e-tested over an in-process server.
+- **Audit log** — engine middleware records every mutating request; `GET /v1/audit`.
+- **SDKs** (`sdks/typescript`, `sdks/python`) — drop-in client + run governance (`withRun`) + usage
+  adapters for Anthropic, OpenAI, Vercel AI SDK, Gemini/Vertex, Bedrock, and LangChain/LangGraph.
+- **Dashboard** (`apps/dashboard`, Next.js + shadcn preset) — overview, organizations, notifications,
+  alert rules, and webhooks, wired to the control plane.
+
+In progress (see [tickets](tickets/README.md)): OpenAPI emission + Stainless-generated SDKs, protobuf
+engine⇄control-plane contract, ClickHouse analytics, auth/RBAC, dashboard usage charts, throughput
+benchmarks.
 
 ## Self-hosting
 

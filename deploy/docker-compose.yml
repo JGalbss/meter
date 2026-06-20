@@ -1,6 +1,7 @@
-# Production-style local stack: Postgres + the meter engine.
+# Production-style local stack: Postgres + the meter engine + the control plane.
 #   docker compose -f deploy/docker-compose.yml up --build
-# The engine applies ledger + event migrations on boot and serves on :8080.
+# The engine applies ledger + event migrations on boot and serves on :8080; the control plane applies
+# its config migrations on boot, serves on :8090, and calls the engine for money-truth.
 
 name: meter
 
@@ -34,6 +35,23 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  control-plane:
+    build:
+      context: ..
+      dockerfile: deploy/control-plane.Dockerfile
+    restart: unless-stopped
+    environment:
+      METER_CONTROL_PLANE_DATABASE_URL: postgres://meter:meter@postgres:5432/meter
+      METER_CONTROL_PLANE_PORT: "8090"
+      METER_ENGINE_URL: http://engine:8080
+    ports:
+      - "8090:8090"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      engine:
+        condition: service_started
 
 volumes:
   meter_pg:

@@ -5,7 +5,8 @@
   "type": "module",
   "description": "meter control plane: config CRUD (Effect + Drizzle) — the API the dashboard hits",
   "scripts": {
-    "dev": "node --experimental-strip-types src/main.ts",
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate"
@@ -15,7 +16,8 @@
     "@effect/platform-node": "^0.69.0",
     "drizzle-orm": "^0.38.3",
     "effect": "^3.12.0",
-    "postgres": "^3.4.5"
+    "postgres": "^3.4.5",
+    "tsx": "^4.19.2"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.2.17",

@@ -24,7 +24,7 @@ export interface BudgetQuery {
 }
 
 function engineUrl(): string {
-  return process.env.METER_ENGINE_URL ?? "http://127.0.0.1:8081";
+  return process.env.METER_ENGINE_URL ?? "http://127.0.0.1:8080";
 }
 
 /** Classify an account's usage in a period against a credit limit (the engine owns this math). */

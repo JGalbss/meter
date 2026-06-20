@@ -61,4 +61,65 @@ impl RateCard {
             .iter()
             .find(|component| component.matches(dimension, modality, context_tier))
     }
+
+    /// From the versions of one logical rate card, the live one: the highest `version`. `None` if the
+    /// set is empty. Callers pass the versions of a single card; pricing always rates against `latest`
+    /// unless a specific version is pinned (see [`resolve`](RateCard::resolve)).
+    #[must_use]
+    pub fn latest(versions: &[RateCard]) -> Option<&RateCard> {
+        versions.iter().max_by_key(|card| card.version)
+    }
+
+    /// Resolve a pinned `version` from a card's versions, or the [`latest`](RateCard::latest) when
+    /// `version` is `None`. Returns `None` if the pinned version is absent (so an event recorded
+    /// against version N re-rates deterministically against exactly that card).
+    #[must_use]
+    pub fn resolve(versions: &[RateCard], version: Option<u32>) -> Option<&RateCard> {
+        match version {
+            None => Self::latest(versions),
+            Some(wanted) => versions.iter().find(|card| card.version == wanted),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use meter_core::RateCardId;
+
+    fn card(version: u32) -> RateCard {
+        RateCard {
+            id: RateCardId::new(),
+            kind: RateCardKind::ProviderCost,
+            currency: Currency::new("USD").expect("valid currency"),
+            version,
+            margin: Margin::NONE,
+            components: vec![],
+        }
+    }
+
+    #[test]
+    fn latest_picks_the_highest_version_regardless_of_order() {
+        let versions = vec![card(2), card(5), card(3)];
+        assert_eq!(RateCard::latest(&versions).map(|c| c.version), Some(5));
+    }
+
+    #[test]
+    fn latest_of_empty_is_none() {
+        assert!(RateCard::latest(&[]).is_none());
+    }
+
+    #[test]
+    fn resolve_pins_a_version_or_falls_back_to_latest() {
+        let versions = vec![card(1), card(2), card(3)];
+        assert_eq!(
+            RateCard::resolve(&versions, Some(2)).map(|c| c.version),
+            Some(2)
+        );
+        assert_eq!(
+            RateCard::resolve(&versions, None).map(|c| c.version),
+            Some(3)
+        );
+        assert!(RateCard::resolve(&versions, Some(99)).is_none());
+    }
 }

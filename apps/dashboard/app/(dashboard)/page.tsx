@@ -17,6 +17,7 @@ import {
   listWebhooks,
   unwrapOr,
 } from "@/lib/meter/client"
+import { fetchUsageByModel } from "@/lib/meter/engine"
 import { resolveOrgScope } from "@/lib/meter/org"
 
 export const dynamic = "force-dynamic"
@@ -63,12 +64,15 @@ export default async function OverviewPage({
   }
 
   const orgId = scope.activeOrg.id
-  const [unread, alerts, webhooks, recent] = await Promise.all([
+  const [unread, alerts, webhooks, recent, usageByModel] = await Promise.all([
     listNotifications(orgId, "unread"),
     listAlertRules(orgId),
     listWebhooks(orgId),
     listNotifications(orgId),
+    fetchUsageByModel(orgId),
   ])
+  const models = unwrapOr(usageByModel, [])
+  const topModels = models.slice(0, 5)
 
   const stats: readonly Stat[] = [
     {
@@ -130,6 +134,36 @@ export default async function OverviewPage({
           )
         })}
       </div>
+
+      <Card className="mt-6">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <CardTitle>Top models by spend</CardTitle>
+          <Link
+            href={`/usage?org=${orgId}`}
+            className="text-sm font-normal text-muted-foreground hover:text-foreground"
+          >
+            View usage →
+          </Link>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {topModels.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              No usage recorded yet.
+            </p>
+          )}
+          {topModels.map((model) => (
+            <div
+              key={model.model}
+              className="flex items-center justify-between border-b pb-3 last:border-0 last:pb-0"
+            >
+              <span className="font-mono text-sm">{model.model}</span>
+              <span className="text-sm text-muted-foreground tabular-nums">
+                {model.credits.toLocaleString()} credits
+              </span>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
       <Card className="mt-6">
         <CardHeader>

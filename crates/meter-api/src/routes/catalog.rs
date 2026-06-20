@@ -38,7 +38,7 @@ pub async fn list() -> Json<CatalogResponse> {
     path = "/v1/catalog/{model_id}",
     params(("model_id" = String, Path, description = "Catalogued model id (e.g. claude-opus-4-8)")),
     responses(
-        (status = 200, description = "The provider-cost rate card"),
+        (status = 200, description = "The provider-cost rate card", body = RateCard),
         (status = 404, description = "Model not in the catalog")
     ),
     tag = "catalog"

@@ -1,9 +1,10 @@
 //! Pricing dimensions: the axes along which usage is priced.
 
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 /// A priceable dimension of an LLM/agent usage event.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum PricingDimension {
     /// Input tokens not served from cache.
@@ -23,7 +24,7 @@ pub enum PricingDimension {
 }
 
 /// The modality of the priced content.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Modality {
     Text,
@@ -34,7 +35,7 @@ pub enum Modality {
 }
 
 /// A context-length tier (long-context tokens are often priced higher).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ContextTier {
     Standard,
@@ -43,7 +44,7 @@ pub enum ContextTier {
 }
 
 /// The unit a component is priced in.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Unit {
     Token,

@@ -3,15 +3,17 @@
 use meter_core::Money;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use crate::dimension::{ContextTier, Modality, PricingDimension, Unit};
 use crate::error::PricingError;
 
 /// One band of a tiered charge: it covers quantity up to `up_to` cumulative units (inclusive), or is
 /// the final unbounded band when `up_to` is `None`. The band's units are charged at `unit_price`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct PriceTier {
     /// Inclusive cumulative upper bound of this band in units; `None` means unbounded (the last tier).
+    #[schema(value_type = Option<String>)]
     pub up_to: Option<Decimal>,
     pub unit_price: Money,
 }
@@ -49,7 +51,7 @@ impl PriceTier {
 /// Tiered schedules must be ascending by `up_to` and end with an unbounded [`PriceTier::rest`] tier;
 /// otherwise pricing returns [`PricingError::InvalidTierSchedule`]. A `Package` size must be positive
 /// or pricing returns [`PricingError::InvalidPackageSize`].
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ChargeModel {
     Standard,
@@ -57,12 +59,13 @@ pub enum ChargeModel {
     Volume(Vec<PriceTier>),
     /// Bundled pricing: charge `unit_price` per `size`-unit package, rounding the quantity up.
     Package {
+        #[schema(value_type = String)]
         size: Decimal,
     },
 }
 
 /// One priced cell: a (dimension, modality, context-tier) charged at `unit_price` per `unit`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct PriceComponent {
     pub dimension: PricingDimension,
     pub modality: Modality,

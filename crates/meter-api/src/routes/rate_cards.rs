@@ -14,7 +14,7 @@ use crate::AppState;
 #[utoipa::path(
     get,
     path = "/v1/rate-cards",
-    responses((status = 200, description = "Every synced rate card (live version each)")),
+    responses((status = 200, description = "Every synced rate card (live version each)", body = Vec<RateCard>)),
     tag = "rate-cards"
 )]
 pub async fn list(State(state): State<AppState>) -> Result<Json<Vec<RateCard>>, ApiError> {
@@ -27,7 +27,7 @@ pub async fn list(State(state): State<AppState>) -> Result<Json<Vec<RateCard>>, 
     path = "/v1/rate-cards/{id}",
     params(("id" = String, Path, description = "Rate-card id (UUID)")),
     responses(
-        (status = 200, description = "The live synced rate card"),
+        (status = 200, description = "The live synced rate card", body = RateCard),
         (status = 404, description = "No card synced for this id")
     ),
     tag = "rate-cards"

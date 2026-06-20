@@ -22,7 +22,8 @@ pub enum MoneyError {
 }
 
 /// An ISO-4217-style alphabetic currency code (three uppercase ASCII letters, e.g. `USD`).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, utoipa::ToSchema)]
+#[schema(value_type = String)]
 pub struct Currency(String);
 
 impl Currency {
@@ -61,9 +62,11 @@ impl<'de> Deserialize<'de> for Currency {
 }
 
 /// A monetary amount in a specific currency.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct Money {
+    /// The amount as an exact decimal string.
     #[serde(with = "rust_decimal::serde::str")]
+    #[schema(value_type = String)]
     amount: Decimal,
     currency: Currency,
 }

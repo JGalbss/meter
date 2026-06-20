@@ -19,6 +19,7 @@ meter-core = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 rust_decimal = { workspace = true }
+utoipa = { workspace = true }
 
 [dev-dependencies]
 rust_decimal_macros = { workspace = true }

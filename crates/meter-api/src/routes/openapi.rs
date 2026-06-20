@@ -6,9 +6,14 @@
 use axum::Json;
 use utoipa::OpenApi;
 
+use meter_core::{Currency, Money};
 use meter_event::{Event, EventStatus};
 use meter_ledger::{
     AccountScope, Balance, CreditSource, EntryType, LedgerAccount, LedgerEntry, ReserveOutcome,
+};
+use meter_pricing::{
+    ChargeModel, ContextTier, Margin, Modality, PriceComponent, PriceTier, PricingDimension,
+    RateCard, RateCardKind, Unit,
 };
 
 use crate::dto::{
@@ -85,7 +90,19 @@ use crate::dto::{
         AccountScope,
         ReserveOutcome,
         Event,
-        EventStatus
+        EventStatus,
+        RateCard,
+        RateCardKind,
+        Margin,
+        PriceComponent,
+        ChargeModel,
+        PriceTier,
+        PricingDimension,
+        Modality,
+        ContextTier,
+        Unit,
+        Money,
+        Currency
     )),
     tags(
         (name = "health", description = "Liveness and readiness probes"),

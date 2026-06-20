@@ -3,13 +3,14 @@
 use meter_core::{Currency, RateCardId};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use crate::component::PriceComponent;
 use crate::dimension::{ContextTier, Modality, PricingDimension};
 use crate::error::PricingError;
 
 /// Whether a card records provider cost (COGS) or what a customer is charged.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RateCardKind {
     ProviderCost,
@@ -18,7 +19,8 @@ pub enum RateCardKind {
 
 /// A markup multiplier applied to provider cost to get the customer price. `1.30` is a 30% markup;
 /// [`Margin::NONE`] (`1.00`) charges cost.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[schema(value_type = String)]
 pub struct Margin(#[serde(with = "rust_decimal::serde::str")] Decimal);
 
 impl Margin {
@@ -39,8 +41,9 @@ impl Margin {
 }
 
 /// A versioned rate card: one card, many priced dimensions, one margin.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct RateCard {
+    #[schema(value_type = String, format = "uuid")]
     pub id: RateCardId,
     pub kind: RateCardKind,
     pub currency: Currency,

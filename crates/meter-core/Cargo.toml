@@ -19,6 +19,7 @@ serde = { workspace = true }
 thiserror = { workspace = true }
 uuid = { workspace = true }
 rust_decimal = { workspace = true }
+utoipa = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }

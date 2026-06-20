@@ -75,7 +75,7 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 - [~] `meter-cli` (`meterctl`): `migrate` command done (idempotent, env-configurable via METER_DATABASE_URL); seed + more admin ops pending
 
 ## EPIC 09 — Control plane (TypeScript: Effect + Drizzle)
-- [ ] `apps/control-plane`: Effect HttpApi + Effect Schema; Drizzle config schema + migrations; RLS/withTenant
+- [~] `apps/control-plane` scaffolded: Drizzle config schema (organizations, products) + generated migrations; Effect repository (typed errors) verified on PGlite (2 tests). HTTP layer (Effect HttpApi) + Schema validation + RLS/withTenant pending
 - [ ] Resources: orgs/teams/users/roles (RBAC), API keys, products/agents, rate-card config, budgets/grants config, webhooks, invoices
 - [ ] gRPC client to engine for all money/usage ops; never computes money
 - [ ] Auth (sessions + API keys), authorization (RBAC), OpenAPI emission; agent-doctor in CI

@@ -28,7 +28,10 @@
     {
       "include": [
         "apps/dashboard/**",
-        "**/*.config.{ts,js,mjs,cjs}",
+        "**/*.config.ts",
+        "**/*.config.js",
+        "**/*.config.mjs",
+        "**/*.config.cjs",
         "**/next.config.*",
         "**/middleware.ts"
       ],

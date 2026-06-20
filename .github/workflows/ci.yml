@@ -44,11 +44,11 @@ jobs:
       - name: install
         run: pnpm install --frozen-lockfile
       - name: biome
-        run: pnpm exec biome check sdks
+        run: pnpm exec biome check sdks apps
       - name: typecheck
-        run: pnpm --filter @meter/sdk run typecheck
+        run: pnpm --filter "@meter/*" run typecheck
       - name: test
-        run: pnpm --filter @meter/sdk run test
+        run: pnpm --filter "@meter/*" run test
 
   python:
     name: python — sdk tests

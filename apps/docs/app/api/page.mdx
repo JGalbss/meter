@@ -220,3 +220,7 @@ POST /v1/notifications/{id}/ack
 > contract can't drift and nothing is hand-mirrored. The dashboard's control-plane client types are
 > **generated** from this spec (`openapi-typescript`), and CI fails if they drift. A protobuf
 > engine ⇄ control-plane contract is the remaining surface (tracked in the project tickets).
+
+The full control-plane surface — every path, parameter, request body, response, and schema — is also
+published as a **[generated reference](/api/control-plane)** rendered directly from that OpenAPI
+document, so it always matches the live contract.

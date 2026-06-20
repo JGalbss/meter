@@ -111,6 +111,8 @@ jobs:
           bun-version: "1.3.11"
       - name: install
         run: bun install --frozen-lockfile
+      - name: generated API reference is in sync with the control-plane spec
+        run: bun run sync:openapi && git diff --exit-code lib/control-plane-openapi.json
       - name: typecheck
         run: bun run typecheck
       - name: build

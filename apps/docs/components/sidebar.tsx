@@ -10,6 +10,7 @@ const NAV: ReadonlyArray<NavItem> = [
   { href: "/", label: "Overview" },
   { href: "/concepts", label: "Concepts" },
   { href: "/api", label: "API reference" },
+  { href: "/api/control-plane", label: "Control plane API" },
   { href: "/sdks", label: "SDKs & downloads" },
   { href: "/self-host", label: "Self-host" },
 ];

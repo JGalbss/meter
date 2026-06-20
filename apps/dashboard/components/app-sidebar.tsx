@@ -1,6 +1,15 @@
 "use client";
 
-import { Bell, Buildings, House, Key, Lightning, Plugs, ShieldWarning } from "@phosphor-icons/react";
+import {
+  Bell,
+  Buildings,
+  House,
+  Key,
+  Lightning,
+  Package,
+  Plugs,
+  ShieldWarning,
+} from "@phosphor-icons/react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import type { ComponentType } from "react";
@@ -26,6 +35,7 @@ interface NavItem {
 const NAV: readonly NavItem[] = [
   { href: "/", label: "Overview", icon: House },
   { href: "/organizations", label: "Organizations", icon: Buildings },
+  { href: "/products", label: "Products", icon: Package },
   { href: "/notifications", label: "Notifications", icon: Bell },
   { href: "/alerts", label: "Alert rules", icon: ShieldWarning },
   { href: "/webhooks", label: "Webhooks", icon: Plugs },

@@ -8,6 +8,7 @@ import type {
   CreatedApiKey,
   Notification,
   Organization,
+  Product,
   Webhook,
   WebhookDelivery,
 } from "./types";
@@ -86,6 +87,18 @@ export function listOrganizations(): Promise<Result<readonly Organization[]>> {
 
 export function createOrganization(input: { slug: string; name: string }): Promise<void> {
   return post("/v1/organizations", input);
+}
+
+export function listProducts(orgId: string): Promise<Result<readonly Product[]>> {
+  return getJson(`/v1/products?orgId=${encodeURIComponent(orgId)}`);
+}
+
+export function createProduct(input: {
+  orgId: string;
+  key: string;
+  name: string;
+}): Promise<void> {
+  return post("/v1/products", input);
 }
 
 export function createWebhook(input: {

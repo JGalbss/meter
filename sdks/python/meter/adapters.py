@@ -67,6 +67,22 @@ def gemini_usage(usage: dict[str, Any]) -> TokenUsage:
     )
 
 
+def langchain_usage(usage: dict[str, Any]) -> TokenUsage:
+    """Normalize LangChain / LangGraph usage_metadata. input_tokens includes cached reads/writes."""
+    input_details = usage.get("input_token_details") or {}
+    output_details = usage.get("output_token_details") or {}
+    cache_read = _count(input_details.get("cache_read"))
+    cache_write = _count(input_details.get("cache_creation"))
+    total_input = _count(usage.get("input_tokens"))
+    return TokenUsage(
+        input_uncached=max(0, total_input - cache_read - cache_write),
+        cache_read=cache_read,
+        cache_write=cache_write,
+        output=_count(usage.get("output_tokens")),
+        reasoning=_count(output_details.get("reasoning")),
+    )
+
+
 def bedrock_usage(usage: dict[str, Any]) -> TokenUsage:
     """Normalize AWS Bedrock Converse usage."""
     return TokenUsage(

@@ -27,6 +27,9 @@ across provider versions). Available today:
 | `anthropicUsage` | Anthropic / Claude + the Claude Agent SDK |
 | `openaiUsage` | OpenAI (chat / responses) |
 | `vercelAiUsage` | Vercel AI SDK (both token namings) |
+| `geminiUsage` | Google Gemini / Vertex (`usageMetadata`) |
+| `bedrockUsage` | AWS Bedrock Converse |
+| `langchainUsage` | LangChain / LangGraph (`usage_metadata`) |
 | `recordModelUsage(client, …)` | emit normalized usage as a meter event |
 | `meteredCall(client, …, extract, call)` | wrap a provider call and record its usage |
 | `withRun(client, …)` | reserve → settle run governance; auto-voids a failed run |
@@ -43,7 +46,8 @@ const completion = await meteredCall(
 );
 ```
 
-Planned adapters: LangChain / LangGraph, Bedrock, Vertex; first-class per-client wrappers.
+All adapters ship in both the TypeScript and Python SDKs. Planned: first-class per-client auto-patch
+wrappers (monkey-patch a provider client so calls are metered with no call-site changes).
 
 ## Interim note
 

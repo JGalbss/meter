@@ -12,6 +12,7 @@ from meter import (
     anthropic_usage,
     bedrock_usage,
     gemini_usage,
+    langchain_usage,
     meter_model_usage,
     openai_usage,
     record_model_usage,
@@ -115,6 +116,20 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(
             (usage.input_uncached, usage.cache_read, usage.cache_write, usage.output),
             (900, 100, 20, 300),
+        )
+
+    def test_langchain_usage(self) -> None:
+        usage = langchain_usage(
+            {
+                "input_tokens": 1000,
+                "output_tokens": 500,
+                "input_token_details": {"cache_read": 200, "cache_creation": 50},
+                "output_token_details": {"reasoning": 120},
+            }
+        )
+        self.assertEqual(
+            (usage.input_uncached, usage.cache_read, usage.cache_write, usage.output, usage.reasoning),
+            (750, 200, 50, 500, 120),
         )
 
     def test_meter_model_usage_calls_usage_endpoint(self) -> None:

@@ -5,6 +5,7 @@ import {
   anthropicUsage,
   bedrockUsage,
   geminiUsage,
+  langchainUsage,
   meterModelUsage,
   meteredCall,
   openaiUsage,
@@ -73,6 +74,17 @@ describe("usage extractors", () => {
         cacheWriteInputTokens: 20,
       }),
     ).toEqual({ inputUncached: 900, cacheRead: 100, cacheWrite: 20, output: 300, reasoning: 0 });
+  });
+
+  it("normalizes LangChain usage (input_tokens includes cached reads/writes)", () => {
+    expect(
+      langchainUsage({
+        input_tokens: 1000,
+        output_tokens: 500,
+        input_token_details: { cache_read: 200, cache_creation: 50 },
+        output_token_details: { reasoning: 120 },
+      }),
+    ).toEqual({ inputUncached: 750, cacheRead: 200, cacheWrite: 50, output: 500, reasoning: 120 });
   });
 });
 

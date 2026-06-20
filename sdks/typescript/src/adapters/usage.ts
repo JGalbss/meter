@@ -109,6 +109,33 @@ export function geminiUsage(usage: GeminiUsage): TokenUsage {
   };
 }
 
+/** LangChain / LangGraph normalized `usage_metadata` shape (langchain-core `UsageMetadata`). */
+export interface LangChainUsage {
+  readonly input_tokens?: number | null;
+  readonly output_tokens?: number | null;
+  readonly input_token_details?: {
+    readonly cache_read?: number | null;
+    readonly cache_creation?: number | null;
+  } | null;
+  readonly output_token_details?: {
+    readonly reasoning?: number | null;
+  } | null;
+}
+
+/** Normalize LangChain usage. `input_tokens` is the total input, including cached reads/writes. */
+export function langchainUsage(usage: LangChainUsage): TokenUsage {
+  const cacheRead = count(usage.input_token_details?.cache_read);
+  const cacheWrite = count(usage.input_token_details?.cache_creation);
+  const input = count(usage.input_tokens);
+  return {
+    inputUncached: Math.max(0, input - cacheRead - cacheWrite),
+    cacheRead,
+    cacheWrite,
+    output: count(usage.output_tokens),
+    reasoning: count(usage.output_token_details?.reasoning),
+  };
+}
+
 /** AWS Bedrock Converse API usage shape. */
 export interface BedrockUsage {
   readonly inputTokens?: number | null;

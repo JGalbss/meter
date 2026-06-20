@@ -7,6 +7,7 @@ export {
   anthropicUsage,
   bedrockUsage,
   geminiUsage,
+  langchainUsage,
   openaiUsage,
   vercelAiUsage,
 } from "./usage";
@@ -14,6 +15,7 @@ export type {
   AnthropicUsage,
   BedrockUsage,
   GeminiUsage,
+  LangChainUsage,
   OpenAiUsage,
   TokenUsage,
   VercelAiUsage,

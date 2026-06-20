@@ -24,6 +24,17 @@ pub struct PeriodQuery {
 }
 
 /// `GET /v1/accounts/{id}/usage-by-day?start&end` — daily credit usage time series.
+#[utoipa::path(
+    get,
+    path = "/v1/accounts/{id}/usage-by-day",
+    params(
+        ("id" = String, Path, description = "Account id (UUID)"),
+        ("start" = String, Query, description = "Period start (RFC3339)"),
+        ("end" = String, Query, description = "Period end (RFC3339)")
+    ),
+    responses((status = 200, description = "Daily credit totals over the period")),
+    tag = "analytics"
+)]
 pub async fn usage_by_day(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -39,6 +50,13 @@ pub async fn usage_by_day(
 
 /// `GET /v1/orgs/{id}/usage-by-model` — usage aggregated by model, derived from the event store
 /// (`ClickHouse`). Reflects amends and voids; ordered by spend, highest first.
+#[utoipa::path(
+    get,
+    path = "/v1/orgs/{id}/usage-by-model",
+    params(("id" = String, Path, description = "Org id (UUID)")),
+    responses((status = 200, description = "Usage aggregated by model, ordered by spend")),
+    tag = "analytics"
+)]
 pub async fn usage_by_model(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -52,6 +70,13 @@ pub async fn usage_by_model(
 }
 
 /// `GET /v1/orgs/{id}/usage-by-day` — daily event + credit totals from the event store (`ClickHouse`).
+#[utoipa::path(
+    get,
+    path = "/v1/orgs/{id}/usage-by-day",
+    params(("id" = String, Path, description = "Org id (UUID)")),
+    responses((status = 200, description = "Daily event + credit totals")),
+    tag = "analytics"
+)]
 pub async fn org_usage_by_day(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -65,6 +90,13 @@ pub async fn org_usage_by_day(
 }
 
 /// `GET /v1/orgs/{id}/event-count` — count of an organization's live (recorded) events.
+#[utoipa::path(
+    get,
+    path = "/v1/orgs/{id}/event-count",
+    params(("id" = String, Path, description = "Org id (UUID)")),
+    responses((status = 200, description = "Count of live (recorded) events")),
+    tag = "analytics"
+)]
 pub async fn event_count(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,

@@ -47,6 +47,18 @@ fn classify(used: Decimal, limit: Decimal) -> (Decimal, &'static str) {
 }
 
 /// `GET /v1/accounts/{id}/budget?start&end&limit`
+#[utoipa::path(
+    get,
+    path = "/v1/accounts/{id}/budget",
+    params(
+        ("id" = String, Path, description = "Account id (UUID)"),
+        ("start" = String, Query, description = "Period start (RFC3339)"),
+        ("end" = String, Query, description = "Period end (RFC3339)"),
+        ("limit" = Option<String>, Query, description = "Credit limit override (decimal string)")
+    ),
+    responses((status = 200, description = "Usage vs limit with threshold status")),
+    tag = "analytics"
+)]
 pub async fn budget_status(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,

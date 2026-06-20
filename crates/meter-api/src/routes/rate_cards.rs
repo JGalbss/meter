@@ -11,11 +11,27 @@ use crate::error::ApiError;
 use crate::AppState;
 
 /// `GET /v1/rate-cards` — every synced rate card (live version each).
+#[utoipa::path(
+    get,
+    path = "/v1/rate-cards",
+    responses((status = 200, description = "Every synced rate card (live version each)")),
+    tag = "rate-cards"
+)]
 pub async fn list(State(state): State<AppState>) -> Result<Json<Vec<RateCard>>, ApiError> {
     Ok(Json(list_stored_cards(&state).await?))
 }
 
 /// `GET /v1/rate-cards/{id}` — the live (latest-version) synced rate card; `404` if none was synced.
+#[utoipa::path(
+    get,
+    path = "/v1/rate-cards/{id}",
+    params(("id" = String, Path, description = "Rate-card id (UUID)")),
+    responses(
+        (status = 200, description = "The live synced rate card"),
+        (status = 404, description = "No card synced for this id")
+    ),
+    tag = "rate-cards"
+)]
 pub async fn get(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,

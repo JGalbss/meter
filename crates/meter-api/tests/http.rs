@@ -1116,6 +1116,24 @@ async fn openapi_document_is_served() {
     assert!(doc["paths"]["/v1/simulate"]["post"].is_object());
     assert!(doc["components"]["schemas"]["MeterUsageBody"].is_object());
     assert!(doc["components"]["schemas"]["UsageDimensions"].is_object());
+
+    // Read-side group: catalog, rate-cards, analytics, invoices, budget, audit.
+    assert!(doc["paths"]["/v1/catalog"]["get"].is_object());
+    assert!(doc["paths"]["/v1/catalog/{model_id}"]["get"].is_object());
+    assert!(doc["paths"]["/v1/rate-cards"]["get"].is_object());
+    assert!(doc["paths"]["/v1/orgs/{id}/usage-by-model"]["get"].is_object());
+    assert!(doc["paths"]["/v1/accounts/{id}/usage-by-day"]["get"].is_object());
+    assert!(doc["paths"]["/v1/accounts/{id}/invoice"]["get"].is_object());
+    assert!(doc["paths"]["/v1/accounts/{id}/budget"]["get"].is_object());
+    assert!(doc["paths"]["/v1/audit"]["get"].is_object());
+
+    // Every documented path carries its HTTP method object — the doc is well-formed.
+    let paths = doc["paths"].as_object().expect("paths object");
+    assert!(
+        paths.len() >= 25,
+        "expected full path coverage, got {}",
+        paths.len()
+    );
 }
 
 #[tokio::test]

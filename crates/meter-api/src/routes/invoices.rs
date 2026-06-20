@@ -22,6 +22,17 @@ pub struct Period {
 }
 
 /// `GET /v1/accounts/{id}/invoice?start=..&end=..`
+#[utoipa::path(
+    get,
+    path = "/v1/accounts/{id}/invoice",
+    params(
+        ("id" = String, Path, description = "Account id (UUID)"),
+        ("start" = String, Query, description = "Period start (RFC3339)"),
+        ("end" = String, Query, description = "Period end (RFC3339)")
+    ),
+    responses((status = 200, description = "Invoice summed from the ledger over the period")),
+    tag = "analytics"
+)]
 pub async fn invoice(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,

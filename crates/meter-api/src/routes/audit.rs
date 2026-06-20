@@ -85,6 +85,19 @@ fn parse_bound(value: Option<String>, field: &str) -> Result<Option<OffsetDateTi
 }
 
 /// `GET /v1/audit` — newest-first, optionally filtered by actor, method, and time window.
+#[utoipa::path(
+    get,
+    path = "/v1/audit",
+    params(
+        ("limit" = Option<i64>, Query, description = "Max rows (newest first)"),
+        ("actor" = Option<String>, Query, description = "Filter by actor"),
+        ("method" = Option<String>, Query, description = "Filter by HTTP method"),
+        ("since" = Option<String>, Query, description = "Lower time bound (RFC3339)"),
+        ("until" = Option<String>, Query, description = "Upper time bound (RFC3339)")
+    ),
+    responses((status = 200, description = "Matching audit entries, newest first")),
+    tag = "audit"
+)]
 pub async fn list(
     State(state): State<AppState>,
     Query(query): Query<AuditQuery>,

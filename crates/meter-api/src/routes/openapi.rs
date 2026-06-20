@@ -44,6 +44,17 @@ use crate::dto::{
         super::usage::reserve_usage,
         super::usage::settle_usage,
         super::simulate::simulate,
+        super::catalog::list,
+        super::catalog::get_card,
+        super::rate_cards::list,
+        super::rate_cards::get,
+        super::analytics::usage_by_day,
+        super::analytics::usage_by_model,
+        super::analytics::org_usage_by_day,
+        super::analytics::event_count,
+        super::budgets::budget_status,
+        super::invoices::invoice,
+        super::audit::list,
     ),
     components(schemas(
         OpenAccountBody,
@@ -68,7 +79,11 @@ use crate::dto::{
         (name = "reservations", description = "The reserve -> settle/void hold lifecycle"),
         (name = "leases", description = "Per-session credit leases (hot-account mitigation)"),
         (name = "events", description = "Usage events: record, batch, amend (append-only), void-run"),
-        (name = "usage", description = "Token-priced metering: charge, reserve/settle, simulate")
+        (name = "usage", description = "Token-priced metering: charge, reserve/settle, simulate"),
+        (name = "catalog", description = "Hosted model rate-card catalog (provider cost)"),
+        (name = "rate-cards", description = "Synced (control-plane-configured) rate cards"),
+        (name = "analytics", description = "Usage, budget, and invoice reads"),
+        (name = "audit", description = "The engine's mutating-request audit log")
     )
 )]
 pub struct ApiDoc;

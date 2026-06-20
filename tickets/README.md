@@ -41,9 +41,10 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 - [ ] Hold timeouts (auto-void), settle-after-void overage path, heartbeat extension
 
 ## EPIC 04 — Pricing & rate cards
-- [ ] `meter-pricing`: rate_card (kind: provider_cost|customer, margin), price_component matrix (dimensions/modality/context_tier/ttl/charge_model), action_charge
-- [ ] Two-stage token→credit translation (COGS → credits via margin + credit cent value); store cost_micros + credits_charged; round once
-- [ ] Versioned rate cards + resolvable `latest`; every event records its priced version
+- [x] `meter-pricing`: rate_card (kind: provider_cost|customer, margin), price_component matrix (dimension/modality/context_tier/unit/charge_model)
+- [x] Two-stage token→credit translation (cost → margin → credits via credit cash value); round once at the credit layer
+- [ ] action_charge (per-action/duration), graduated/volume/package charge models, ttl tiers
+- [~] Versioned rate cards (version field present); resolvable `latest` + per-event priced-version recording pending
 - [ ] Pricing simulation (re-rate historical events against a proposed card)
 - [ ] Schema-validated pricing config (AST for custom aggregations, never eval)
 

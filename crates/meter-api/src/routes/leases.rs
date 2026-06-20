@@ -18,7 +18,7 @@ use crate::AppState;
     post,
     path = "/v1/leases",
     request_body = OpenLeaseBody,
-    responses((status = 200, description = "Lease (session sub-account) opened")),
+    responses((status = 200, description = "Lease (session sub-account) opened", body = LedgerAccount)),
     tag = "leases"
 )]
 pub async fn open_lease(

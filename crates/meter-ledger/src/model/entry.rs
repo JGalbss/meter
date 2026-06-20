@@ -3,11 +3,12 @@
 use meter_core::{AccountId, Credit, EntryId};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
+use utoipa::ToSchema;
 
 use super::reservation::ReservationId;
 
 /// The kind of a ledger posting.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum EntryType {
     /// Credits added to an account (a grant / top-up / prepaid block).
@@ -40,7 +41,7 @@ pub enum EntryType {
 
 /// Provenance of credits, carried onto every entry so revenue recognition can split real product
 /// margin from promotional spend.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum CreditSource {
     Paid,
@@ -50,28 +51,36 @@ pub enum CreditSource {
 
 /// One immutable transfer between two accounts. Never updated after creation; corrections are new
 /// entries that point back via [`LedgerEntry::reverses_entry_id`].
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct LedgerEntry {
+    #[schema(value_type = String, format = "uuid")]
     pub id: EntryId,
     /// The account whose balance moves by `delta_credits`.
+    #[schema(value_type = String, format = "uuid")]
     pub account_id: AccountId,
     /// The counter-account the equal-and-opposite delta posts to (double-entry).
+    #[schema(value_type = String, format = "uuid")]
     pub paired_account_id: AccountId,
     pub entry_type: EntryType,
-    /// Signed change to `account_id`'s settled balance.
+    /// Signed change to `account_id`'s settled balance, as an exact decimal string.
+    #[schema(value_type = String)]
     pub delta_credits: Credit,
     /// `account_id`'s settled balance immediately after this entry (stored so audits never replay).
+    #[schema(value_type = String)]
     pub balance_after: Credit,
     /// Provenance, when the entry concerns a credit pool.
     pub source: Option<CreditSource>,
     /// Whether the credits on this entry are recognizable revenue.
     pub revenue_recognizable: bool,
     /// For reversals/amendments: the entry this one corrects.
+    #[schema(value_type = Option<String>, format = "uuid")]
     pub reverses_entry_id: Option<EntryId>,
     /// The reservation this entry belongs to, when part of a reserve→settle flow.
+    #[schema(value_type = Option<String>, format = "uuid")]
     pub reservation_id: Option<ReservationId>,
     /// The client idempotency key that produced this entry, when applicable.
     pub idempotency_key: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
+    #[schema(value_type = String, format = "date-time")]
     pub created_at: OffsetDateTime,
 }

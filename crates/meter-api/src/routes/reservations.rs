@@ -18,7 +18,7 @@ use crate::AppState;
     post,
     path = "/v1/reservations",
     request_body = ReserveBody,
-    responses((status = 200, description = "Reservation outcome (allowed or denied)")),
+    responses((status = 200, description = "Reservation outcome (allowed or denied)", body = ReserveOutcome)),
     tag = "reservations"
 )]
 pub async fn reserve(
@@ -45,7 +45,7 @@ pub async fn reserve(
     path = "/v1/reservations/{id}/settle",
     params(("id" = String, Path, description = "Reservation id (UUID)")),
     request_body = SettleBody,
-    responses((status = 200, description = "Settle posted; returns the ledger entry")),
+    responses((status = 200, description = "Settle posted; returns the ledger entry", body = LedgerEntry)),
     tag = "reservations"
 )]
 pub async fn settle(

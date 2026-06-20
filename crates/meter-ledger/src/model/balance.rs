@@ -2,11 +2,16 @@
 
 use meter_core::Credit;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 /// A point-in-time balance: settled credits, and credits currently held by open reservations.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct Balance {
+    /// Settled credit balance, as an exact decimal string.
+    #[schema(value_type = String)]
     pub settled: Credit,
+    /// Credits currently locked by open reservations, as an exact decimal string.
+    #[schema(value_type = String)]
     pub held: Credit,
 }
 

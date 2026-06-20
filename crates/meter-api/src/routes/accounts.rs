@@ -18,7 +18,7 @@ use crate::AppState;
     post,
     path = "/v1/accounts",
     request_body = OpenAccountBody,
-    responses((status = 200, description = "Account opened")),
+    responses((status = 200, description = "Account opened", body = LedgerAccount)),
     tag = "accounts"
 )]
 pub async fn open_account(
@@ -42,7 +42,7 @@ pub async fn open_account(
     get,
     path = "/v1/accounts/{id}/balance",
     params(("id" = String, Path, description = "Account id (UUID)")),
-    responses((status = 200, description = "Account balance (settled / held)")),
+    responses((status = 200, description = "Account balance (settled / held)", body = Balance)),
     tag = "accounts"
 )]
 pub async fn balance(
@@ -59,7 +59,7 @@ pub async fn balance(
     path = "/v1/accounts/{id}/grants",
     params(("id" = String, Path, description = "Account id (UUID)")),
     request_body = GrantBody,
-    responses((status = 200, description = "Grant posted; returns the ledger entry")),
+    responses((status = 200, description = "Grant posted; returns the ledger entry", body = LedgerEntry)),
     tag = "accounts"
 )]
 pub async fn grant(
@@ -85,7 +85,7 @@ pub async fn grant(
     path = "/v1/accounts/{id}/credit-notes",
     params(("id" = String, Path, description = "Account id (UUID)")),
     request_body = RefundBody,
-    responses((status = 200, description = "Refund posted; returns the ledger entry")),
+    responses((status = 200, description = "Refund posted; returns the ledger entry", body = LedgerEntry)),
     tag = "accounts"
 )]
 pub async fn credit_note(
@@ -110,7 +110,7 @@ pub async fn credit_note(
     get,
     path = "/v1/accounts/{id}/entries",
     params(("id" = String, Path, description = "Account id (UUID)")),
-    responses((status = 200, description = "The account's ledger entries (audit trail)")),
+    responses((status = 200, description = "The account's ledger entries (audit trail)", body = Vec<LedgerEntry>)),
     tag = "accounts"
 )]
 pub async fn entries(

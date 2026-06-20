@@ -3,6 +3,7 @@
 use core::fmt;
 
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// A client-owned reservation id. `reserve`, `settle`, and `void` are idempotent on it, so duplicate
@@ -43,7 +44,7 @@ impl fmt::Display for ReservationId {
 }
 
 /// Whether a limit blocks hard (never overdraft, fail-closed) or soft (best-effort, fail-open).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum LimitClass {
     Hard,

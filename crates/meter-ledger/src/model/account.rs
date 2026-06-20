@@ -2,6 +2,7 @@
 
 use meter_core::{AccountId, OrgId};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// The well-known org that owns the system (mint + usage sink) account. Not a real tenant; it is the
@@ -13,7 +14,7 @@ pub const SYSTEM_ORG: OrgId = OrgId::from_uuid(Uuid::nil());
 pub const SYSTEM_ACCOUNT: AccountId = AccountId::from_uuid(Uuid::nil());
 
 /// What a ledger account represents within the org hierarchy and the credit machinery.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AccountScope {
     Org,
@@ -33,14 +34,17 @@ pub enum AccountScope {
 }
 
 /// A node in the ledger that carries a credit balance, optionally leased from a parent account.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct LedgerAccount {
+    #[schema(value_type = String, format = "uuid")]
     pub id: AccountId,
     /// The tenant that owns this account ([`SYSTEM_ORG`] for the system account).
+    #[schema(value_type = String, format = "uuid")]
     pub org_id: OrgId,
     pub scope: AccountScope,
     /// When true, a HARD reservation can never drive available credits negative.
     pub no_overdraft: bool,
     /// The parent pool this account leases from, if it is a session sub-balance.
+    #[schema(value_type = Option<String>, format = "uuid")]
     pub parent_id: Option<AccountId>,
 }

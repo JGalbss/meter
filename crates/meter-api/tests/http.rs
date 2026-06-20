@@ -1134,6 +1134,16 @@ async fn openapi_document_is_served() {
         "expected full path coverage, got {}",
         paths.len()
     );
+
+    // Response bodies are typed: the ledger domain schemas are present and referenced by $ref.
+    assert!(doc["components"]["schemas"]["LedgerAccount"].is_object());
+    assert!(doc["components"]["schemas"]["Balance"].is_object());
+    assert!(doc["components"]["schemas"]["LedgerEntry"].is_object());
+    assert_eq!(
+        doc["paths"]["/v1/accounts/{id}/balance"]["get"]["responses"]["200"]["content"]
+            ["application/json"]["schema"]["$ref"],
+        "#/components/schemas/Balance"
+    );
 }
 
 #[tokio::test]

@@ -5,6 +5,7 @@
 use meter_core::{AccountId, Credit, EntryId, OrgId, RunId};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
+use utoipa::ToSchema;
 
 use crate::model::{AccountScope, CreditSource, LimitClass, ReservationId};
 
@@ -54,27 +55,33 @@ pub struct ReserveRequest {
 }
 
 /// The result of a [`ReserveRequest`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(tag = "outcome", rename_all = "snake_case")]
 pub enum ReserveOutcome {
     /// The hold was placed (or already existed); the caller may proceed to spend.
-    Allowed { reservation: ReservationId },
+    Allowed {
+        #[schema(value_type = String, format = "uuid")]
+        reservation: ReservationId,
+    },
     /// A HARD limit refused the spend; the call must not proceed.
     Denied {
+        #[schema(value_type = String)]
         available: Credit,
+        #[schema(value_type = String)]
         requested: Credit,
     },
 }
 
 /// The result of voiding a whole run via [`void_run`](crate::LedgerBackend::void_run): how many open
 /// holds were released, how many settled charges were refunded, and the total credits returned.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, ToSchema)]
 pub struct RunVoidSummary {
     /// Open holds released back to available balance.
     pub holds_released: u64,
     /// Settled charges reversed with a refund posting.
     pub charges_refunded: u64,
     /// Total credits returned to the account (the sum of the refunded charges).
+    #[schema(value_type = String)]
     pub credits_refunded: Credit,
 }
 

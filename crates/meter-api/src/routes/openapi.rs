@@ -6,6 +6,10 @@
 use axum::Json;
 use utoipa::OpenApi;
 
+use meter_ledger::{
+    AccountScope, Balance, CreditSource, EntryType, LedgerAccount, LedgerEntry, ReserveOutcome,
+};
+
 use crate::dto::{
     AmendBody, ExtendBody, GrantBody, MeterUsageBody, OpenAccountBody, OpenLeaseBody,
     RecordBatchBody, RecordEventBody, RefundBody, ReserveBody, ReserveUsageBody, SettleBody,
@@ -71,7 +75,14 @@ use crate::dto::{
         MeterUsageBody,
         ReserveUsageBody,
         SettleUsageBody,
-        SimulateBody
+        SimulateBody,
+        LedgerAccount,
+        Balance,
+        LedgerEntry,
+        EntryType,
+        CreditSource,
+        AccountScope,
+        ReserveOutcome
     )),
     tags(
         (name = "health", description = "Liveness and readiness probes"),

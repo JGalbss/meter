@@ -1163,6 +1163,22 @@ async fn openapi_document_is_served() {
     assert!(doc["components"]["schemas"]["DayUsage"].is_object());
     assert!(doc["components"]["schemas"]["EventDayUsage"].is_object());
     assert!(doc["components"]["schemas"]["ModelUsage"].is_object());
+
+    // Completeness gate: every body-bearing 2xx response carries a typed schema — no opaque objects,
+    // so the whole surface is codegen-ready.
+    for (path, item) in paths {
+        for (method, op) in item.as_object().expect("path item object") {
+            for code in ["200", "202"] {
+                let response = &op["responses"][code];
+                if response.is_object() && response.get("content").is_some() {
+                    assert!(
+                        response["content"]["application/json"]["schema"].is_object(),
+                        "{method} {path} {code} response has no typed schema"
+                    );
+                }
+            }
+        }
+    }
 }
 
 #[tokio::test]

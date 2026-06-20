@@ -2,9 +2,9 @@
 
 use axum::extract::{Path, Query, State};
 use axum::Json;
-use serde::Deserialize;
-use serde_json::{json, Value};
+use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use meter_core::AccountId;
@@ -89,22 +89,28 @@ pub async fn org_usage_by_day(
     Ok(Json(days))
 }
 
+/// The count of an organization's live (recorded) events.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct EventCountResponse {
+    pub count: u64,
+}
+
 /// `GET /v1/orgs/{id}/event-count` — count of an organization's live (recorded) events.
 #[utoipa::path(
     get,
     path = "/v1/orgs/{id}/event-count",
     params(("id" = String, Path, description = "Org id (UUID)")),
-    responses((status = 200, description = "Count of live (recorded) events")),
+    responses((status = 200, description = "Count of live (recorded) events", body = EventCountResponse)),
     tag = "analytics"
 )]
 pub async fn event_count(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-) -> Result<Json<Value>, ApiError> {
+) -> Result<Json<EventCountResponse>, ApiError> {
     let count = state
         .events
         .event_count(id)
         .await
         .map_err(|error| ApiError::internal(error.to_string()))?;
-    Ok(Json(json!({ "count": count })))
+    Ok(Json(EventCountResponse { count }))
 }

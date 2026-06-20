@@ -111,7 +111,9 @@ use crate::dto::{
         super::invoices::InvoiceResponse,
         super::budgets::BudgetStatusResponse,
         super::usage::MeterUsageResult,
-        super::usage::SettleUsageResult
+        super::usage::SettleUsageResult,
+        super::usage::ReserveUsageResult,
+        super::analytics::EventCountResponse
     )),
     tags(
         (name = "health", description = "Liveness and readiness probes"),

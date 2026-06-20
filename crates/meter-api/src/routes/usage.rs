@@ -4,7 +4,7 @@
 use axum::extract::{Path, State};
 use axum::Json;
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::json;
 use time::OffsetDateTime;
 use utoipa::ToSchema;
 use uuid::Uuid;
@@ -14,7 +14,9 @@ use crate::dto::{MeterUsageBody, ReserveUsageBody, SettleUsageBody};
 use crate::error::ApiError;
 use crate::AppState;
 use meter_event::{EventStore, RecordEvent};
-use meter_ledger::{ChargeRequest, LedgerBackend, ReservationId, ReserveRequest, SettleRequest};
+use meter_ledger::{
+    ChargeRequest, LedgerBackend, ReservationId, ReserveOutcome, ReserveRequest, SettleRequest,
+};
 use meter_pricing::price_usage;
 
 /// `POST /v1/usage` result: the priced amounts, the recorded event id, and the resulting balance.
@@ -36,6 +38,16 @@ pub struct MeterUsageResult {
 pub struct SettleUsageResult {
     pub credits_charged: String,
     pub balance_after: String,
+}
+
+/// `POST /v1/usage/reserve` result: the reserve outcome (flattened) plus the engine-computed credits
+/// that were held.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ReserveUsageResult {
+    #[serde(flatten)]
+    pub outcome: ReserveOutcome,
+    /// Credits the engine priced and reserved, as an exact decimal string.
+    pub reserved_credits: String,
 }
 
 /// `POST /v1/usage`
@@ -109,13 +121,13 @@ pub async fn meter_usage(
     post,
     path = "/v1/usage/reserve",
     request_body = ReserveUsageBody,
-    responses((status = 200, description = "Reserve outcome plus the reserved credits")),
+    responses((status = 200, description = "Reserve outcome plus the reserved credits", body = ReserveUsageResult)),
     tag = "usage"
 )]
 pub async fn reserve_usage(
     State(state): State<AppState>,
     Json(body): Json<ReserveUsageBody>,
-) -> Result<Json<Value>, ApiError> {
+) -> Result<Json<ReserveUsageResult>, ApiError> {
     let card = resolve_card(&state, &body.model, body.rate_card_id.as_deref()).await?;
     let usage = body.estimate.to_usage();
     let priced = price_usage(&usage, &card, &state.credit_value)
@@ -131,15 +143,10 @@ pub async fn reserve_usage(
             run_id: body.run_id,
         })
         .await?;
-    let mut value = serde_json::to_value(outcome)
-        .map_err(|error| ApiError::unprocessable(format!("serialize: {error}")))?;
-    if let Value::Object(map) = &mut value {
-        map.insert(
-            "reserved_credits".to_owned(),
-            json!(priced.credits.value().normalize().to_string()),
-        );
-    }
-    Ok(Json(value))
+    Ok(Json(ReserveUsageResult {
+        outcome,
+        reserved_credits: priced.credits.value().normalize().to_string(),
+    }))
 }
 
 /// `POST /v1/usage/reservations/{id}/settle` — price the actual usage against a catalog model and

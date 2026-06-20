@@ -12,7 +12,7 @@ pub mod money;
 
 pub use credit::Credit;
 pub use id::{
-    AccountId, AgentId, BudgetId, GrantId, Id, InvoiceId, OrgId, ProductId, RateCardId, RoleId,
-    TeamId, TransactionId, UserId,
+    AccountId, AgentId, BudgetId, EntryId, GrantId, Id, InvoiceId, OrgId, ProductId, RateCardId,
+    RoleId, TeamId, TransactionId, UserId,
 };
 pub use money::{Currency, Money, MoneyError};

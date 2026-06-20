@@ -1,0 +1,38 @@
+//! The ledger backend trait — the seam every storage backend implements.
+
+use async_trait::async_trait;
+use meter_core::AccountId;
+
+use crate::error::LedgerError;
+use crate::model::{Balance, LedgerAccount, LedgerEntry, ReservationId};
+use crate::request::{GrantRequest, NewAccount, ReserveOutcome, ReserveRequest, SettleRequest};
+
+/// A pluggable double-entry credit ledger.
+///
+/// All money-truth flows through this trait, so the choice of storage (Postgres by default, an
+/// optional TigerBeetle accelerator) is invisible to the rest of the system. Implementations must be
+/// safe under concurrency and make `grant`, `reserve`, `settle`, and `void` idempotent on their keys.
+/// The [`crate::InMemoryLedger`] is the conformance oracle every backend is tested against.
+#[async_trait]
+pub trait LedgerBackend: Send + Sync {
+    /// Open a new account and return it.
+    async fn open_account(&self, req: NewAccount) -> Result<LedgerAccount, LedgerError>;
+
+    /// The derived balance of an account.
+    async fn balance(&self, account: AccountId) -> Result<Balance, LedgerError>;
+
+    /// Add credits to an account (a paired transfer from the system account).
+    async fn grant(&self, req: GrantRequest) -> Result<LedgerEntry, LedgerError>;
+
+    /// Place a durable hold before a spend. The hold is the authorization to spend.
+    async fn reserve(&self, req: ReserveRequest) -> Result<ReserveOutcome, LedgerError>;
+
+    /// Close a reservation at the actual amount, posting the priced usage.
+    async fn settle(&self, req: SettleRequest) -> Result<LedgerEntry, LedgerError>;
+
+    /// Release an open reservation without charging it (e.g. a failed or abandoned run).
+    async fn void(&self, reservation: ReservationId) -> Result<(), LedgerError>;
+
+    /// Every entry touching an account, for audit and conformance checks.
+    async fn entries(&self, account: AccountId) -> Result<Vec<LedgerEntry>, LedgerError>;
+}

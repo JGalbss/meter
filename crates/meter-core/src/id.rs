@@ -134,6 +134,8 @@ entities! {
     Account => AccountId,
     /// A ledger transaction (a balanced set of entries).
     Transaction => TransactionId,
+    /// A single ledger entry (one posting in the append-only ledger).
+    Entry => EntryId,
     /// A rate card (pricing definition).
     RateCard => RateCardId,
     /// A credit grant.

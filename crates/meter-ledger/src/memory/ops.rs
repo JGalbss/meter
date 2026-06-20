@@ -20,12 +20,18 @@ use super::InMemoryLedger;
 /// Post a conserving double-entry transfer between two existing accounts (both must be present).
 fn post_transfer(state: &mut State, from: AccountId, to: AccountId, amount: Credit) {
     let from_after = {
-        let row = state.accounts.get_mut(&from).expect("transfer source exists");
+        let row = state
+            .accounts
+            .get_mut(&from)
+            .expect("transfer source exists");
         row.settled -= amount;
         row.settled
     };
     let to_after = {
-        let row = state.accounts.get_mut(&to).expect("transfer destination exists");
+        let row = state
+            .accounts
+            .get_mut(&to)
+            .expect("transfer destination exists");
         row.settled += amount;
         row.settled
     };
@@ -302,7 +308,11 @@ impl LedgerBackend for InMemoryLedger {
             Some(row) => (row.account.org_id, row.account.no_overdraft),
         };
         let available = {
-            let settled = state.accounts.get(&req.parent).expect("parent checked").settled;
+            let settled = state
+                .accounts
+                .get(&req.parent)
+                .expect("parent checked")
+                .settled;
             settled - state.held(req.parent)
         };
         if no_overdraft && available < req.amount {
@@ -318,7 +328,9 @@ impl LedgerBackend for InMemoryLedger {
             no_overdraft: true,
             parent_id: Some(req.parent),
         };
-        state.accounts.insert(child.id, AccountRow::new(child.clone()));
+        state
+            .accounts
+            .insert(child.id, AccountRow::new(child.clone()));
         post_transfer(&mut state, req.parent, child.id, req.amount);
         Ok(child)
     }

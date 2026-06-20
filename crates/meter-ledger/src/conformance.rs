@@ -253,7 +253,11 @@ pub async fn lease_moves_credits_and_conserves<L: LedgerBackend>(ledger: &L) {
     assert_eq!(lease.scope, AccountScope::Session);
     assert_eq!(lease.parent_id, Some(parent));
     assert_eq!(
-        ledger.balance(parent).await.expect("parent balance").settled,
+        ledger
+            .balance(parent)
+            .await
+            .expect("parent balance")
+            .settled,
         credits(60)
     );
     let lease_balance = ledger.balance(lease.id).await.expect("lease balance");
@@ -299,7 +303,11 @@ pub async fn lease_spend_then_close_returns_remainder<L: LedgerBackend>(ledger: 
         .await
         .expect("settle against lease");
     assert_eq!(
-        ledger.balance(lease.id).await.expect("lease balance").settled,
+        ledger
+            .balance(lease.id)
+            .await
+            .expect("lease balance")
+            .settled,
         credits(15)
     );
 
@@ -307,11 +315,19 @@ pub async fn lease_spend_then_close_returns_remainder<L: LedgerBackend>(ledger: 
     assert_eq!(returned, credits(15));
     // Parent regained the remainder: 60 (after lease) + 15 = 75; net spent over the session is 25.
     assert_eq!(
-        ledger.balance(parent).await.expect("parent balance").settled,
+        ledger
+            .balance(parent)
+            .await
+            .expect("parent balance")
+            .settled,
         credits(75)
     );
     assert_eq!(
-        ledger.balance(lease.id).await.expect("lease balance").settled,
+        ledger
+            .balance(lease.id)
+            .await
+            .expect("lease balance")
+            .settled,
         credits(0)
     );
 }
@@ -336,7 +352,11 @@ pub async fn over_lease_is_refused<L: LedgerBackend>(ledger: &L) {
         .await;
     assert!(matches!(result, Err(LedgerError::InsufficientFunds { .. })));
     assert_eq!(
-        ledger.balance(parent).await.expect("parent balance").settled,
+        ledger
+            .balance(parent)
+            .await
+            .expect("parent balance")
+            .settled,
         credits(10)
     );
 }

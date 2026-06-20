@@ -22,7 +22,10 @@ pub enum LedgerError {
     NonPositiveAmount,
     /// Leasing more than a no-overdraft pool's available balance.
     #[error("insufficient funds: {available} available, {requested} requested")]
-    InsufficientFunds { available: Credit, requested: Credit },
+    InsufficientFunds {
+        available: Credit,
+        requested: Credit,
+    },
     /// `close_lease` was called on an account that is not a lease (it has no parent pool).
     #[error("account is not a lease: {0}")]
     NotALease(AccountId),

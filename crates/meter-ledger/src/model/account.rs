@@ -8,6 +8,10 @@ use uuid::Uuid;
 /// counter-party every grant and settle pairs against so the global ledger always sums to zero.
 pub const SYSTEM_ORG: OrgId = OrgId::from_uuid(Uuid::nil());
 
+/// The well-known system account (mint + usage sink) that every transfer pairs against. Fixed so all
+/// backends record the same counter-party.
+pub const SYSTEM_ACCOUNT: AccountId = AccountId::from_uuid(Uuid::nil());
+
 /// What a ledger account represents within the org hierarchy and the credit machinery.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

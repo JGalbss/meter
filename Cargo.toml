@@ -51,6 +51,8 @@ proptest = "1"
 
 # internal crates
 meter-core = { path = "crates/meter-core" }
+meter-ledger = { path = "crates/meter-ledger" }
+meter-store-pg = { path = "crates/meter-store-pg" }
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }

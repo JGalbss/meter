@@ -8,7 +8,7 @@ mod balance;
 mod entry;
 mod reservation;
 
-pub use account::{AccountScope, LedgerAccount, SYSTEM_ORG};
+pub use account::{AccountScope, LedgerAccount, SYSTEM_ACCOUNT, SYSTEM_ORG};
 pub use balance::Balance;
 pub use entry::{CreditSource, EntryType, LedgerEntry};
 pub use reservation::{LimitClass, ReservationId};

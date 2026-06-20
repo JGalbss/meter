@@ -14,7 +14,7 @@ use std::sync::{Mutex, MutexGuard};
 
 use meter_core::{AccountId, Credit};
 
-use crate::model::{AccountScope, LedgerAccount, SYSTEM_ORG};
+use crate::model::{AccountScope, LedgerAccount, SYSTEM_ACCOUNT, SYSTEM_ORG};
 
 use self::state::{AccountRow, State};
 
@@ -29,7 +29,7 @@ impl InMemoryLedger {
     /// Create an empty ledger with its single system (mint + usage) account.
     #[must_use]
     pub fn new() -> Self {
-        let system = AccountId::new();
+        let system = SYSTEM_ACCOUNT;
         let mut state = State::default();
         state.accounts.insert(
             system,

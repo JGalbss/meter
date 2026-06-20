@@ -25,18 +25,19 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 - [ ] Wire-protocol versioning policy
 
 ## EPIC 02 — Engine schemas & migrations (Postgres, sqlx)
-- [ ] Migration tooling (`sqlx migrate`) + `meter migrate` CLI that refuses on version skew
-- [ ] Ledger schema: ledger_accounts (+ session lease accounts), append-only ledger_entries (balance_after, reverses_entry_id, reservation_id, source, revenue_recognizable, cost_micros, credits_charged), credit_blocks, balances cache
+- [~] Migration tooling: embedded `sqlx::migrate!` done; `meter migrate` CLI (refuses on version skew) pending
+- [~] Ledger schema: ledger_accounts, append-only ledger_entries, ledger_holds done; credit_blocks + balances cache + session-lease accounts + cost_micros/credits_charged pending
 - [ ] Event schema: events (custom-field JSONB schema-validated, run_id, status, supersedes_event_id), events_dead_letter, idempotency_keys
 - [ ] `org_id NOT NULL` everywhere + RLS (ENABLE/FORCE, app role w/o BYPASSRLS, withTenant)
-- [ ] Forward-only expand/contract; statement timeouts; batched/rate-limited backfills
-- [ ] Integration tests vs real Postgres (testcontainers)
+- [~] Forward-only expand/contract done; statement timeouts + batched/rate-limited backfills pending
+- [x] Integration tests vs real Postgres (testcontainers) — ledger conformance green
 
 ## EPIC 03 — Ledger: Postgres backend
-- [ ] `meter-store-pg` implements `LedgerBackend` over Postgres
+- [x] `meter-store-pg` implements `LedgerBackend` over Postgres (FOR UPDATE serialization, derived balances)
+- [x] Run the shared conformance suite against Postgres — identical results to the in-memory oracle
+- [x] Concurrency no-overdraft test (50 racing reserves vs capacity) green against real Postgres
 - [ ] Per-session credit leasing (hot-account mitigation)
-- [ ] Run the shared conformance suite (the in-memory oracle's tests) against Postgres — identical results
-- [ ] Chaos/fault-injection harness: leader kill, restart, dup/drop settle, hold-timeout race → balance never negative, no leaked holds, settle exactly once
+- [ ] Chaos/fault-injection harness: leader kill, restart, dup/drop settle, hold-timeout race
 - [ ] Hold timeouts (auto-void), settle-after-void overage path, heartbeat extension
 
 ## EPIC 04 — Pricing & rate cards

@@ -89,6 +89,14 @@ message VoidRequest {
 
 message VoidResponse {}
 
+message ExtendHoldRequest {
+  string reservation_id = 1;
+  // RFC3339 new expiry.
+  string expires_at = 2;
+}
+
+message ExtendHoldResponse {}
+
 message BalanceRequest {
   string account_id = 1;
 }
@@ -106,5 +114,6 @@ service LedgerService {
   rpc Reserve(ReserveRequest) returns (ReserveResponse);
   rpc Settle(SettleRequest) returns (SettleResponse);
   rpc Void(VoidRequest) returns (VoidResponse);
+  rpc ExtendHold(ExtendHoldRequest) returns (ExtendHoldResponse);
   rpc Balance(BalanceRequest) returns (BalanceResponse);
 }

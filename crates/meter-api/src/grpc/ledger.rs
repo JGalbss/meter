@@ -195,6 +195,21 @@ impl v1::ledger_service_server::LedgerService for LedgerGrpc {
         Ok(Response::new(v1::VoidResponse {}))
     }
 
+    async fn extend_hold(
+        &self,
+        request: Request<v1::ExtendHoldRequest>,
+    ) -> Result<Response<v1::ExtendHoldResponse>, Status> {
+        let req = request.into_inner();
+        self.ledger
+            .extend_hold(
+                ReservationId::from_uuid(parse_uuid(&req.reservation_id, "reservation_id")?),
+                super::parse_time(&req.expires_at, "expires_at")?,
+            )
+            .await
+            .map_err(|error| status_from_ledger(&error))?;
+        Ok(Response::new(v1::ExtendHoldResponse {}))
+    }
+
     async fn balance(
         &self,
         request: Request<v1::BalanceRequest>,

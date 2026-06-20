@@ -113,20 +113,48 @@ async fn ledger_grpc_reserve_settle_flow() {
     assert!(!denied.allowed);
     assert_eq!(denied.available.unwrap().amount, "70");
 
-    // A reservation made over gRPC with a past expiry is swept — proving the expiry was persisted.
+    // Two reservations made over gRPC with past expiries.
+    let kept = "44444444-4444-4444-4444-444444444444".to_owned();
+    let dropped = "55555555-5555-5555-5555-555555555555".to_owned();
+    for reservation_id in [kept.clone(), dropped] {
+        service
+            .reserve(Request::new(v1::ReserveRequest {
+                account_id: account.clone(),
+                reservation_id,
+                amount: credit("5"),
+                limit: v1::LimitClass::Hard as i32,
+                expires_at: "1970-01-01T00:00:00Z".to_owned(),
+            }))
+            .await
+            .expect("reserve with expiry");
+    }
+
+    // ExtendHold over gRPC pushes one hold's expiry to the future; the sweep then catches only the
+    // other — proving both that the expiry persisted and that the heartbeat works over gRPC.
     service
-        .reserve(Request::new(v1::ReserveRequest {
-            account_id: account,
-            reservation_id: "44444444-4444-4444-4444-444444444444".to_owned(),
-            amount: credit("5"),
-            limit: v1::LimitClass::Hard as i32,
-            expires_at: "1970-01-01T00:00:00Z".to_owned(),
+        .extend_hold(Request::new(v1::ExtendHoldRequest {
+            reservation_id: kept,
+            expires_at: "2100-01-01T00:00:00Z".to_owned(),
         }))
         .await
-        .expect("reserve with expiry");
+        .expect("extend_hold");
     let swept = ledger
         .void_expired_holds(OffsetDateTime::now_utc())
         .await
         .expect("sweep");
     assert_eq!(swept, 1);
+    // The extended hold survives: 5 credits still held.
+    assert_eq!(
+        service
+            .balance(Request::new(v1::BalanceRequest {
+                account_id: account
+            }))
+            .await
+            .expect("balance")
+            .into_inner()
+            .held
+            .unwrap()
+            .amount,
+        "5"
+    );
 }

@@ -22,6 +22,14 @@ use meter_store_pg::PgLedger;
 
 pub use routes::router;
 
+/// The engine's OpenAPI 3 document (the same one served at `GET /openapi.json`). Exposed so tooling
+/// can emit it to a file for SDK codegen and drift-checking.
+#[must_use]
+pub fn openapi_document() -> utoipa::openapi::OpenApi {
+    use utoipa::OpenApi;
+    routes::openapi::ApiDoc::openapi()
+}
+
 /// Shared handler state. Money-truth (the ledger) is Postgres; events and the append-only audit log
 /// live in `ClickHouse` (ADR 0003/0004) — both high-velocity firehoses kept off the money database.
 #[derive(Clone)]

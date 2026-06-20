@@ -1,0 +1,2373 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "meter engine API",
+    "description": "The metering engine's HTTP surface — money-truth and usage. The source of truth for engine SDK codegen.",
+    "contact": {
+      "name": "Josh Galbreath"
+    },
+    "license": {
+      "name": "AGPL-3.0-only"
+    },
+    "version": "0.0.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "`GET /health` — liveness. Static: the process is up and serving. Deliberately independent of the",
+        "description": "stores, so a transient database blip never trips a liveness probe into a restart loop.",
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "description": "The process is up"
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "`GET /health/ready` — readiness. Pings the money store (Postgres) and the event store (ClickHouse);",
+        "description": "`200` only when both answer, otherwise `503` reporting which dependency is down. This is the probe a\nload balancer / k8s should gate traffic on.",
+        "operationId": "ready",
+        "responses": {
+          "200": {
+            "description": "Both stores reachable"
+          },
+          "503": {
+            "description": "A dependency is down"
+          }
+        }
+      }
+    },
+    "/v1/accounts": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "`POST /v1/accounts`",
+        "operationId": "open_account",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenAccountBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Account opened",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerAccount"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/accounts/{id}/balance": {
+      "get": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "`GET /v1/accounts/{id}/balance`",
+        "operationId": "balance",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Account id (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Account balance (settled / held)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Balance"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/accounts/{id}/budget": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "`GET /v1/accounts/{id}/budget?start&end&limit`",
+        "operationId": "budget_status",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Account id (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "description": "Period start (RFC3339)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "description": "Period end (RFC3339)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Credit limit override (decimal string)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Usage vs limit with threshold status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/accounts/{id}/credit-notes": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "`POST /v1/accounts/{id}/credit-notes` — credit an account back (a refund / correction).",
+        "operationId": "credit_note",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Account id (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefundBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Refund posted; returns the ledger entry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerEntry"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/accounts/{id}/entries": {
+      "get": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "`GET /v1/accounts/{id}/entries`",
+        "operationId": "entries",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Account id (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The account's ledger entries (audit trail)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LedgerEntry"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/accounts/{id}/events": {
+      "get": {
+        "tags": [
+          "events"
+        ],
+        "summary": "`GET /v1/accounts/{id}/events`",
+        "operationId": "list_for_account",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Account id (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The account's latest (non-voided) events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Event"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/accounts/{id}/grants": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "`POST /v1/accounts/{id}/grants`",
+        "operationId": "grant",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Account id (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Grant posted; returns the ledger entry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerEntry"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/accounts/{id}/invoice": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "`GET /v1/accounts/{id}/invoice?start=..&end=..`",
+        "operationId": "invoice",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Account id (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "description": "Period start (RFC3339)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "description": "Period end (RFC3339)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invoice summed from the ledger over the period",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/accounts/{id}/usage-by-day": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "`GET /v1/accounts/{id}/usage-by-day?start&end` — daily credit usage time series.",
+        "operationId": "usage_by_day",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Account id (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "description": "Period start (RFC3339)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "description": "Period end (RFC3339)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Daily credit totals over the period",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DayUsage"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/audit": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "`GET /v1/audit` — newest-first, optionally filtered by actor, method, and time window.",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Max rows (newest first)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "nullable": true
+            }
+          },
+          {
+            "name": "actor",
+            "in": "query",
+            "description": "Filter by actor",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "method",
+            "in": "query",
+            "description": "Filter by HTTP method",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "Lower time bound (RFC3339)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "description": "Upper time bound (RFC3339)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching audit entries, newest first"
+          }
+        }
+      }
+    },
+    "/v1/catalog": {
+      "get": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "`GET /v1/catalog` — the curated provider rate-card catalog. Prices are best-effort as of `as_of`",
+        "description": "(no billing-accuracy SLA); verify against the provider before billing.",
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "description": "Snapshot date + every catalogued model's per-token prices"
+          }
+        }
+      }
+    },
+    "/v1/catalog/{model_id}": {
+      "get": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "`GET /v1/catalog/{model_id}` — the provider-cost rate card for a catalogued model, ready to price",
+        "description": "usage against. `404` if the model is not in the catalog.",
+        "operationId": "get_card",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "description": "Catalogued model id (e.g. claude-opus-4-8)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The provider-cost rate card",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateCard"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Model not in the catalog"
+          }
+        }
+      }
+    },
+    "/v1/events": {
+      "post": {
+        "tags": [
+          "events"
+        ],
+        "summary": "`POST /v1/events`",
+        "operationId": "record",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordEventBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Event recorded (idempotent on org + key)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Event"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/events/batch": {
+      "post": {
+        "tags": [
+          "events"
+        ],
+        "summary": "`POST /v1/events/batch` — bulk ingest. Returns `202 Accepted` with the count recorded; ids are",
+        "description": "content-addressed from `(org_id, idempotency_key)`, so callers can derive them without the payload.",
+        "operationId": "record_batch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordBatchBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Batch accepted; returns the count recorded"
+          }
+        }
+      }
+    },
+    "/v1/events/{id}": {
+      "get": {
+        "tags": [
+          "events"
+        ],
+        "summary": "`GET /v1/events/{id}`",
+        "operationId": "get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Event id (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Event"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown event"
+          }
+        }
+      }
+    },
+    "/v1/events/{id}/amend": {
+      "post": {
+        "tags": [
+          "events"
+        ],
+        "summary": "`POST /v1/events/{id}/amend`",
+        "operationId": "amend",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Event id (UUID) to amend",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AmendBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "New event version superseding the prior",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Event"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/leases": {
+      "post": {
+        "tags": [
+          "leases"
+        ],
+        "summary": "`POST /v1/leases`",
+        "operationId": "open_lease",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenLeaseBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Lease (session sub-account) opened",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerAccount"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/leases/{id}/close": {
+      "post": {
+        "tags": [
+          "leases"
+        ],
+        "summary": "`POST /v1/leases/{id}/close`",
+        "operationId": "close_lease",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Lease account id (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Unused remainder returned to the parent"
+          }
+        }
+      }
+    },
+    "/v1/orgs/{id}/event-count": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "`GET /v1/orgs/{id}/event-count` — count of an organization's live (recorded) events.",
+        "operationId": "event_count",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Org id (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Count of live (recorded) events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventCountResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orgs/{id}/usage-by-day": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "`GET /v1/orgs/{id}/usage-by-day` — daily event + credit totals from the event store (`ClickHouse`).",
+        "operationId": "org_usage_by_day",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Org id (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Daily event + credit totals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EventDayUsage"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orgs/{id}/usage-by-model": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "`GET /v1/orgs/{id}/usage-by-model` — usage aggregated by model, derived from the event store",
+        "description": "(`ClickHouse`). Reflects amends and voids; ordered by spend, highest first.",
+        "operationId": "usage_by_model",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Org id (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Usage aggregated by model, ordered by spend",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ModelUsage"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/rate-cards": {
+      "get": {
+        "tags": [
+          "rate-cards"
+        ],
+        "summary": "`GET /v1/rate-cards` — every synced rate card (live version each).",
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "description": "Every synced rate card (live version each)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RateCard"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/rate-cards/{id}": {
+      "get": {
+        "tags": [
+          "rate-cards"
+        ],
+        "summary": "`GET /v1/rate-cards/{id}` — the live (latest-version) synced rate card; `404` if none was synced.",
+        "operationId": "get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Rate-card id (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The live synced rate card",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateCard"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No card synced for this id"
+          }
+        }
+      }
+    },
+    "/v1/reservations": {
+      "post": {
+        "tags": [
+          "reservations"
+        ],
+        "summary": "`POST /v1/reservations`",
+        "operationId": "reserve",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReserveBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Reservation outcome (allowed or denied)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReserveOutcome"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/reservations/{id}/extend": {
+      "post": {
+        "tags": [
+          "reservations"
+        ],
+        "summary": "`POST /v1/reservations/{id}/extend` — push the hold's expiry forward (heartbeat keep-alive).",
+        "operationId": "extend",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Reservation id (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtendBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Expiry extended"
+          },
+          "404": {
+            "description": "Unknown reservation"
+          },
+          "409": {
+            "description": "Reservation already closed"
+          }
+        }
+      }
+    },
+    "/v1/reservations/{id}/settle": {
+      "post": {
+        "tags": [
+          "reservations"
+        ],
+        "summary": "`POST /v1/reservations/{id}/settle`",
+        "operationId": "settle",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Reservation id (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettleBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Settle posted; returns the ledger entry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerEntry"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/reservations/{id}/void": {
+      "post": {
+        "tags": [
+          "reservations"
+        ],
+        "summary": "`POST /v1/reservations/{id}/void`",
+        "operationId": "void",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Reservation id (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Hold released (idempotent)"
+          }
+        }
+      }
+    },
+    "/v1/runs/{id}/void": {
+      "post": {
+        "tags": [
+          "events"
+        ],
+        "summary": "`POST /v1/runs/{id}/void` — kill a whole run. Voids the run's events (append-only: each is marked",
+        "description": "voided) and reverses its ledger impact (release open holds, refund settled charges). Both halves\nare idempotent, so retrying a void is safe.",
+        "operationId": "void_run",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Run id (UUID) to kill",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Counts of events voided + ledger holds/charges reversed"
+          }
+        }
+      }
+    },
+    "/v1/simulate": {
+      "post": {
+        "tags": [
+          "usage"
+        ],
+        "summary": "`POST /v1/simulate`",
+        "operationId": "simulate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Credit totals for both models and the delta"
+          },
+          "404": {
+            "description": "Unknown model"
+          }
+        }
+      }
+    },
+    "/v1/usage": {
+      "post": {
+        "tags": [
+          "usage"
+        ],
+        "summary": "`POST /v1/usage`",
+        "operationId": "meter_usage",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeterUsageBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Priced, recorded, and charged; returns credits + balance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeterUsageResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/usage/reservations/{id}/settle": {
+      "post": {
+        "tags": [
+          "usage"
+        ],
+        "summary": "`POST /v1/usage/reservations/{id}/settle` — price the actual usage against a catalog model and",
+        "description": "settle the reservation. Idempotent on the reservation id.",
+        "operationId": "settle_usage",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Reservation id (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettleUsageBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Credits charged + balance after",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettleUsageResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/usage/reserve": {
+      "post": {
+        "tags": [
+          "usage"
+        ],
+        "summary": "`POST /v1/usage/reserve` — price a worst-case estimate against a catalog model and place a hold.",
+        "description": "The engine computes the credits (ADR 0001). Returns the reserve outcome plus the reserved credits.",
+        "operationId": "reserve_usage",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReserveUsageBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Reserve outcome plus the reserved credits",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReserveUsageResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AccountScope": {
+        "type": "string",
+        "description": "What a ledger account represents within the org hierarchy and the credit machinery.",
+        "enum": [
+          "org",
+          "team",
+          "user",
+          "product",
+          "session",
+          "promo",
+          "paid",
+          "budget",
+          "overage",
+          "fx_clearing",
+          "system"
+        ]
+      },
+      "AmendBody": {
+        "type": "object",
+        "description": "`POST /v1/events/{id}/amend`",
+        "required": [
+          "properties"
+        ],
+        "properties": {
+          "properties": {
+            "type": "object",
+            "description": "Replacement customer JSON (the amend records a new version)."
+          }
+        }
+      },
+      "Balance": {
+        "type": "object",
+        "description": "A point-in-time balance: settled credits, and credits currently held by open reservations.",
+        "required": [
+          "settled",
+          "held"
+        ],
+        "properties": {
+          "held": {
+            "type": "string",
+            "description": "Credits currently locked by open reservations, as an exact decimal string."
+          },
+          "settled": {
+            "type": "string",
+            "description": "Settled credit balance, as an exact decimal string."
+          }
+        }
+      },
+      "BudgetStatusResponse": {
+        "type": "object",
+        "description": "Usage in a period against a limit, with threshold classification. Credit amounts are exact decimal\nstrings.",
+        "required": [
+          "used_credits",
+          "limit_credits",
+          "remaining_credits",
+          "ratio",
+          "status"
+        ],
+        "properties": {
+          "limit_credits": {
+            "type": "string"
+          },
+          "ratio": {
+            "type": "string",
+            "description": "Used / limit, rounded to 4 dp."
+          },
+          "remaining_credits": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "`ok` | `warning` (>=80%) | `exceeded` (>=100%)."
+          },
+          "used_credits": {
+            "type": "string"
+          }
+        }
+      },
+      "ChargeModel": {
+        "oneOf": [
+          {
+            "type": "string",
+            "enum": [
+              "standard"
+            ]
+          },
+          {
+            "type": "object",
+            "required": [
+              "graduated"
+            ],
+            "properties": {
+              "graduated": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PriceTier"
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "volume"
+            ],
+            "properties": {
+              "volume": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PriceTier"
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "package"
+            ],
+            "properties": {
+              "package": {
+                "type": "object",
+                "description": "Bundled pricing: charge `unit_price` per `size`-unit package, rounding the quantity up.",
+                "required": [
+                  "size"
+                ],
+                "properties": {
+                  "size": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "description": "How a component computes its charge from a quantity.\n\n- [`Standard`](ChargeModel::Standard): flat per-unit pricing (the component's `unit_price`).\n- [`Graduated`](ChargeModel::Graduated): each tier's price applies only to the units that fall in\nthat tier's band (like marginal tax brackets).\n- [`Volume`](ChargeModel::Volume): the single tier the *total* quantity lands in prices every unit.\n- [`Package`](ChargeModel::Package): units are sold in fixed-size bundles — the quantity is rounded\n*up* to a whole number of packages, each charged at the component's `unit_price` (e.g. \"$0.01 per\n1000 tokens, any partial 1000 rounds up\").\n\nTiered schedules must be ascending by `up_to` and end with an unbounded [`PriceTier::rest`] tier;\notherwise pricing returns [`PricingError::InvalidTierSchedule`]. A `Package` size must be positive\nor pricing returns [`PricingError::InvalidPackageSize`]."
+      },
+      "ContextTier": {
+        "type": "string",
+        "description": "A context-length tier (long-context tokens are often priced higher).",
+        "enum": [
+          "standard",
+          "long200k",
+          "long1m"
+        ]
+      },
+      "CreditSource": {
+        "type": "string",
+        "description": "Provenance of credits, carried onto every entry so revenue recognition can split real product\nmargin from promotional spend.",
+        "enum": [
+          "paid",
+          "promo",
+          "grant"
+        ]
+      },
+      "Currency": {
+        "type": "string",
+        "description": "An ISO-4217-style alphabetic currency code (three uppercase ASCII letters, e.g. `USD`)."
+      },
+      "DayUsage": {
+        "type": "object",
+        "description": "Credits consumed on a single UTC day — a point in a usage time series.",
+        "required": [
+          "day",
+          "total_credits",
+          "entry_count"
+        ],
+        "properties": {
+          "day": {
+            "type": "string",
+            "description": "The UTC day as `YYYY-MM-DD`."
+          },
+          "entry_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_credits": {
+            "type": "string",
+            "description": "Total credits consumed that day, as an exact decimal string."
+          }
+        }
+      },
+      "EntryType": {
+        "type": "string",
+        "description": "The kind of a ledger posting.",
+        "enum": [
+          "grant",
+          "usage",
+          "reservation_hold",
+          "settle",
+          "partial_return",
+          "transfer",
+          "void",
+          "refund",
+          "chargeback",
+          "expiration",
+          "amendment",
+          "fx",
+          "sealing"
+        ]
+      },
+      "Event": {
+        "type": "object",
+        "description": "One usage event. `properties` is arbitrary customer JSON; `run_id` groups the events of one agent\nrun. Amendments create a new event whose `supersedes` points back to the version it replaces.\n\n`Event` is not `Eq` because `properties` (a `serde_json::Value`) is only `PartialEq`.",
+        "required": [
+          "id",
+          "org_id",
+          "idempotency_key",
+          "event_time",
+          "meter",
+          "account_id",
+          "properties",
+          "status",
+          "created_at"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "event_time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "meter": {
+            "type": "string"
+          },
+          "org_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "properties": {
+            "type": "object",
+            "description": "Arbitrary customer JSON."
+          },
+          "run_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "status": {
+            "$ref": "#/components/schemas/EventStatus"
+          },
+          "supersedes": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          }
+        }
+      },
+      "EventCountResponse": {
+        "type": "object",
+        "description": "The count of an organization's live (recorded) events.",
+        "required": [
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "EventDayUsage": {
+        "type": "object",
+        "description": "Daily usage totals for an organization (a time series for charts). `day` is `YYYY-MM-DD`.",
+        "required": [
+          "day",
+          "events",
+          "credits"
+        ],
+        "properties": {
+          "credits": {
+            "type": "number",
+            "format": "double"
+          },
+          "day": {
+            "type": "string"
+          },
+          "events": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "EventStatus": {
+        "type": "string",
+        "description": "The lifecycle status of an event version.",
+        "enum": [
+          "recorded",
+          "amended",
+          "voided"
+        ]
+      },
+      "ExtendBody": {
+        "type": "object",
+        "description": "`POST /v1/reservations/{id}/extend` — push the hold's expiry forward (heartbeat).",
+        "required": [
+          "expires_at"
+        ],
+        "properties": {
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "New hold expiry (RFC3339)."
+          }
+        }
+      },
+      "GrantBody": {
+        "type": "object",
+        "description": "`POST /v1/accounts/{id}/grants`",
+        "required": [
+          "amount",
+          "source"
+        ],
+        "properties": {
+          "amount": {
+            "type": "string",
+            "description": "Credit amount as an exact decimal string."
+          },
+          "idempotency_key": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "description": "Credit source: `paid` | `promo` | `grant`."
+          }
+        }
+      },
+      "InvoiceResponse": {
+        "type": "object",
+        "description": "A period invoice: total credits and the entry count, summed from the ledger (enforced == billed).",
+        "required": [
+          "account_id",
+          "total_credits",
+          "entries"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entries": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Number of spend postings in the period."
+          },
+          "total_credits": {
+            "type": "string",
+            "description": "Total credits consumed over the period, as an exact decimal string."
+          }
+        }
+      },
+      "LedgerAccount": {
+        "type": "object",
+        "description": "A node in the ledger that carries a credit balance, optionally leased from a parent account.",
+        "required": [
+          "id",
+          "org_id",
+          "scope",
+          "no_overdraft"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "no_overdraft": {
+            "type": "boolean",
+            "description": "When true, a HARD reservation can never drive available credits negative."
+          },
+          "org_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The tenant that owns this account ([`SYSTEM_ORG`] for the system account)."
+          },
+          "parent_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The parent pool this account leases from, if it is a session sub-balance.",
+            "nullable": true
+          },
+          "scope": {
+            "$ref": "#/components/schemas/AccountScope"
+          }
+        }
+      },
+      "LedgerEntry": {
+        "type": "object",
+        "description": "One immutable transfer between two accounts. Never updated after creation; corrections are new\nentries that point back via [`LedgerEntry::reverses_entry_id`].",
+        "required": [
+          "id",
+          "account_id",
+          "paired_account_id",
+          "entry_type",
+          "delta_credits",
+          "balance_after",
+          "revenue_recognizable",
+          "created_at"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The account whose balance moves by `delta_credits`."
+          },
+          "balance_after": {
+            "type": "string",
+            "description": "`account_id`'s settled balance immediately after this entry (stored so audits never replay)."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "delta_credits": {
+            "type": "string",
+            "description": "Signed change to `account_id`'s settled balance, as an exact decimal string."
+          },
+          "entry_type": {
+            "$ref": "#/components/schemas/EntryType"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idempotency_key": {
+            "type": "string",
+            "description": "The client idempotency key that produced this entry, when applicable.",
+            "nullable": true
+          },
+          "paired_account_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The counter-account the equal-and-opposite delta posts to (double-entry)."
+          },
+          "reservation_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The reservation this entry belongs to, when part of a reserve→settle flow.",
+            "nullable": true
+          },
+          "revenue_recognizable": {
+            "type": "boolean",
+            "description": "Whether the credits on this entry are recognizable revenue."
+          },
+          "reverses_entry_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "For reversals/amendments: the entry this one corrects.",
+            "nullable": true
+          },
+          "source": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CreditSource"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "Margin": {
+        "type": "string",
+        "description": "A markup multiplier applied to provider cost to get the customer price. `1.30` is a 30% markup;\n[`Margin::NONE`] (`1.00`) charges cost."
+      },
+      "MeterUsageBody": {
+        "type": "object",
+        "description": "`POST /v1/usage` — price token usage via the catalog, record the event, and charge credits.",
+        "required": [
+          "org_id",
+          "account",
+          "model",
+          "idempotency_key"
+        ],
+        "properties": {
+          "account": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "org_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rate_card_id": {
+            "type": "string",
+            "description": "Optional synced rate-card id to price against; defaults to the catalog card for `model`.",
+            "nullable": true
+          },
+          "run_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "usage": {
+            "$ref": "#/components/schemas/UsageDimensions"
+          }
+        }
+      },
+      "MeterUsageResult": {
+        "type": "object",
+        "description": "`POST /v1/usage` result: the priced amounts, the recorded event id, and the resulting balance.\nCredit/USD amounts are exact decimal strings.",
+        "required": [
+          "credits",
+          "cogs_usd",
+          "customer_price_usd",
+          "event_id",
+          "charged",
+          "settled",
+          "available"
+        ],
+        "properties": {
+          "available": {
+            "type": "string"
+          },
+          "charged": {
+            "type": "boolean"
+          },
+          "cogs_usd": {
+            "type": "string"
+          },
+          "credits": {
+            "type": "string"
+          },
+          "customer_price_usd": {
+            "type": "string"
+          },
+          "event_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "settled": {
+            "type": "string"
+          }
+        }
+      },
+      "Modality": {
+        "type": "string",
+        "description": "The modality of the priced content.",
+        "enum": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "none"
+        ]
+      },
+      "ModelUsage": {
+        "type": "object",
+        "description": "Usage aggregated by model for one organization.",
+        "required": [
+          "model",
+          "events",
+          "input_tokens",
+          "output_tokens",
+          "credits"
+        ],
+        "properties": {
+          "credits": {
+            "type": "number",
+            "format": "double"
+          },
+          "events": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "input_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "model": {
+            "type": "string"
+          },
+          "output_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "Money": {
+        "type": "object",
+        "description": "A monetary amount in a specific currency.",
+        "required": [
+          "amount",
+          "currency"
+        ],
+        "properties": {
+          "amount": {
+            "type": "string",
+            "description": "The amount as an exact decimal string."
+          },
+          "currency": {
+            "$ref": "#/components/schemas/Currency"
+          }
+        }
+      },
+      "OpenAccountBody": {
+        "type": "object",
+        "description": "`POST /v1/accounts`",
+        "required": [
+          "org_id",
+          "scope"
+        ],
+        "properties": {
+          "no_overdraft": {
+            "type": "boolean"
+          },
+          "org_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "parent_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "scope": {
+            "type": "string",
+            "description": "Account scope: `org` | `team` | `user` | `product` | `session` | `promo` | `paid`."
+          }
+        }
+      },
+      "OpenLeaseBody": {
+        "type": "object",
+        "description": "`POST /v1/leases`",
+        "required": [
+          "parent",
+          "amount"
+        ],
+        "properties": {
+          "amount": {
+            "type": "string"
+          },
+          "parent": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "PriceComponent": {
+        "type": "object",
+        "description": "One priced cell: a (dimension, modality, context-tier) charged at `unit_price` per `unit`.",
+        "required": [
+          "dimension",
+          "modality",
+          "context_tier",
+          "unit",
+          "charge_model",
+          "unit_price"
+        ],
+        "properties": {
+          "charge_model": {
+            "$ref": "#/components/schemas/ChargeModel"
+          },
+          "context_tier": {
+            "$ref": "#/components/schemas/ContextTier"
+          },
+          "dimension": {
+            "$ref": "#/components/schemas/PricingDimension"
+          },
+          "modality": {
+            "$ref": "#/components/schemas/Modality"
+          },
+          "unit": {
+            "$ref": "#/components/schemas/Unit"
+          },
+          "unit_price": {
+            "$ref": "#/components/schemas/Money"
+          }
+        }
+      },
+      "PriceTier": {
+        "type": "object",
+        "description": "One band of a tiered charge: it covers quantity up to `up_to` cumulative units (inclusive), or is\nthe final unbounded band when `up_to` is `None`. The band's units are charged at `unit_price`.",
+        "required": [
+          "unit_price"
+        ],
+        "properties": {
+          "unit_price": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "up_to": {
+            "type": "string",
+            "description": "Inclusive cumulative upper bound of this band in units; `None` means unbounded (the last tier).",
+            "nullable": true
+          }
+        }
+      },
+      "PricingDimension": {
+        "type": "string",
+        "description": "A priceable dimension of an LLM/agent usage event.",
+        "enum": [
+          "input_uncached",
+          "cache_read",
+          "cache_write",
+          "output",
+          "reasoning_output",
+          "tool_call",
+          "web_search"
+        ]
+      },
+      "RateCard": {
+        "type": "object",
+        "description": "A versioned rate card: one card, many priced dimensions, one margin.",
+        "required": [
+          "id",
+          "kind",
+          "currency",
+          "version",
+          "margin",
+          "components"
+        ],
+        "properties": {
+          "components": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PriceComponent"
+            }
+          },
+          "currency": {
+            "$ref": "#/components/schemas/Currency"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/RateCardKind"
+          },
+          "margin": {
+            "$ref": "#/components/schemas/Margin"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "RateCardKind": {
+        "type": "string",
+        "description": "Whether a card records provider cost (COGS) or what a customer is charged.",
+        "enum": [
+          "provider_cost",
+          "customer"
+        ]
+      },
+      "RecordBatchBody": {
+        "type": "object",
+        "description": "`POST /v1/events/batch` — the firehose ingest path: many events in one round-trip, written in a\nsingle bulk insert. Idempotent per event on `(org_id, idempotency_key)`, exactly like `record`.",
+        "required": [
+          "events"
+        ],
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecordEventBody"
+            }
+          }
+        }
+      },
+      "RecordEventBody": {
+        "type": "object",
+        "description": "`POST /v1/events`",
+        "required": [
+          "org_id",
+          "idempotency_key",
+          "meter",
+          "account"
+        ],
+        "properties": {
+          "account": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "event_time": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "meter": {
+            "type": "string"
+          },
+          "org_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "properties": {
+            "type": "object",
+            "description": "Arbitrary customer JSON describing the usage."
+          },
+          "run_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          }
+        }
+      },
+      "RefundBody": {
+        "type": "object",
+        "description": "`POST /v1/accounts/{id}/credit-notes` — credit an account back (a refund / correction).",
+        "required": [
+          "amount"
+        ],
+        "properties": {
+          "amount": {
+            "type": "string",
+            "description": "Credit amount as an exact decimal string."
+          },
+          "idempotency_key": {
+            "type": "string",
+            "nullable": true
+          },
+          "reverses_entry_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The original ledger entry being reversed (UUID), if known.",
+            "nullable": true
+          }
+        }
+      },
+      "ReserveBody": {
+        "type": "object",
+        "description": "`POST /v1/reservations`",
+        "required": [
+          "account",
+          "reservation_id",
+          "amount",
+          "limit"
+        ],
+        "properties": {
+          "account": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Optional hold expiry (RFC3339); an open hold past it is released by the sweep.",
+            "nullable": true
+          },
+          "limit": {
+            "type": "string",
+            "description": "Limit class: `hard` (fail-closed) or `soft` (fail-open)."
+          },
+          "reservation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "run_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Optional agent run this hold belongs to; lets `POST /v1/runs/{id}/void` reverse it.",
+            "nullable": true
+          }
+        }
+      },
+      "ReserveOutcome": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "The hold was placed (or already existed); the caller may proceed to spend.",
+            "required": [
+              "reservation",
+              "outcome"
+            ],
+            "properties": {
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "allowed"
+                ]
+              },
+              "reservation": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A HARD limit refused the spend; the call must not proceed.",
+            "required": [
+              "available",
+              "requested",
+              "outcome"
+            ],
+            "properties": {
+              "available": {
+                "type": "string"
+              },
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "denied"
+                ]
+              },
+              "requested": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "description": "The result of a [`ReserveRequest`].",
+        "discriminator": {
+          "propertyName": "outcome"
+        }
+      },
+      "ReserveUsageBody": {
+        "type": "object",
+        "description": "`POST /v1/usage/reserve` — price a worst-case usage estimate against a catalog model and place a\nhold before the call. The engine computes the credits (ADR 0001), not the caller.",
+        "required": [
+          "account",
+          "reservation_id",
+          "model",
+          "limit"
+        ],
+        "properties": {
+          "account": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "estimate": {
+            "$ref": "#/components/schemas/UsageDimensions"
+          },
+          "limit": {
+            "type": "string",
+            "description": "Limit class: `hard` (fail-closed) or `soft` (fail-open)."
+          },
+          "model": {
+            "type": "string"
+          },
+          "rate_card_id": {
+            "type": "string",
+            "description": "Optional synced rate-card id to price against; defaults to the catalog card for `model`.",
+            "nullable": true
+          },
+          "reservation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "run_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Optional agent run this hold belongs to; lets `POST /v1/runs/{id}/void` reverse it.",
+            "nullable": true
+          }
+        }
+      },
+      "ReserveUsageResult": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ReserveOutcome"
+          },
+          {
+            "type": "object",
+            "required": [
+              "reserved_credits"
+            ],
+            "properties": {
+              "reserved_credits": {
+                "type": "string",
+                "description": "Credits the engine priced and reserved, as an exact decimal string."
+              }
+            }
+          }
+        ],
+        "description": "`POST /v1/usage/reserve` result: the reserve outcome (flattened) plus the engine-computed credits\nthat were held."
+      },
+      "SettleBody": {
+        "type": "object",
+        "description": "`POST /v1/reservations/{id}/settle`",
+        "required": [
+          "actual"
+        ],
+        "properties": {
+          "actual": {
+            "type": "string",
+            "description": "Actual spend to charge, as an exact decimal string."
+          }
+        }
+      },
+      "SettleUsageBody": {
+        "type": "object",
+        "description": "`POST /v1/usage/reservations/{id}/settle` — price the actual usage against a catalog model and\nsettle the reservation. Idempotent on the reservation id.",
+        "required": [
+          "model"
+        ],
+        "properties": {
+          "actual": {
+            "$ref": "#/components/schemas/UsageDimensions"
+          },
+          "model": {
+            "type": "string"
+          },
+          "rate_card_id": {
+            "type": "string",
+            "description": "Optional synced rate-card id to price against; defaults to the catalog card for `model`.",
+            "nullable": true
+          }
+        }
+      },
+      "SettleUsageResult": {
+        "type": "object",
+        "description": "`POST /v1/usage/reservations/{id}/settle` result.",
+        "required": [
+          "credits_charged",
+          "balance_after"
+        ],
+        "properties": {
+          "balance_after": {
+            "type": "string"
+          },
+          "credits_charged": {
+            "type": "string"
+          }
+        }
+      },
+      "SimulateBody": {
+        "type": "object",
+        "description": "`POST /v1/simulate` — re-rate a stream of usage events from one catalog model onto another to\npreview the credit impact of switching, without touching the ledger.",
+        "required": [
+          "current_model",
+          "proposed_model"
+        ],
+        "properties": {
+          "current_model": {
+            "type": "string"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UsageDimensions"
+            }
+          },
+          "proposed_model": {
+            "type": "string"
+          }
+        }
+      },
+      "Unit": {
+        "type": "string",
+        "description": "The unit a component is priced in.",
+        "enum": [
+          "token",
+          "char",
+          "image",
+          "second",
+          "call"
+        ]
+      },
+      "UsageDimensions": {
+        "type": "object",
+        "description": "Token counts for a metered usage event.",
+        "properties": {
+          "cache_read": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "cache_write": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "input_uncached": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "output": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "reasoning": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "health",
+      "description": "Liveness and readiness probes"
+    },
+    {
+      "name": "accounts",
+      "description": "Ledger accounts: open, balance, grants, credit-notes, entries"
+    },
+    {
+      "name": "reservations",
+      "description": "The reserve -> settle/void hold lifecycle"
+    },
+    {
+      "name": "leases",
+      "description": "Per-session credit leases (hot-account mitigation)"
+    },
+    {
+      "name": "events",
+      "description": "Usage events: record, batch, amend (append-only), void-run"
+    },
+    {
+      "name": "usage",
+      "description": "Token-priced metering: charge, reserve/settle, simulate"
+    },
+    {
+      "name": "catalog",
+      "description": "Hosted model rate-card catalog (provider cost)"
+    },
+    {
+      "name": "rate-cards",
+      "description": "Synced (control-plane-configured) rate cards"
+    },
+    {
+      "name": "analytics",
+      "description": "Usage, budget, and invoice reads"
+    },
+    {
+      "name": "audit",
+      "description": "The engine's mutating-request audit log"
+    }
+  ]
+}

@@ -9,7 +9,7 @@ mod events;
 mod health;
 mod invoices;
 mod leases;
-mod openapi;
+pub(crate) mod openapi;
 mod rate_cards;
 mod request_id;
 mod reservations;

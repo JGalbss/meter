@@ -219,12 +219,19 @@ POST /v1/notifications/{id}/ack
 
 ---
 
-> **Contracts.** The control plane emits an **OpenAPI 3.1** document at `GET /openapi.json` — every
-> request *and* response body is generated from the same Effect `Schema` that validates the request,
-> types the repository, and is returned by the handler (named, `$ref`'d component schemas), so the
-> contract can't drift and nothing is hand-mirrored. The dashboard's control-plane client types are
-> **generated** from this spec (`openapi-typescript`), and CI fails if they drift. A protobuf
-> engine ⇄ control-plane contract is the remaining surface (tracked in the project tickets).
+> **Contracts.** Both HTTP surfaces are generated, never hand-mirrored. The control plane emits an
+> **OpenAPI 3.1** document at `GET /openapi.json` — every request *and* response body comes from the
+> same Effect `Schema` that validates the request, types the repository, and is returned by the handler
+> (named, `$ref`'d component schemas) — and the dashboard's control-plane client types are **generated**
+> from it (`openapi-typescript`), with CI failing on drift. The engine emits its own **OpenAPI** document
+> the same way (served at `GET /openapi.json`, committed at `crates/meter-api/openapi.json` behind a
+> drift gate); both generated references on this site render from those committed specs.
+>
+> The engine also exposes a **gRPC** surface for the engine ⇄ control-plane path: the protobuf contract
+> lives in `proto/` (Buf module `meter.v1`), the engine's Rust types and service stubs are generated
+> from it (`prost`/`tonic`), and CI enforces `buf lint` plus a breaking-change check against `main`.
+> The control plane currently consumes the engine over its REST surface; generating the TypeScript gRPC
+> client from the same protobuf module (`ts-proto`/connect) is the remaining binding on that path.
 
 The full control-plane surface — every path, parameter, request body, response, and schema — is also
 published as a **[generated reference](/api/control-plane)** rendered directly from that OpenAPI

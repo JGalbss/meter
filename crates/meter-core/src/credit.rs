@@ -56,6 +56,18 @@ impl Credit {
     }
 }
 
+impl From<i64> for Credit {
+    fn from(value: i64) -> Self {
+        Self(Decimal::from(value))
+    }
+}
+
+impl From<u64> for Credit {
+    fn from(value: u64) -> Self {
+        Self(Decimal::from(value))
+    }
+}
+
 impl Add for Credit {
     type Output = Credit;
     fn add(self, rhs: Self) -> Self {
@@ -126,6 +138,12 @@ mod tests {
             .map(Credit::from_decimal)
             .sum();
         assert_eq!(total.value(), dec!(6));
+    }
+
+    #[test]
+    fn constructs_from_integers() {
+        assert_eq!(Credit::from(5_i64).value(), dec!(5));
+        assert_eq!(Credit::from(7_u64).value(), dec!(7));
     }
 
     #[test]

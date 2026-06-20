@@ -47,11 +47,9 @@ impl LedgerBackend for InMemoryLedger {
             return Err(LedgerError::AccountNotFound(req.account));
         }
         if let Some(key) = req.idempotency_key.as_deref() {
-            if let Some(existing) = state
-                .entries
-                .iter()
-                .find(|entry| entry.idempotency_key.as_deref() == Some(key))
-            {
+            if let Some(existing) = state.entries.iter().find(|entry| {
+                entry.account_id == req.account && entry.idempotency_key.as_deref() == Some(key)
+            }) {
                 return Ok(existing.clone());
             }
         }

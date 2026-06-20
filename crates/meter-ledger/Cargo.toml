@@ -11,6 +11,10 @@ authors.workspace = true
 [lints]
 workspace = true
 
+[features]
+# Exposes the reusable conformance suite (crate::conformance) for other backends to test against.
+conformance = []
+
 [dependencies]
 meter-core = { workspace = true }
 serde = { workspace = true }

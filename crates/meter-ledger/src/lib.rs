@@ -12,6 +12,8 @@
 #![forbid(unsafe_code)]
 
 pub mod backend;
+#[cfg(any(test, feature = "conformance"))]
+pub mod conformance;
 pub mod error;
 pub mod memory;
 pub mod model;

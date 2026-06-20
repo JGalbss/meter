@@ -1833,6 +1833,7 @@ version = "0.0.0"
 dependencies = [
  "criterion",
  "meter-core",
+ "proptest",
  "rust_decimal",
  "rust_decimal_macros",
  "serde",

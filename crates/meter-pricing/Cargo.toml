@@ -22,6 +22,7 @@ rust_decimal = { workspace = true }
 
 [dev-dependencies]
 rust_decimal_macros = { workspace = true }
+proptest = { workspace = true }
 criterion = "0.5"
 
 [[bench]]

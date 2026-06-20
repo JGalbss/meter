@@ -90,6 +90,34 @@ impl PriceComponent {
             ChargeModel::Volume(tiers) => volume_charge(tiers, quantity),
         }
     }
+
+    /// Validate the charge model's tier schedule (for `Graduated`/`Volume`): non-empty, strictly
+    /// ascending bounds, and an unbounded final tier. `Standard` is always valid.
+    pub fn validate(&self) -> Result<(), PricingError> {
+        match &self.charge_model {
+            ChargeModel::Standard => Ok(()),
+            ChargeModel::Graduated(tiers) | ChargeModel::Volume(tiers) => validate_tiers(tiers),
+        }
+    }
+}
+
+/// A tier schedule is well-formed iff it is non-empty, every bounded tier strictly ascends above the
+/// previous bound (and above zero), and only the final tier is unbounded.
+fn validate_tiers(tiers: &[PriceTier]) -> Result<(), PricingError> {
+    if tiers.is_empty() {
+        return Err(PricingError::InvalidTierSchedule);
+    }
+    let last = tiers.len() - 1;
+    let mut previous = Decimal::ZERO;
+    for (index, tier) in tiers.iter().enumerate() {
+        match (tier.up_to, index == last) {
+            (None, true) => {}
+            (Some(upper), false) if upper > previous => previous = upper,
+            // Unbounded before the end, a bounded final tier, or a non-ascending bound.
+            _ => return Err(PricingError::InvalidTierSchedule),
+        }
+    }
+    Ok(())
 }
 
 /// The currency a tier schedule prices in (its first tier's), or an error if the schedule is empty.
@@ -230,6 +258,41 @@ mod tests {
         );
         assert_eq!(
             component(ChargeModel::Volume(vec![])).charge(dec!(10)),
+            Err(PricingError::InvalidTierSchedule)
+        );
+    }
+
+    #[test]
+    fn validate_accepts_well_formed_schedules() {
+        assert_eq!(component(ChargeModel::Standard).validate(), Ok(()));
+        assert_eq!(
+            component(ChargeModel::Graduated(tiers())).validate(),
+            Ok(())
+        );
+        assert_eq!(component(ChargeModel::Volume(tiers())).validate(), Ok(()));
+    }
+
+    #[test]
+    fn validate_rejects_malformed_schedules() {
+        // Empty.
+        assert_eq!(
+            component(ChargeModel::Graduated(vec![])).validate(),
+            Err(PricingError::InvalidTierSchedule)
+        );
+        // No unbounded final tier.
+        let bounded = vec![PriceTier::up_to(dec!(100), Money::new(dec!(1), usd()))];
+        assert_eq!(
+            component(ChargeModel::Volume(bounded)).validate(),
+            Err(PricingError::InvalidTierSchedule)
+        );
+        // Non-ascending bounds.
+        let non_ascending = vec![
+            PriceTier::up_to(dec!(100), Money::new(dec!(1), usd())),
+            PriceTier::up_to(dec!(100), Money::new(dec!(1), usd())),
+            PriceTier::rest(Money::new(dec!(1), usd())),
+        ];
+        assert_eq!(
+            component(ChargeModel::Graduated(non_ascending)).validate(),
             Err(PricingError::InvalidTierSchedule)
         );
     }

@@ -94,6 +94,7 @@ impl RateCard {
             if component.unit_price.amount().is_sign_negative() {
                 return Err(PricingError::NegativePrice(component.dimension));
             }
+            component.validate()?;
             let cell = (
                 component.dimension,
                 component.modality,

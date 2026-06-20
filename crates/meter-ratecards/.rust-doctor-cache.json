@@ -1,1 +1,0 @@
-{"version":1,"config_hash":"75fa8f4173583249","files":{"src/lib.rs":{"hash":"7d1d4ee9e934e464","diagnostics":[{"file_path":"src/lib.rs","rule":"unwrap-in-production","category":"error-handling","severity":"warning","message":"Use of .expect() in production code","help":"Use `?` operator, `unwrap_or`, `unwrap_or_else`, or handle the error explicitly","line":43,"column":40}]}}}

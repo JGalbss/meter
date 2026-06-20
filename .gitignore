@@ -56,3 +56,6 @@ coverage/
 /.agents/
 /.claude/skills/*
 !/.claude/skills/meter-design-system/
+
+# rust-doctor scan cache (per-crate)
+.rust-doctor-cache.json

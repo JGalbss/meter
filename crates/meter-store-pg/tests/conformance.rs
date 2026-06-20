@@ -129,6 +129,81 @@ async fn void_run_invariants_hold_on_postgres() {
     conformance::void_run_property(&ledger2, &specs, 3).await;
 }
 
+/// Leasing is the hot-account mitigation: sessions lease from a shared parent pool. Many leases opened
+/// concurrently from one no-overdraft parent must conserve credits and never over-lease — the parent
+/// row serializes the transfers, so at most `funded / size` leases succeed and the parent plus all
+/// children always sum back to the funded amount.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn concurrent_leases_conserve_and_never_over_lease() {
+    const FUNDED: i64 = 100;
+    const LEASE: i64 = 10;
+    const ATTEMPTS: usize = 30;
+
+    let (_container, ledger) = start_ledger().await;
+    let ledger = Arc::new(ledger);
+    let parent = ledger
+        .open_account(NewAccount {
+            org_id: OrgId::new(),
+            scope: AccountScope::Org,
+            no_overdraft: true,
+            parent_id: None,
+        })
+        .await
+        .expect("open")
+        .id;
+    ledger
+        .grant(GrantRequest {
+            account: parent,
+            amount: Credit::from(FUNDED),
+            source: CreditSource::Paid,
+            idempotency_key: None,
+        })
+        .await
+        .expect("grant");
+
+    let mut handles = Vec::new();
+    for _ in 0..ATTEMPTS {
+        let ledger = Arc::clone(&ledger);
+        handles.push(tokio::spawn(async move {
+            ledger
+                .open_lease(meter_ledger::LeaseRequest {
+                    parent,
+                    amount: Credit::from(LEASE),
+                })
+                .await
+        }));
+    }
+
+    let mut children = Vec::new();
+    for handle in handles {
+        if let Ok(Ok(child)) = handle.await {
+            children.push(child.id);
+        }
+    }
+
+    // No-overdraft parent: at most FUNDED / LEASE leases can succeed.
+    assert!(
+        children.len() <= (FUNDED / LEASE) as usize,
+        "over-leased: {} children from {FUNDED} / {LEASE}",
+        children.len()
+    );
+
+    // Conservation: the parent plus every leased child sum back to the funded amount.
+    let mut total = ledger
+        .balance(parent)
+        .await
+        .expect("parent balance")
+        .settled;
+    for child in &children {
+        total += ledger.balance(*child).await.expect("child balance").settled;
+    }
+    assert_eq!(
+        total,
+        Credit::from(FUNDED),
+        "credits not conserved across concurrent leases"
+    );
+}
+
 /// Two `void_run` calls racing on the same run must not double-refund its settled charge — that would
 /// create credits from nothing. The hold-row `FOR UPDATE` lock serializes them and the refund
 /// idempotency key makes the second a no-op, so the account ends at exactly one refund.

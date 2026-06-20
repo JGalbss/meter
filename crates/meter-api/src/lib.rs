@@ -1,8 +1,12 @@
-//! The meter engine's HTTP API surface.
+//! The meter engine's HTTP + gRPC API surface.
 //!
-//! A thin axum layer over the ledger: it deserializes requests into the domain types (which already
-//! carry serde), calls the [`meter_ledger::LedgerBackend`], and serializes the domain results back.
-//! Pricing/enforcement endpoints (usage-based) layer on once rate-card config exists.
+//! An axum layer over the engine's stores ([`meter_ledger::LedgerBackend`] for money, the ClickHouse
+//! event store for usage): it deserializes requests into the domain types (which already carry serde),
+//! calls the stores, and serializes the results back. It also covers the metering loop (price → record
+//! → charge), model-priced reservation governance, the rate-card catalog, and re-rate simulation.
+//!
+//! The same operations are exposed over gRPC from the [`grpc`] module (the `meter.v1` Ledger, Ingest,
+//! and Query services), which `meter-engine` serves alongside HTTP.
 
 #![forbid(unsafe_code)]
 

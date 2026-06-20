@@ -28,12 +28,30 @@
 
 | Path | Sustained | Burst | Notes |
 |---|---|---|---|
-| Ingest — Postgres outbox (default) | TBD | TBD | the drain rate that triggers Redpanda |
-| Ingest — Redpanda (scale-out) | ≥ 100k events/s (Metronome bar) | TBD | keyed by `tenant_id` (+ whale bucket) |
+| **Event ingest — ClickHouse batch, ExactlyOnce (default), 1 node** | **≥ 600k events/s** | — | `record_batch`; cross-call dedup keeps the rollup exactly-once. Measured ~0.68M/node. |
+| **Event ingest — ClickHouse batch, Append, 1 node** | **≥ 1M events/s** | — | dedup delegated upstream (Kafka EOS, ADR 0005) / reconciled. Measured ~1.0–1.1M/node. |
+| Event ingest — provider scale (target) | ≥ 1M events/s | billions/day | reached single-node (Append) or by stateless-engine + CH-cluster fan-out (ExactlyOnce) |
 | Ledger transfers/s — Postgres + leasing (Zipfian) | TBD | TBD | with vs. without leasing, both measured |
 | Ledger transfers/s — TigerBeetle accelerator | TBD | TBD | only if it passes bill-equivalence |
-| ClickHouse month-end invoice/re-rate scan (large tenant) | TBD | — | sets the CH sharding trigger |
 | Invoice generation (tenant with N events) | TBD | — | deterministic recompute |
+
+### Usage read latency (must stay flat as events grow to hundreds of millions)
+
+Dashboard/credit reads (`usage_by_model`, `usage_by_day`, `event_count`) are served from the
+pre-aggregated `usage_rollup` (a sign-weighted `SummingMergeTree` maintained by a materialized view),
+so they are **O(rollup groups), not O(events)** — latency does not grow with the event firehose.
+
+| Read | Target | Measured @ 1M events |
+|---|---|---|
+| `event_count` (org) | < 25 ms | ~2–3 ms |
+| `usage_by_model` (org) | < 25 ms | ~3–6 ms |
+| `usage_by_day` (org) | < 25 ms | ~2–4 ms |
+
+> Method: `cargo test -p meter-store-ch --test throughput -- --ignored --nocapture` against a real
+> ClickHouse container (single node, laptop). The harness sweeps batch-size × concurrency, reports
+> ingest events/sec for both modes, measures the read aggregates, and **proves exactly-once by replaying
+> the entire load with identical keys** (the live count is unchanged). `METER_BENCH_EVENTS=N` scales it.
+> Baseline for contrast: the pre-batch single-event path measured ~1.1k events/sec.
 
 ## Correctness invariant (hard CI gate, from ADR §5.5)
 

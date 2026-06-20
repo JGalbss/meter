@@ -1,0 +1,29 @@
+meter is installed.
+
+Components:
+  - engine        ({{ .Values.engine.replicas }} replica(s)) — money-truth, HTTP on :{{ .Values.engine.listenPort }}
+  - control-plane ({{ .Values.controlPlane.replicas }} replica(s)) — config API, HTTP on :{{ .Values.controlPlane.port }}
+{{- if .Values.postgres.enabled }}
+  - postgres      (in-cluster) — money + config
+{{- else }}
+  - postgres      (external)   — {{ include "meter.databaseUrl" . }}
+{{- end }}
+{{- if .Values.clickhouse.enabled }}
+  - clickhouse    (in-cluster) — events + audit + analytics
+{{- else }}
+  - clickhouse    (external)   — {{ include "meter.clickhouseUrl" . }}
+{{- end }}
+
+Reach the engine and control plane from your cluster:
+
+  kubectl port-forward svc/{{ include "meter.fullname" . }}-engine {{ .Values.engine.listenPort }}:{{ .Values.engine.listenPort }}
+  kubectl port-forward svc/{{ include "meter.fullname" . }}-control-plane {{ .Values.controlPlane.port }}:{{ .Values.controlPlane.port }}
+
+Then:
+
+  curl http://localhost:{{ .Values.engine.listenPort }}/health
+  curl http://localhost:{{ .Values.controlPlane.port }}/health
+
+For production, supply real images (engine.image / controlPlane.image), point at managed Postgres and
+ClickHouse (set postgres.enabled=false / clickhouse.enabled=false and the *.databaseUrl / clickhouseUrl),
+and scale the stateless engine with engine.replicas.

@@ -1,0 +1,17 @@
+apiVersion: v2
+name: meter
+description: meter — ledger-first metering, billing, and invoicing engine for AI agents
+type: application
+version: 0.1.0
+appVersion: "0.0.0"
+home: https://github.com/JGalbss/meter
+sources:
+  - https://github.com/JGalbss/meter
+keywords:
+  - metering
+  - billing
+  - ledger
+  - usage
+  - pricing
+maintainers:
+  - name: Josh Galbreath

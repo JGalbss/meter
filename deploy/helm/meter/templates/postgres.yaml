@@ -1,0 +1,75 @@
+{{- if .Values.postgres.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "meter.fullname" . }}-postgres
+  labels:
+    {{- include "meter.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  serviceName: {{ include "meter.fullname" . }}-postgres
+  selector:
+    matchLabels:
+      {{- include "meter.selectorLabels" (merge (dict "component" "postgres") .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "meter.selectorLabels" (merge (dict "component" "postgres") .) | nindent 8 }}
+    spec:
+      containers:
+        - name: postgres
+          image: {{ .Values.postgres.image | quote }}
+          ports:
+            - name: postgres
+              containerPort: {{ .Values.postgres.port }}
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "meter.secretName" . }}
+                  key: postgres-user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "meter.secretName" . }}
+                  key: postgres-password
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "meter.secretName" . }}
+                  key: postgres-database
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", {{ .Values.credentials.postgresUser | quote }}, "-d", {{ .Values.credentials.postgresDatabase | quote }}]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.postgres.resources | nindent 12 }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.postgres.storage }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "meter.fullname" . }}-postgres
+  labels:
+    {{- include "meter.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "meter.selectorLabels" (merge (dict "component" "postgres") .) | nindent 4 }}
+  ports:
+    - name: postgres
+      port: {{ .Values.postgres.port }}
+      targetPort: postgres
+{{- end }}

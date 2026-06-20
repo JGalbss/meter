@@ -1,0 +1,73 @@
+# Default values for the meter chart.
+#
+# The chart deploys the engine (money-truth) and the control plane (config API). Postgres and
+# ClickHouse can run in-cluster (batteries-included self-host) or be supplied externally — set
+# `postgres.enabled` / `clickhouse.enabled` to false and point the URLs at your managed services.
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Shared database credentials (used by the in-cluster Postgres and the connection URLs below).
+credentials:
+  postgresUser: meter
+  postgresPassword: meter
+  postgresDatabase: meter
+
+engine:
+  image:
+    repository: ghcr.io/jgalbss/meter-engine
+    tag: ""          # defaults to .Chart.appVersion
+    pullPolicy: IfNotPresent
+  replicas: 2        # the engine is stateless — scale horizontally
+  listenPort: 8080
+  creditValue: "0.000001"   # USD value of one credit (METER_CREDIT_VALUE)
+  # Connection URLs. Default to the in-cluster services; override for external stores.
+  databaseUrl: ""    # defaults to the in-cluster Postgres
+  clickhouseUrl: ""  # defaults to the in-cluster ClickHouse
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "2"
+      memory: 1Gi
+
+controlPlane:
+  image:
+    repository: ghcr.io/jgalbss/meter-control-plane
+    tag: ""
+    pullPolicy: IfNotPresent
+  replicas: 1
+  port: 8090
+  evaluationIntervalSeconds: 60
+  databaseUrl: ""    # defaults to the in-cluster Postgres
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
+postgres:
+  enabled: true
+  image: postgres:17
+  port: 5432
+  storage: 10Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+
+clickhouse:
+  enabled: true
+  image: clickhouse/clickhouse-server:24.8
+  httpPort: 8123
+  storage: 50Gi
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+
+service:
+  type: ClusterIP

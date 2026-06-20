@@ -28,6 +28,20 @@ The engine applies Postgres ledger migrations **and** ClickHouse event migration
 control plane applies its config migrations at startup. No manual migration step is required for a
 fresh stack.
 
+## Kubernetes (Helm)
+
+For production, deploy with the Helm chart in `deploy/helm/meter`:
+
+```bash
+helm install meter deploy/helm/meter \
+  --set engine.image.repository=ghcr.io/you/meter-engine --set engine.image.tag=0.0.0 \
+  --set controlPlane.image.repository=ghcr.io/you/meter-control-plane --set controlPlane.image.tag=0.0.0
+```
+
+It deploys the engine and control plane, with Postgres and ClickHouse either in-cluster (default) or
+external. The engine is stateless — scale it with `engine.replicas`. Point at managed data stores with
+`postgres.enabled=false` / `clickhouse.enabled=false` and `engine.databaseUrl` / `engine.clickhouseUrl`.
+
 ## Engine configuration
 
 | Variable | Required | Default | Notes |

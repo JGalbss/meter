@@ -1,0 +1,58 @@
+{{- if .Values.clickhouse.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "meter.fullname" . }}-clickhouse
+  labels:
+    {{- include "meter.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  serviceName: {{ include "meter.fullname" . }}-clickhouse
+  selector:
+    matchLabels:
+      {{- include "meter.selectorLabels" (merge (dict "component" "clickhouse") .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "meter.selectorLabels" (merge (dict "component" "clickhouse") .) | nindent 8 }}
+    spec:
+      containers:
+        - name: clickhouse
+          image: {{ .Values.clickhouse.image | quote }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.clickhouse.httpPort }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/clickhouse
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.clickhouse.resources | nindent 12 }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.clickhouse.storage }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "meter.fullname" . }}-clickhouse
+  labels:
+    {{- include "meter.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "meter.selectorLabels" (merge (dict "component" "clickhouse") .) | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.clickhouse.httpPort }}
+      targetPort: http
+{{- end }}

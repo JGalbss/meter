@@ -2,7 +2,7 @@
 //!
 //! These are the verbs (`grant`, `reserve`, `settle`, …) as data, kept separate from the model nouns.
 
-use meter_core::{AccountId, Credit, EntryId, OrgId};
+use meter_core::{AccountId, Credit, EntryId, OrgId, RunId};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
@@ -47,6 +47,10 @@ pub struct ReserveRequest {
     /// Optional expiry; an open hold past this instant is released by
     /// [`void_expired_holds`](crate::LedgerBackend::void_expired_holds). `None` never expires.
     pub expires_at: Option<OffsetDateTime>,
+    /// The agent run this hold belongs to, if any. Tagging the hold lets
+    /// [`void_run`](crate::LedgerBackend::void_run) reverse a whole run's financial impact:
+    /// release its open holds and refund its settled charges.
+    pub run_id: Option<RunId>,
 }
 
 /// The result of a [`ReserveRequest`].
@@ -60,6 +64,18 @@ pub enum ReserveOutcome {
         available: Credit,
         requested: Credit,
     },
+}
+
+/// The result of voiding a whole run via [`void_run`](crate::LedgerBackend::void_run): how many open
+/// holds were released, how many settled charges were refunded, and the total credits returned.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct RunVoidSummary {
+    /// Open holds released back to available balance.
+    pub holds_released: u64,
+    /// Settled charges reversed with a refund posting.
+    pub charges_refunded: u64,
+    /// Total credits returned to the account (the sum of the refunded charges).
+    pub credits_refunded: Credit,
 }
 
 /// Settle a prior reservation with the actual spend. Idempotent on `reservation_id`.

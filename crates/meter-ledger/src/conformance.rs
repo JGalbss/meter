@@ -7,7 +7,7 @@
 
 use time::OffsetDateTime;
 
-use meter_core::{AccountId, Credit, OrgId};
+use meter_core::{AccountId, Credit, OrgId, RunId};
 
 use crate::backend::LedgerBackend;
 use crate::error::LedgerError;
@@ -71,6 +71,7 @@ pub async fn reserve_denies_when_insufficient<L: LedgerBackend>(ledger: &L) {
             amount: credits(25),
             limit: LimitClass::Hard,
             expires_at: None,
+            run_id: None,
         })
         .await
         .expect("reserve");
@@ -97,6 +98,7 @@ pub async fn reserve_hold_then_settle_charges_actual<L: LedgerBackend>(ledger: &
             amount: credits(40),
             limit: LimitClass::Hard,
             expires_at: None,
+            run_id: None,
         })
         .await
         .expect("reserve");
@@ -136,6 +138,7 @@ pub async fn reserve_and_settle_are_idempotent<L: LedgerBackend>(ledger: &L) {
         amount: credits(40),
         limit: LimitClass::Hard,
         expires_at: None,
+        run_id: None,
     };
     ledger.reserve(request.clone()).await.expect("reserve");
     ledger.reserve(request).await.expect("reserve again");
@@ -194,6 +197,7 @@ pub async fn void_releases_a_failed_run<L: LedgerBackend>(ledger: &L) {
             amount: credits(40),
             limit: LimitClass::Hard,
             expires_at: None,
+            run_id: None,
         })
         .await
         .expect("reserve");
@@ -226,6 +230,7 @@ pub async fn settle_overage_charges_actual<L: LedgerBackend>(ledger: &L) {
             amount: credits(40),
             limit: LimitClass::Hard,
             expires_at: None,
+            run_id: None,
         })
         .await
         .expect("reserve");
@@ -273,6 +278,7 @@ pub async fn soft_limit_allows_overage<L: LedgerBackend>(ledger: &L) {
             amount: credits(80),
             limit: LimitClass::Soft,
             expires_at: None,
+            run_id: None,
         })
         .await
         .expect("soft reserve");
@@ -290,6 +296,7 @@ pub async fn soft_limit_allows_overage<L: LedgerBackend>(ledger: &L) {
             amount: credits(80),
             limit: LimitClass::Hard,
             expires_at: None,
+            run_id: None,
         })
         .await
         .expect("hard reserve");
@@ -317,6 +324,7 @@ pub async fn settle_after_void_is_refused<L: LedgerBackend>(ledger: &L) {
             amount: credits(40),
             limit: LimitClass::Hard,
             expires_at: None,
+            run_id: None,
         })
         .await
         .expect("reserve");
@@ -355,6 +363,7 @@ pub async fn void_after_settle_is_refused<L: LedgerBackend>(ledger: &L) {
             amount: credits(40),
             limit: LimitClass::Hard,
             expires_at: None,
+            run_id: None,
         })
         .await
         .expect("reserve");
@@ -466,6 +475,7 @@ pub async fn lease_spend_then_close_returns_remainder<L: LedgerBackend>(ledger: 
             amount: credits(30),
             limit: LimitClass::Hard,
             expires_at: None,
+            run_id: None,
         })
         .await
         .expect("reserve against lease");
@@ -560,6 +570,7 @@ pub async fn expired_holds_are_swept<L: LedgerBackend>(ledger: &L) {
             amount: credits(40),
             limit: LimitClass::Hard,
             expires_at: Some(OffsetDateTime::UNIX_EPOCH),
+            run_id: None,
         })
         .await
         .expect("reserve expired");
@@ -571,6 +582,7 @@ pub async fn expired_holds_are_swept<L: LedgerBackend>(ledger: &L) {
             amount: credits(10),
             limit: LimitClass::Hard,
             expires_at: None,
+            run_id: None,
         })
         .await
         .expect("reserve live");
@@ -623,6 +635,7 @@ pub async fn extend_hold_keeps_it_alive<L: LedgerBackend>(ledger: &L) {
             amount: credits(40),
             limit: LimitClass::Hard,
             expires_at: Some(OffsetDateTime::UNIX_EPOCH),
+            run_id: None,
         })
         .await
         .expect("reserve");
@@ -679,6 +692,7 @@ pub async fn refund_credits_back<L: LedgerBackend>(ledger: &L) {
             amount: credits(40),
             limit: LimitClass::Hard,
             expires_at: None,
+            run_id: None,
         })
         .await
         .expect("reserve");
@@ -740,10 +754,124 @@ pub async fn refund_credits_back<L: LedgerBackend>(ledger: &L) {
     );
 }
 
+/// Voiding a run reverses exactly that run's financial impact: its open holds are released and its
+/// settled charges refunded, while holds from other runs are untouched. The reversal is idempotent.
+pub async fn void_run_reverses_holds_and_settles<L: LedgerBackend>(ledger: &L) {
+    let account = open_no_overdraft_org(ledger).await;
+    ledger
+        .grant(GrantRequest {
+            account,
+            amount: credits(100),
+            source: CreditSource::Paid,
+            idempotency_key: None,
+        })
+        .await
+        .expect("grant");
+
+    let run = RunId::new();
+    // An open hold in the run.
+    let open_hold = ReservationId::new();
+    ledger
+        .reserve(ReserveRequest {
+            account,
+            reservation_id: open_hold,
+            amount: credits(40),
+            limit: LimitClass::Hard,
+            expires_at: None,
+            run_id: Some(run),
+        })
+        .await
+        .expect("reserve open");
+    // A settled charge in the same run.
+    let settled_hold = ReservationId::new();
+    ledger
+        .reserve(ReserveRequest {
+            account,
+            reservation_id: settled_hold,
+            amount: credits(30),
+            limit: LimitClass::Hard,
+            expires_at: None,
+            run_id: Some(run),
+        })
+        .await
+        .expect("reserve settled");
+    ledger
+        .settle(SettleRequest {
+            reservation_id: settled_hold,
+            actual: credits(20),
+        })
+        .await
+        .expect("settle");
+    // A hold belonging to a *different* run — must survive the void untouched.
+    let other_run = RunId::new();
+    let other_hold = ReservationId::new();
+    ledger
+        .reserve(ReserveRequest {
+            account,
+            reservation_id: other_hold,
+            amount: credits(10),
+            limit: LimitClass::Hard,
+            expires_at: None,
+            run_id: Some(other_run),
+        })
+        .await
+        .expect("reserve other");
+
+    // Before voiding: settled 80 (100 − 20), held 50 (40 open + 10 other).
+    let before = ledger.balance(account).await.expect("balance");
+    assert_eq!(before.settled, credits(80));
+    assert_eq!(before.held, credits(50));
+
+    let summary = ledger.void_run(run).await.expect("void run");
+    assert_eq!(summary.holds_released, 1);
+    assert_eq!(summary.charges_refunded, 1);
+    assert_eq!(summary.credits_refunded, credits(20));
+
+    // After: the settle is refunded (settled back to 100) and the open hold released; only the
+    // other run's 10 remains held.
+    let after = ledger.balance(account).await.expect("balance");
+    assert_eq!(after.settled, credits(100));
+    assert_eq!(after.held, credits(10));
+
+    // The released hold is now closed — settling it is refused.
+    assert_eq!(
+        ledger
+            .settle(SettleRequest {
+                reservation_id: open_hold,
+                actual: credits(5),
+            })
+            .await,
+        Err(LedgerError::ReservationClosed(open_hold))
+    );
+
+    // Idempotent: a second void releases nothing new and never double-refunds.
+    let again = ledger.void_run(run).await.expect("void run again");
+    assert_eq!(again.holds_released, 0);
+    assert_eq!(again.charges_refunded, 0);
+    assert_eq!(again.credits_refunded, credits(0));
+    let stable = ledger.balance(account).await.expect("balance");
+    assert_eq!(stable.settled, credits(100));
+    assert_eq!(stable.held, credits(10));
+
+    // The other run's hold is still open and settleable.
+    ledger
+        .settle(SettleRequest {
+            reservation_id: other_hold,
+            actual: credits(10),
+        })
+        .await
+        .expect("other settle");
+    assert_eq!(
+        ledger.balance(account).await.expect("balance").settled,
+        credits(90)
+    );
+}
+
 pub async fn run_all_scenarios<L: LedgerBackend>(ledger: &L) {
     grant_increases_balance(ledger).await;
     reserve_denies_when_insufficient(ledger).await;
     refund_credits_back(ledger).await;
+    void_run_reverses_holds_and_settles(ledger).await;
     expired_holds_are_swept(ledger).await;
     extend_hold_keeps_it_alive(ledger).await;
     reserve_hold_then_settle_charges_actual(ledger).await;
@@ -807,6 +935,7 @@ pub async fn check_against_model<L: LedgerBackend>(ledger: &L, ops: &[Op]) {
                         amount: credits(reserve),
                         limit: LimitClass::Hard,
                         expires_at: None,
+                        run_id: None,
                     })
                     .await
                     .expect("reserve");
@@ -840,6 +969,7 @@ pub async fn check_against_model<L: LedgerBackend>(ledger: &L, ops: &[Op]) {
                         amount: credits(reserve),
                         limit: LimitClass::Hard,
                         expires_at: None,
+                        run_id: None,
                     })
                     .await
                     .expect("reserve");

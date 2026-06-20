@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use meter_core::{AccountId, EventId, RunId};
 use meter_event::{AmendEvent, Event, EventStore};
+use meter_ledger::LedgerBackend;
 
 use crate::dto::{AmendBody, RecordBatchBody, RecordEventBody};
 use crate::error::ApiError;
@@ -77,11 +78,20 @@ pub async fn amend(
     Ok(Json(event))
 }
 
-/// `POST /v1/runs/{id}/void`
+/// `POST /v1/runs/{id}/void` — kill a whole run. Voids the run's events (append-only: each is marked
+/// voided) and reverses its ledger impact (release open holds, refund settled charges). Both halves
+/// are idempotent, so retrying a void is safe.
 pub async fn void_run(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Value>, ApiError> {
-    let voided = state.events.void_run(RunId::from_uuid(id)).await?;
-    Ok(Json(json!({ "voided": voided })))
+    let run = RunId::from_uuid(id);
+    let events_voided = state.events.void_run(run).await?;
+    let ledger = state.ledger.void_run(run).await?;
+    Ok(Json(json!({
+        "events_voided": events_voided,
+        "holds_released": ledger.holds_released,
+        "charges_refunded": ledger.charges_refunded,
+        "credits_refunded": ledger.credits_refunded,
+    })))
 }

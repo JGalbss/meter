@@ -1,15 +1,23 @@
 //! The ledger backend trait — the seam every storage backend implements.
 
 use async_trait::async_trait;
-use meter_core::{AccountId, Credit};
+use meter_core::{AccountId, Credit, RunId};
 use time::OffsetDateTime;
 
 use crate::error::LedgerError;
 use crate::model::{Balance, LedgerAccount, LedgerEntry, ReservationId};
 use crate::request::{
     ChargeRequest, GrantRequest, LeaseRequest, NewAccount, RefundRequest, ReserveOutcome,
-    ReserveRequest, SettleRequest,
+    ReserveRequest, RunVoidSummary, SettleRequest,
 };
+
+/// The idempotency key a [`void_run`](LedgerBackend::void_run) refund posts for one settled
+/// reservation. Stable across calls and backends, so re-voiding a run never double-refunds and the
+/// in-memory oracle and Postgres backend agree byte-for-byte.
+#[must_use]
+pub fn run_void_refund_key(run: RunId, reservation: ReservationId) -> String {
+    format!("void-run:{run}:{reservation}")
+}
 
 /// A pluggable double-entry credit ledger.
 ///
@@ -56,6 +64,13 @@ pub trait LedgerBackend: Send + Sync {
         reservation: ReservationId,
         expires_at: OffsetDateTime,
     ) -> Result<(), LedgerError>;
+
+    /// Reverse a whole run's financial impact (the ledger half of killing a failed/abandoned run).
+    /// For every hold tagged with `run`: open holds are released like [`void`](Self::void), and
+    /// settled charges are reversed with a [`refund`](Self::refund) posting that references the
+    /// original settle. Idempotent — re-voiding a run releases nothing new and never double-refunds,
+    /// keyed by [`run_void_refund_key`]. Returns a [`RunVoidSummary`] of what changed.
+    async fn void_run(&self, run: RunId) -> Result<RunVoidSummary, LedgerError>;
 
     /// Lease credits from a parent pool into a fresh per-session sub-balance (hot-account mitigation).
     /// Moves `amount` from the parent to a new `Session` child via a conserving transfer; refuses to

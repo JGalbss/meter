@@ -12,7 +12,7 @@ module (`meter-engine` listens on `METER_GRPC_ADDR`, default `0.0.0.0:50051`).
 
 | File | Service | Purpose |
 | --- | --- | --- |
-| `ledger.proto` | `LedgerService` | OpenAccount, Grant, Reserve, Settle, Void, Balance — the transactional money path |
+| `ledger.proto` | `LedgerService` | OpenAccount, Grant, Reserve, Settle, Void, ExtendHold, VoidExpiredHolds, VoidRun, Balance — the transactional money path |
 | `ingest.proto` | `IngestService` | RecordEvent, RecordBatch, AmendEvent, VoidRun — the editable usage firehose |
 | `query.proto` | `QueryService` | UsageByModel, UsageByDay, EventCount, Invoice — read-side analytics + billing |
 | `config.proto` | `ConfigService` | PutRateCard, SetBudget — the control plane pushes pricing/budget rules to the engine |

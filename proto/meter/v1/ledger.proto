@@ -65,6 +65,8 @@ message ReserveRequest {
   LimitClass limit = 4;
   // Optional RFC3339 hold expiry; an open hold past it is released by the sweep. Empty never expires.
   string expires_at = 5;
+  // Optional agent run this hold belongs to; lets VoidRun reverse it. Empty = not part of a run.
+  string run_id = 6;
 }
 
 message ReserveResponse {
@@ -104,6 +106,17 @@ message VoidExpiredHoldsResponse {
   uint64 released = 1;
 }
 
+message LedgerServiceVoidRunRequest {
+  string run_id = 1;
+}
+
+// The ledger half of killing a run: open holds released, settled charges refunded.
+message LedgerServiceVoidRunResponse {
+  uint64 holds_released = 1;
+  uint64 charges_refunded = 2;
+  Credit credits_refunded = 3;
+}
+
 message BalanceRequest {
   string account_id = 1;
 }
@@ -123,5 +136,6 @@ service LedgerService {
   rpc Void(VoidRequest) returns (VoidResponse);
   rpc ExtendHold(ExtendHoldRequest) returns (ExtendHoldResponse);
   rpc VoidExpiredHolds(VoidExpiredHoldsRequest) returns (VoidExpiredHoldsResponse);
+  rpc VoidRun(LedgerServiceVoidRunRequest) returns (LedgerServiceVoidRunResponse);
   rpc Balance(BalanceRequest) returns (BalanceResponse);
 }

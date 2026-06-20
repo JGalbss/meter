@@ -87,6 +87,7 @@ async fn query_grpc_analytics_and_invoice() {
             amount: meter_core::Credit::from(40_i64),
             limit: LimitClass::Hard,
             expires_at: None,
+            run_id: None,
         })
         .await
         .expect("reserve");

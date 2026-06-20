@@ -1,6 +1,6 @@
 //! The enforcement service: reserve before, settle after, void on failure.
 
-use meter_core::{AccountId, Money};
+use meter_core::{AccountId, Money, RunId};
 use meter_ledger::{
     LedgerBackend, LedgerEntry, LimitClass, ReservationId, ReserveOutcome, ReserveRequest,
     SettleRequest,
@@ -49,6 +49,7 @@ impl<L: LedgerBackend> EnforcementService<L> {
         estimate: &Usage,
         card: &RateCard,
         limit: LimitClass,
+        run_id: Option<RunId>,
     ) -> Result<ReserveOutcome, EnforcementError> {
         let priced = price_usage(estimate, card, &self.credit_value)?;
         let outcome = self
@@ -59,6 +60,7 @@ impl<L: LedgerBackend> EnforcementService<L> {
                 amount: priced.credits,
                 limit,
                 expires_at: None,
+                run_id,
             })
             .await?;
         Ok(outcome)
@@ -179,6 +181,7 @@ mod tests {
                 &usage(1000, 500),
                 &card(),
                 LimitClass::Hard,
+                None,
             )
             .await
             .expect("reserve");
@@ -211,6 +214,7 @@ mod tests {
                 &usage(1000, 500),
                 &card(),
                 LimitClass::Hard,
+                None,
             )
             .await
             .expect("reserve");
@@ -230,6 +234,7 @@ mod tests {
                 &usage(1000, 500),
                 &card(),
                 LimitClass::Hard,
+                None,
             )
             .await
             .expect("reserve");

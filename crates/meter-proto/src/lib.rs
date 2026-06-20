@@ -23,6 +23,7 @@ mod tests {
             }),
             limit: v1::LimitClass::Hard as i32,
             expires_at: String::new(),
+            run_id: String::new(),
         };
         assert_eq!(req.amount.unwrap().amount, "40");
         assert_eq!(req.limit, v1::LimitClass::Hard as i32);

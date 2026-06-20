@@ -12,7 +12,9 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 /// An amount of credits.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
 pub struct Credit(#[serde(with = "rust_decimal::serde::str")] Decimal);
 
 impl Credit {

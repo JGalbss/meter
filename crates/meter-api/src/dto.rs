@@ -57,6 +57,9 @@ pub struct ReserveBody {
     /// Optional hold expiry (RFC3339); an open hold past it is released by the sweep.
     #[serde(with = "time::serde::rfc3339::option", default)]
     pub expires_at: Option<OffsetDateTime>,
+    /// Optional agent run this hold belongs to; lets `POST /v1/runs/{id}/void` reverse it.
+    #[serde(default)]
+    pub run_id: Option<RunId>,
 }
 
 /// `POST /v1/reservations/{id}/settle`
@@ -191,6 +194,9 @@ pub struct ReserveUsageBody {
     /// Optional synced rate-card id to price against; defaults to the catalog card for `model`.
     #[serde(default)]
     pub rate_card_id: Option<String>,
+    /// Optional agent run this hold belongs to; lets `POST /v1/runs/{id}/void` reverse it.
+    #[serde(default)]
+    pub run_id: Option<RunId>,
 }
 
 /// `POST /v1/usage/reservations/{id}/settle` — price the actual usage against a catalog model and

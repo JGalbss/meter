@@ -6,11 +6,12 @@ use sqlx::Row;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use meter_core::{AccountId, Credit, EntryId, OrgId};
+use meter_core::{AccountId, Credit, EntryId, OrgId, RunId};
 use meter_ledger::{
-    AccountScope, Balance, ChargeRequest, EntryType, GrantRequest, LeaseRequest, LedgerAccount,
-    LedgerBackend, LedgerEntry, LedgerError, LimitClass, NewAccount, RefundRequest, ReservationId,
-    ReserveOutcome, ReserveRequest, SettleRequest, SYSTEM_ACCOUNT,
+    run_void_refund_key, AccountScope, Balance, ChargeRequest, EntryType, GrantRequest,
+    LeaseRequest, LedgerAccount, LedgerBackend, LedgerEntry, LedgerError, LimitClass, NewAccount,
+    RefundRequest, ReservationId, ReserveOutcome, ReserveRequest, RunVoidSummary, SettleRequest,
+    SYSTEM_ACCOUNT,
 };
 
 use crate::mapping::{
@@ -328,14 +329,16 @@ impl LedgerBackend for PgLedger {
         }
 
         sqlx::query(
-            "INSERT INTO ledger_holds (reservation_id, org_id, account_id, amount, status, expires_at) \
-             VALUES ($1, $2, $3, $4, 'open', $5)",
+            "INSERT INTO ledger_holds \
+             (reservation_id, org_id, account_id, amount, status, expires_at, run_id) \
+             VALUES ($1, $2, $3, $4, 'open', $5, $6)",
         )
         .bind(req.reservation_id.as_uuid())
         .bind(org_id)
         .bind(req.account.as_uuid())
         .bind(req.amount.value())
         .bind(req.expires_at)
+        .bind(req.run_id.map(|run| run.as_uuid()))
         .execute(&mut *tx)
         .await
         .map_err(be)?;
@@ -542,6 +545,100 @@ impl LedgerBackend for PgLedger {
         };
         tx.commit().await.map_err(be)?;
         result
+    }
+
+    async fn void_run(&self, run: RunId) -> Result<RunVoidSummary, LedgerError> {
+        let mut tx = self.pool().begin().await.map_err(be)?;
+        // Lock the run's holds for the duration of the reversal.
+        let rows = sqlx::query(
+            "SELECT reservation_id, account_id, status, settle_entry_id \
+             FROM ledger_holds WHERE run_id = $1 FOR UPDATE",
+        )
+        .bind(run.as_uuid())
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(be)?;
+
+        let mut summary = RunVoidSummary::default();
+        for row in rows {
+            let reservation: Uuid = row.try_get("reservation_id").map_err(be)?;
+            let account_id: Uuid = row.try_get("account_id").map_err(be)?;
+            let status: String = row.try_get("status").map_err(be)?;
+            match status.as_str() {
+                "voided" => {}
+                "open" => {
+                    sqlx::query(
+                        "UPDATE ledger_holds SET status = 'voided' WHERE reservation_id = $1",
+                    )
+                    .bind(reservation)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(be)?;
+                    summary.holds_released += 1;
+                }
+                "settled" => {
+                    let key = run_void_refund_key(run, ReservationId::from_uuid(reservation));
+                    // Idempotent: a refund already posted for this run+reservation means a prior
+                    // void_run handled it; skip so we never double-refund.
+                    let already: Option<Uuid> = sqlx::query_scalar(
+                        "SELECT id FROM ledger_entries \
+                         WHERE account_id = $1 AND idempotency_key = $2",
+                    )
+                    .bind(account_id)
+                    .bind(&key)
+                    .fetch_optional(&mut *tx)
+                    .await
+                    .map_err(be)?;
+                    if already.is_some() {
+                        continue;
+                    }
+                    let settle_entry_id: Uuid = row.try_get("settle_entry_id").map_err(be)?;
+                    // The settle posted `-actual`; refund the same magnitude back.
+                    let settle_delta: Decimal = sqlx::query_scalar(
+                        "SELECT delta_credits FROM ledger_entries WHERE id = $1",
+                    )
+                    .bind(settle_entry_id)
+                    .fetch_one(&mut *tx)
+                    .await
+                    .map_err(be)?;
+                    let amount = -settle_delta;
+                    if amount <= Decimal::ZERO {
+                        continue;
+                    }
+                    let updated = sqlx::query(
+                        "UPDATE ledger_accounts SET settled_credits = settled_credits + $2 \
+                         WHERE id = $1 RETURNING settled_credits, org_id",
+                    )
+                    .bind(account_id)
+                    .bind(amount)
+                    .fetch_one(&mut *tx)
+                    .await
+                    .map_err(be)?;
+                    let balance_after: Decimal = updated.try_get("settled_credits").map_err(be)?;
+                    let org_id: Uuid = updated.try_get("org_id").map_err(be)?;
+                    let entry = LedgerEntry {
+                        id: EntryId::new(),
+                        account_id: AccountId::from_uuid(account_id),
+                        paired_account_id: SYSTEM_ACCOUNT,
+                        entry_type: EntryType::Refund,
+                        delta_credits: credit_from_db(amount),
+                        balance_after: credit_from_db(balance_after),
+                        source: None,
+                        revenue_recognizable: false,
+                        reverses_entry_id: Some(EntryId::from_uuid(settle_entry_id)),
+                        reservation_id: Some(ReservationId::from_uuid(reservation)),
+                        idempotency_key: Some(key),
+                        created_at: now_micros(),
+                    };
+                    insert_entry(&mut tx, &entry, org_id).await?;
+                    summary.charges_refunded += 1;
+                    summary.credits_refunded += entry.delta_credits;
+                }
+                _ => {}
+            }
+        }
+        tx.commit().await.map_err(be)?;
+        Ok(summary)
     }
 
     async fn open_lease(&self, req: LeaseRequest) -> Result<LedgerAccount, LedgerError> {

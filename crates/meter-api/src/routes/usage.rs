@@ -91,6 +91,7 @@ pub async fn reserve_usage(
             amount: priced.credits,
             limit: body.limit,
             expires_at: None,
+            run_id: body.run_id,
         })
         .await?;
     let mut value = serde_json::to_value(outcome)

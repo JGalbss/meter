@@ -5,7 +5,7 @@
 
 use tonic::{Request, Response, Status};
 
-use meter_core::{AccountId, OrgId};
+use meter_core::{AccountId, OrgId, RunId};
 use meter_ledger::{
     AccountScope, CreditSource, GrantRequest, LedgerBackend, LimitClass, NewAccount, ReservationId,
     ReserveOutcome, ReserveRequest, SettleRequest,
@@ -127,6 +127,10 @@ impl v1::ledger_service_server::LedgerService for LedgerGrpc {
             true => None,
             false => Some(super::parse_time(&req.expires_at, "expires_at")?),
         };
+        let run_id = match req.run_id.is_empty() {
+            true => None,
+            false => Some(RunId::from_uuid(parse_uuid(&req.run_id, "run_id")?)),
+        };
         let outcome = self
             .ledger
             .reserve(ReserveRequest {
@@ -138,6 +142,7 @@ impl v1::ledger_service_server::LedgerService for LedgerGrpc {
                 amount: credit_from_proto(req.amount.as_ref(), "amount")?,
                 limit: limit_class(req.limit)?,
                 expires_at,
+                run_id,
             })
             .await
             .map_err(|error| status_from_ledger(&error))?;
@@ -221,6 +226,23 @@ impl v1::ledger_service_server::LedgerService for LedgerGrpc {
             .await
             .map_err(|error| status_from_ledger(&error))?;
         Ok(Response::new(v1::VoidExpiredHoldsResponse { released }))
+    }
+
+    async fn void_run(
+        &self,
+        request: Request<v1::LedgerServiceVoidRunRequest>,
+    ) -> Result<Response<v1::LedgerServiceVoidRunResponse>, Status> {
+        let req = request.into_inner();
+        let summary = self
+            .ledger
+            .void_run(RunId::from_uuid(parse_uuid(&req.run_id, "run_id")?))
+            .await
+            .map_err(|error| status_from_ledger(&error))?;
+        Ok(Response::new(v1::LedgerServiceVoidRunResponse {
+            holds_released: summary.holds_released,
+            charges_refunded: summary.charges_refunded,
+            credits_refunded: Some(credit_to_proto(summary.credits_refunded)),
+        }))
     }
 
     async fn balance(

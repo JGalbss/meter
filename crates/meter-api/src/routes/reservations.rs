@@ -26,6 +26,7 @@ pub async fn reserve(
             amount: body.amount,
             limit: body.limit,
             expires_at: body.expires_at,
+            run_id: body.run_id,
         })
         .await?;
     Ok(Json(outcome))

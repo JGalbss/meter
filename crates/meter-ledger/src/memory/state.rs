@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use meter_core::{AccountId, Credit, EntryId};
+use meter_core::{AccountId, Credit, EntryId, RunId};
 
 use crate::model::{LedgerAccount, LedgerEntry, ReservationId};
 
@@ -38,6 +38,7 @@ pub(super) struct Hold {
     pub(super) status: HoldStatus,
     pub(super) settle_entry: Option<EntryId>,
     pub(super) expires_at: Option<time::OffsetDateTime>,
+    pub(super) run_id: Option<RunId>,
 }
 
 /// All mutable ledger state behind a single mutex.

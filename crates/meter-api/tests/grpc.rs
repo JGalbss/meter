@@ -69,6 +69,7 @@ async fn ledger_grpc_reserve_settle_flow() {
             amount: credit("40"),
             limit: v1::LimitClass::Hard as i32,
             expires_at: String::new(),
+            run_id: String::new(),
         }))
         .await
         .expect("reserve")
@@ -104,6 +105,7 @@ async fn ledger_grpc_reserve_settle_flow() {
             amount: credit("1000"),
             limit: v1::LimitClass::Hard as i32,
             expires_at: String::new(),
+            run_id: String::new(),
         }))
         .await
         .expect("reserve")
@@ -122,6 +124,7 @@ async fn ledger_grpc_reserve_settle_flow() {
                 amount: credit("5"),
                 limit: v1::LimitClass::Hard as i32,
                 expires_at: "1970-01-01T00:00:00Z".to_owned(),
+                run_id: String::new(),
             }))
             .await
             .expect("reserve with expiry");
@@ -157,4 +160,102 @@ async fn ledger_grpc_reserve_settle_flow() {
             .amount,
         "5"
     );
+}
+
+#[tokio::test]
+async fn ledger_grpc_void_run_reverses_holds_and_settles() {
+    let postgres = Postgres::default().start().await.expect("start postgres");
+    let port = postgres
+        .get_host_port_ipv4(5432)
+        .await
+        .expect("postgres port");
+    let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&url)
+        .await
+        .expect("connect");
+    let ledger = PgLedger::new(pool);
+    ledger.migrate().await.expect("migrate");
+    let service = LedgerGrpc::new(ledger);
+
+    let account = service
+        .open_account(Request::new(v1::OpenAccountRequest {
+            org_id: "11111111-1111-1111-1111-111111111111".to_owned(),
+            scope: v1::AccountScope::Org as i32,
+            no_overdraft: true,
+            parent_id: String::new(),
+        }))
+        .await
+        .expect("open_account")
+        .into_inner()
+        .account_id;
+    service
+        .grant(Request::new(v1::GrantRequest {
+            account_id: account.clone(),
+            amount: credit("100"),
+            source: v1::CreditSource::Paid as i32,
+            idempotency_key: String::new(),
+        }))
+        .await
+        .expect("grant");
+
+    let run = "66666666-6666-6666-6666-666666666666".to_owned();
+    // An open hold and a settled charge, both tagged with the run.
+    let open_hold = "77777777-7777-7777-7777-777777777777".to_owned();
+    let settled_hold = "88888888-8888-8888-8888-888888888888".to_owned();
+    for (reservation_id, amount) in [(open_hold, "40"), (settled_hold.clone(), "30")] {
+        service
+            .reserve(Request::new(v1::ReserveRequest {
+                account_id: account.clone(),
+                reservation_id,
+                amount: credit(amount),
+                limit: v1::LimitClass::Hard as i32,
+                expires_at: String::new(),
+                run_id: run.clone(),
+            }))
+            .await
+            .expect("reserve");
+    }
+    service
+        .settle(Request::new(v1::SettleRequest {
+            reservation_id: settled_hold,
+            actual: credit("20"),
+        }))
+        .await
+        .expect("settle");
+
+    // Void the run: 1 open hold released, 1 settled charge (20) refunded.
+    let summary = service
+        .void_run(Request::new(v1::LedgerServiceVoidRunRequest {
+            run_id: run.clone(),
+        }))
+        .await
+        .expect("void_run")
+        .into_inner();
+    assert_eq!(summary.holds_released, 1);
+    assert_eq!(summary.charges_refunded, 1);
+    assert_eq!(summary.credits_refunded.unwrap().amount, "20");
+
+    // Balance restored to 100 / 0.
+    let balance = service
+        .balance(Request::new(v1::BalanceRequest {
+            account_id: account,
+        }))
+        .await
+        .expect("balance")
+        .into_inner();
+    assert_eq!(balance.settled.unwrap().amount, "100");
+    assert_eq!(balance.held.unwrap().amount, "0");
+
+    // Idempotent.
+    let again = service
+        .void_run(Request::new(v1::LedgerServiceVoidRunRequest {
+            run_id: run,
+        }))
+        .await
+        .expect("void_run again")
+        .into_inner();
+    assert_eq!(again.holds_released, 0);
+    assert_eq!(again.charges_refunded, 0);
 }

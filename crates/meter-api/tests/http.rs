@@ -303,10 +303,13 @@ async fn event_flow_over_http() {
     assert_eq!(list.as_array().expect("array").len(), 1);
     assert_eq!(list[0]["id"], amended["id"]);
 
-    // Voiding the run reverses the run's current event; the list empties.
+    // Voiding the run reverses the run's current event; the list empties. No holds were placed for
+    // this run, so the ledger half reverses nothing.
     let (status, voided) = call(&app, "POST", &format!("/v1/runs/{run}/void"), &Value::Null).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(voided["voided"], json!(1));
+    assert_eq!(voided["events_voided"], json!(1));
+    assert_eq!(voided["holds_released"], json!(0));
+    assert_eq!(voided["charges_refunded"], json!(0));
     let (_status, after) = call(
         &app,
         "GET",
@@ -1304,4 +1307,104 @@ async fn credit_note_refunds_credits() {
     )
     .await;
     assert_eq!(balance["settled"], "100"); // 70 + 30 refunded
+}
+
+#[tokio::test]
+async fn void_run_reverses_events_and_ledger_over_http() {
+    let (_container, app) = app().await;
+    let org = "11111111-1111-1111-1111-111111111111";
+    let run = "cccccccc-cccc-cccc-cccc-cccccccccccc";
+
+    let (_status, account) = call(
+        &app,
+        "POST",
+        "/v1/accounts",
+        &json!({ "org_id": org, "scope": "org", "no_overdraft": true }),
+    )
+    .await;
+    let account_id = account["id"].as_str().expect("account id").to_owned();
+    call(
+        &app,
+        "POST",
+        &format!("/v1/accounts/{account_id}/grants"),
+        &json!({ "amount": "100", "source": "paid" }),
+    )
+    .await;
+
+    // An event tagged with the run.
+    call(
+        &app,
+        "POST",
+        "/v1/events",
+        &json!({
+            "org_id": org,
+            "idempotency_key": "run-evt-1",
+            "meter": "tokens",
+            "account": account_id,
+            "run_id": run,
+            "properties": { "input": 100 }
+        }),
+    )
+    .await;
+
+    // An open hold in the run.
+    let open_hold = "dddddddd-dddd-dddd-dddd-dddddddddddd";
+    call(
+        &app,
+        "POST",
+        "/v1/reservations",
+        &json!({ "account": account_id, "reservation_id": open_hold, "amount": "40", "limit": "hard", "run_id": run }),
+    )
+    .await;
+    // A settled charge in the same run: reserve 30, settle 20 -> settled 80.
+    let settled_hold = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee";
+    call(
+        &app,
+        "POST",
+        "/v1/reservations",
+        &json!({ "account": account_id, "reservation_id": settled_hold, "amount": "30", "limit": "hard", "run_id": run }),
+    )
+    .await;
+    call(
+        &app,
+        "POST",
+        &format!("/v1/reservations/{settled_hold}/settle"),
+        &json!({ "actual": "20" }),
+    )
+    .await;
+
+    // Kill the run: events voided, the open hold released, the settled charge refunded.
+    let (status, voided) = call(&app, "POST", &format!("/v1/runs/{run}/void"), &Value::Null).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(voided["events_voided"], json!(1));
+    assert_eq!(voided["holds_released"], json!(1));
+    assert_eq!(voided["charges_refunded"], json!(1));
+    assert_eq!(voided["credits_refunded"], "20");
+
+    // Balance fully restored: settled back to 100, nothing held.
+    let (_status, balance) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{account_id}/balance"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(balance["settled"], "100");
+    assert_eq!(balance["held"], "0");
+
+    // The run's events are gone from the account view.
+    let (_status, events) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{account_id}/events"),
+        &Value::Null,
+    )
+    .await;
+    assert!(events.as_array().expect("array").is_empty());
+
+    // Idempotent: voiding again reverses nothing new.
+    let (_status, again) = call(&app, "POST", &format!("/v1/runs/{run}/void"), &Value::Null).await;
+    assert_eq!(again["holds_released"], json!(0));
+    assert_eq!(again["charges_refunded"], json!(0));
+    assert_eq!(again["credits_refunded"], "0");
 }

@@ -1,17 +1,17 @@
 //! The [`LedgerBackend`] implementation for [`InMemoryLedger`].
 
 use async_trait::async_trait;
-use meter_core::{AccountId, Credit, EntryId};
+use meter_core::{AccountId, Credit, EntryId, RunId};
 use time::OffsetDateTime;
 
-use crate::backend::LedgerBackend;
+use crate::backend::{run_void_refund_key, LedgerBackend};
 use crate::error::LedgerError;
 use crate::model::{
     AccountScope, Balance, EntryType, LedgerAccount, LedgerEntry, LimitClass, ReservationId,
 };
 use crate::request::{
     ChargeRequest, GrantRequest, LeaseRequest, NewAccount, RefundRequest, ReserveOutcome,
-    ReserveRequest, SettleRequest,
+    ReserveRequest, RunVoidSummary, SettleRequest,
 };
 
 use super::state::{AccountRow, Hold, HoldStatus, State};
@@ -221,6 +221,7 @@ impl LedgerBackend for InMemoryLedger {
                 status: HoldStatus::Open,
                 settle_entry: None,
                 expires_at: req.expires_at,
+                run_id: req.run_id,
             },
         );
         Ok(ReserveOutcome::Allowed {
@@ -374,6 +375,78 @@ impl LedgerBackend for InMemoryLedger {
                 }
             },
         }
+    }
+
+    async fn void_run(&self, run: RunId) -> Result<RunVoidSummary, LedgerError> {
+        let mut state = self.lock();
+        // Snapshot the run's holds before mutating, so the borrow on `holds` is released.
+        let members: Vec<(ReservationId, HoldStatus, AccountId, Option<EntryId>)> = state
+            .holds
+            .iter()
+            .filter(|(_, hold)| hold.run_id == Some(run))
+            .map(|(id, hold)| (*id, hold.status, hold.account, hold.settle_entry))
+            .collect();
+
+        let mut summary = RunVoidSummary::default();
+        for (reservation, status, account, settle_entry) in members {
+            match status {
+                HoldStatus::Voided => {}
+                HoldStatus::Open => {
+                    if let Some(hold) = state.holds.get_mut(&reservation) {
+                        hold.status = HoldStatus::Voided;
+                    }
+                    summary.holds_released += 1;
+                }
+                HoldStatus::Settled => {
+                    let key = run_void_refund_key(run, reservation);
+                    let already_refunded = state
+                        .entries
+                        .iter()
+                        .any(|entry| entry.idempotency_key.as_deref() == Some(key.as_str()));
+                    if already_refunded {
+                        continue;
+                    }
+                    let settle_id = settle_entry.expect("a settled hold records its settle entry");
+                    let amount = -state
+                        .entries
+                        .iter()
+                        .find(|entry| entry.id == settle_id)
+                        .expect("the settle entry exists")
+                        .delta_credits;
+                    if !amount.is_positive() {
+                        continue;
+                    }
+                    if let Some(system) = state.accounts.get_mut(&self.system) {
+                        system.settled -= amount;
+                    }
+                    let balance_after = {
+                        let row = state
+                            .accounts
+                            .get_mut(&account)
+                            .expect("the hold's account exists");
+                        row.settled += amount;
+                        row.settled
+                    };
+                    state.entries.push(LedgerEntry {
+                        id: EntryId::new(),
+                        account_id: account,
+                        paired_account_id: self.system,
+                        entry_type: EntryType::Refund,
+                        delta_credits: amount,
+                        balance_after,
+                        source: None,
+                        revenue_recognizable: false,
+                        reverses_entry_id: Some(settle_id),
+                        reservation_id: Some(reservation),
+                        idempotency_key: Some(key),
+                        created_at: OffsetDateTime::now_utc(),
+                    });
+                    summary.charges_refunded += 1;
+                    summary.credits_refunded += amount;
+                }
+            }
+        }
+        Ok(summary)
     }
 
     async fn open_lease(&self, req: LeaseRequest) -> Result<LedgerAccount, LedgerError> {

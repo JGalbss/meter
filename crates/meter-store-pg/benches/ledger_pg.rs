@@ -64,6 +64,7 @@ fn bench_reserve_settle_pg(c: &mut Criterion) {
                     amount: black_box(Credit::from(10i64)),
                     limit: LimitClass::Hard,
                     expires_at: None,
+                    run_id: None,
                 })
                 .await
                 .expect("reserve");

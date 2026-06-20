@@ -58,6 +58,7 @@ async fn sweep_releases_expired_holds() {
             amount: Credit::from(40_i64),
             limit: LimitClass::Hard,
             expires_at: Some(OffsetDateTime::UNIX_EPOCH),
+            run_id: None,
         })
         .await
         .expect("reserve expired");
@@ -68,6 +69,7 @@ async fn sweep_releases_expired_holds() {
             amount: Credit::from(10_i64),
             limit: LimitClass::Hard,
             expires_at: None,
+            run_id: None,
         })
         .await
         .expect("reserve live");
@@ -132,6 +134,7 @@ async fn void_releases_a_specific_hold() {
             amount: Credit::from(40_i64),
             limit: LimitClass::Hard,
             expires_at: None,
+            run_id: None,
         })
         .await
         .expect("reserve");

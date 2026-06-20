@@ -19,7 +19,7 @@ pub mod memory;
 pub mod model;
 pub mod request;
 
-pub use backend::LedgerBackend;
+pub use backend::{run_void_refund_key, LedgerBackend};
 pub use error::LedgerError;
 pub use memory::InMemoryLedger;
 pub use model::{
@@ -28,5 +28,5 @@ pub use model::{
 };
 pub use request::{
     ChargeRequest, GrantRequest, LeaseRequest, NewAccount, RefundRequest, ReserveOutcome,
-    ReserveRequest, SettleRequest,
+    ReserveRequest, RunVoidSummary, SettleRequest,
 };

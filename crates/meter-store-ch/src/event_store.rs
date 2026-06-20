@@ -4,6 +4,8 @@
 //! original becomes `amended`; `void_run` → `voided`) is a new row with the same `id` and a higher
 //! version, and reads use `FINAL` to resolve the latest version of each event id.
 
+use std::collections::{HashMap, HashSet};
+
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
@@ -12,7 +14,7 @@ use uuid::Uuid;
 use meter_core::{AccountId, EventId, OrgId, RunId};
 use meter_event::{AmendEvent, Event, EventError, EventStatus, EventStore, RecordEvent};
 
-use crate::ChStore;
+use crate::{ChStore, IngestMode};
 
 /// The `events` columns in struct order — `RowBinary` reads positionally, so SELECTs must match.
 /// A macro (not a `const`) so the list can be `concat!`-ed into compile-time query strings, keeping
@@ -61,6 +63,12 @@ struct EventRow {
     #[serde(with = "clickhouse::serde::time::datetime64::millis")]
     created_at: OffsetDateTime,
     version: u64,
+}
+
+#[derive(clickhouse::Row, Deserialize)]
+struct IdRow {
+    #[serde(with = "clickhouse::serde::uuid")]
+    id: Uuid,
 }
 
 fn backend<E: std::fmt::Display>(error: E) -> EventError {
@@ -128,30 +136,86 @@ impl ChStore {
         insert.end().await.map_err(backend)?;
         Ok(())
     }
+
+    /// Which of these (content-addressed) event ids already exist. One index-friendly lookup per org
+    /// (the `events` primary key is `(org_id, id)`), so re-recording a key is idempotent without a
+    /// per-event read — and, crucially, the sign-weighted `usage_rollup` never sees a duplicate `+1`.
+    async fn existing_ids(&self, events: &[Event]) -> Result<HashSet<Uuid>, EventError> {
+        // Chunk so the inlined `id IN (...)` list never exceeds ClickHouse's `max_query_size` (256 KB
+        // default; a UUID literal is ~39 bytes, so 4 000 ids ≈ 156 KB leaves comfortable headroom).
+        const CHUNK: usize = 4_000;
+        let mut by_org: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
+        for event in events {
+            by_org
+                .entry(event.org_id.as_uuid())
+                .or_default()
+                .push(event.id.as_uuid());
+        }
+        let mut found = HashSet::new();
+        for (org, ids) in by_org {
+            for chunk in ids.chunks(CHUNK) {
+                // ids are UUIDs we just generated — safe to inline (no user input in the SQL).
+                let list = chunk
+                    .iter()
+                    .map(|id| format!("'{id}'"))
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let query =
+                    format!("SELECT id FROM events WHERE org_id = '{org}' AND id IN ({list})");
+                let rows = self
+                    .client
+                    .query(&query)
+                    .fetch_all::<IdRow>()
+                    .await
+                    .map_err(backend)?;
+                found.extend(rows.into_iter().map(|row| row.id));
+            }
+        }
+        Ok(found)
+    }
 }
 
 #[async_trait]
 impl EventStore for ChStore {
     async fn record(&self, req: RecordEvent) -> Result<Event, EventError> {
-        let event = req.into_event();
-        self.insert_event(&event).await?;
-        Ok(event)
+        let mut events = self.record_batch(vec![req]).await?;
+        events
+            .pop()
+            .ok_or_else(|| backend("record produced no event"))
     }
 
     async fn record_batch(&self, reqs: Vec<RecordEvent>) -> Result<Vec<Event>, EventError> {
         if reqs.is_empty() {
             return Ok(Vec::new());
         }
-        // The firehose path: build every event (content-addressed id ⇒ idempotency needs no read) and
-        // write the whole batch in a single ClickHouse insert. Duplicate keys collapse on
-        // `(org_id, id)` via the `ReplacingMergeTree`, so no read-before-write is required.
+        // The firehose path. Build every event (its id is content-addressed from the idempotency key),
+        // drop the ones already recorded (one index lookup per org, amortized across the whole batch),
+        // and write the survivors in a single ClickHouse insert. Exactly-once ingest keeps both the
+        // `events` system of record and the sign-weighted `usage_rollup` free of duplicate counts.
         let events: Vec<Event> = reqs.into_iter().map(RecordEvent::into_event).collect();
+        let existing = match self.ingest_mode() {
+            IngestMode::Append => HashSet::new(),
+            IngestMode::ExactlyOnce => self.existing_ids(&events).await?,
+        };
+        let mut seen = HashSet::with_capacity(events.len());
         let mut insert = self.client.insert("events").map_err(backend)?;
+        let mut wrote = false;
         for event in &events {
-            let row = self.event_to_row(event)?;
-            insert.write(&row).await.map_err(backend)?;
+            let id = event.id.as_uuid();
+            if existing.contains(&id) || !seen.insert(id) {
+                continue;
+            }
+            insert
+                .write(&self.event_to_row(event)?)
+                .await
+                .map_err(backend)?;
+            wrote = true;
         }
-        insert.end().await.map_err(backend)?;
+        match wrote {
+            true => insert.end().await.map_err(backend)?,
+            // No new rows — abort the (empty) insert rather than committing a zero-row part.
+            false => drop(insert),
+        }
         Ok(events)
     }
 

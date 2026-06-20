@@ -145,12 +145,25 @@ async fn ingest_throughput() {
         best.2
     );
 
-    // --- Headline: best config at full scale; this is the number we hold to an SLO. ---
+    // --- Headline @ full scale, both ingest modes (ADR 0005 lever). ---
+    // ExactlyOnce (default): cross-call dedup read keeps the rollup correct without upstream EOS.
     let (org, acct) = (OrgId::new(), AccountId::new());
-    let headline_eps = run_load(&store, org, acct, "scale", write_n, best_batch, best_conc).await;
-    println!(
-        "\nHEADLINE: {headline_eps:>12.0} eps   (n={write_n}, batch={best_batch}, conc={best_conc})"
-    );
+    let exactly_once_eps = run_load(
+        &store, org, acct, "scale-eo", write_n, best_batch, best_conc,
+    )
+    .await;
+    // Append: skip the dedup read (exactly-once delegated upstream) — the single-node ceiling.
+    let append = meter_store_ch::ChStore::new(&format!("http://127.0.0.1:{port}"))
+        .with_ingest_mode(meter_store_ch::IngestMode::Append);
+    let (org_ap, acct_ap) = (OrgId::new(), AccountId::new());
+    let append_eps = run_load(
+        &append, org_ap, acct_ap, "scale-ap", write_n, best_batch, best_conc,
+    )
+    .await;
+    println!("\nHEADLINE (batch={best_batch}, conc={best_conc}, n={write_n}):");
+    println!("  ExactlyOnce : {exactly_once_eps:>12.0} eps");
+    println!("  Append      : {append_eps:>12.0} eps");
+    let headline_eps = exactly_once_eps.max(append_eps);
 
     // --- Reads at scale: the aggregates that back credit/usage dashboards. ---
     println!("\n=== READ LATENCY @ {write_n} events ===");
@@ -181,10 +194,26 @@ async fn ingest_throughput() {
         by_day.len()
     );
 
-    // The batch path must crush the single-event baseline, and idempotency must hold under load.
+    // --- Exactly-once under load: replaying the whole load (same keys) must not change the count. ---
+    let replay_eps = run_load(
+        &store, org, acct, "scale-eo", write_n, best_batch, best_conc,
+    )
+    .await;
+    let n_after = store.event_count(org.as_uuid()).await.expect("event_count");
+    println!("\nidempotent replay : {replay_eps:>12.0} eps  -> still {n_after} live events");
+
+    // The batch path must crush the single-event baseline; reads stay milliseconds at scale; and the
+    // ExactlyOnce rollup is exactly-once even under a full replay.
     assert!(
         headline_eps > single_eps * 10.0,
         "batch must beat single by >10x"
     );
     assert_eq!(n, write_n, "every distinct key counted exactly once");
+    assert_eq!(n_after, write_n, "replaying the load double-counts nothing");
+    assert_eq!(
+        by_model.len(),
+        MODELS.len(),
+        "every model present in the rollup"
+    );
+    assert_eq!(by_day.len(), 30, "every day bucket present in the rollup");
 }

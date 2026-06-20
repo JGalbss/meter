@@ -99,6 +99,23 @@ fn audit_row_to_entry(row: AuditRow) -> AuditEntry {
     }
 }
 
+/// How the ingest path enforces per-event idempotency (ADR 0005). The `events` system of record is
+/// always idempotent on read (a `ReplacingMergeTree` dedups on `(org_id, id)`); this lever only
+/// controls how the **pre-aggregated `usage_rollup`** is kept exactly-once at write time.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum IngestMode {
+    /// Default. A batch's already-recorded events are filtered out before insert (one index lookup
+    /// per org), so an idempotent retry never adds a second contribution to the rollup. Correct out
+    /// of the box; the dedup read costs throughput and grows with table size.
+    #[default]
+    ExactlyOnce,
+    /// Append-only: skip the cross-call dedup read for maximum throughput (events are still deduped
+    /// *within* a batch). Safe when ingest is made exactly-once upstream (a Redpanda/Kafka EOS buffer,
+    /// per ADR 0005) or when the rollup is periodically reconciled from the `events` SoR. The SoR
+    /// itself stays idempotent regardless of this setting.
+    Append,
+}
+
 /// The `ClickHouse` store over a `ClickHouse` server.
 #[derive(Clone)]
 pub struct ChStore {
@@ -106,6 +123,7 @@ pub struct ChStore {
     /// Strictly-increasing version source for the `events` `ReplacingMergeTree` (so a status change
     /// always supersedes the prior row). Seeded from the wall clock; monotonic within a process.
     version_seq: Arc<AtomicU64>,
+    ingest_mode: IngestMode,
 }
 
 impl ChStore {
@@ -116,7 +134,21 @@ impl ChStore {
         Self {
             client: Client::default().with_url(url),
             version_seq: Arc::new(AtomicU64::new(seed)),
+            ingest_mode: IngestMode::default(),
         }
+    }
+
+    /// Select the ingest idempotency mode (see [`IngestMode`]). Defaults to [`IngestMode::ExactlyOnce`].
+    #[must_use]
+    pub fn with_ingest_mode(mut self, mode: IngestMode) -> Self {
+        self.ingest_mode = mode;
+        self
+    }
+
+    /// The configured ingest idempotency mode.
+    #[must_use]
+    pub fn ingest_mode(&self) -> IngestMode {
+        self.ingest_mode
     }
 
     /// The next strictly-increasing version for an `events` row.
@@ -124,9 +156,12 @@ impl ChStore {
         self.version_seq.fetch_add(1, Ordering::SeqCst)
     }
 
-    /// Apply the schema (idempotent): the events system of record, dead-letter queue, and audit log.
+    /// Apply the schema (idempotent): the events system of record, its pre-aggregated usage rollup
+    /// (+ the materialized view that maintains it), the dead-letter queue, and the audit log.
     pub async fn migrate(&self) -> Result<(), ChError> {
         self.client.query(schema::EVENTS).execute().await?;
+        self.client.query(schema::USAGE_ROLLUP).execute().await?;
+        self.client.query(schema::USAGE_ROLLUP_MV).execute().await?;
         self.client
             .query(schema::EVENTS_DEAD_LETTER)
             .execute()
@@ -171,28 +206,28 @@ impl ChStore {
         Ok(rows.into_iter().map(audit_row_to_entry).collect())
     }
 
-    /// Ingest a batch of usage events. Idempotent on `(org_id, event_id)`.
     /// Usage aggregated by model for an organization, highest spend first.
     ///
-    /// Derived from the live event set (`FINAL` + `status = 'recorded'`): amended events count once
-    /// (as their corrected version) and voided runs are excluded. Token and credit figures are read
-    /// from the usage event's JSON `properties` (the shape the metering path records); events without
-    /// a `model` (arbitrary custom meters) are not part of model usage.
+    /// Reads the pre-aggregated [`usage_rollup`](schema::USAGE_ROLLUP), so it is sub-linear in event
+    /// count (no `FINAL` scan, no read-time JSON parsing). The sign-weighted rollup equals the live
+    /// (`status = 'recorded'`) aggregate: amended events count once at their corrected version and
+    /// voided runs drop out. Events without a `model` (arbitrary custom meters) are excluded here.
     pub async fn usage_by_model(&self, org_id: Uuid) -> Result<Vec<ModelUsage>, ChError> {
         let rows = self
             .client
             .query(
-                "SELECT JSONExtractString(properties, 'model') AS model, \
-                 count() AS events, \
-                 sum(JSONExtractUInt(properties, 'input_uncached') \
-                     + JSONExtractUInt(properties, 'cache_read') \
-                     + JSONExtractUInt(properties, 'cache_write')) AS input_tokens, \
-                 sum(JSONExtractUInt(properties, 'output') \
-                     + JSONExtractUInt(properties, 'reasoning')) AS output_tokens, \
-                 sum(toFloat64OrZero(JSONExtractString(properties, 'credits'))) AS credits \
-                 FROM events FINAL \
-                 WHERE org_id = ? AND status = 'recorded' AND JSONHas(properties, 'model') \
-                 GROUP BY model ORDER BY credits DESC",
+                "SELECT model, toUInt64(events) AS events, \
+                 toUInt64(input_tokens) AS input_tokens, \
+                 toUInt64(output_tokens) AS output_tokens, credits FROM ( \
+                 SELECT model, \
+                 sum(events) AS events, \
+                 sum(input_tokens) AS input_tokens, \
+                 sum(output_tokens) AS output_tokens, \
+                 sum(credits) AS credits \
+                 FROM usage_rollup \
+                 WHERE org_id = ? AND model != '' \
+                 GROUP BY model) \
+                 WHERE events > 0 ORDER BY credits DESC",
             )
             .bind(org_id)
             .fetch_all::<ModelUsage>()
@@ -202,18 +237,20 @@ impl ChStore {
 
     /// Daily credit + event totals for an organization, oldest day first.
     ///
-    /// Like [`Self::usage_by_model`], derived from the live event set so amends and voids are
-    /// reflected. `events` counts every recorded event that day; `credits` sums the usage events'
-    /// recorded credit cost.
+    /// Like [`Self::usage_by_model`], reads the pre-aggregated rollup (amends/voids reflected via the
+    /// sign-weighting). `events` counts every live event that day across all meters; `credits` sums
+    /// their recorded credit cost.
     pub async fn usage_by_day(&self, org_id: Uuid) -> Result<Vec<DayUsage>, ChError> {
         let rows = self
             .client
             .query(
-                "SELECT toString(toDate(event_time)) AS day, count() AS events, \
-                 sum(toFloat64OrZero(JSONExtractString(properties, 'credits'))) AS credits \
-                 FROM events FINAL \
-                 WHERE org_id = ? AND status = 'recorded' \
-                 GROUP BY day ORDER BY day",
+                "SELECT day, toUInt64(events) AS events, credits FROM ( \
+                 SELECT toString(day) AS day, sum(events) AS events, \
+                 sum(credits) AS credits \
+                 FROM usage_rollup \
+                 WHERE org_id = ? \
+                 GROUP BY day) \
+                 WHERE events > 0 ORDER BY day",
             )
             .bind(org_id)
             .fetch_all::<DayUsage>()
@@ -221,11 +258,12 @@ impl ChStore {
         Ok(rows)
     }
 
-    /// Count of an organization's live events (`FINAL` + `status = 'recorded'`).
+    /// Count of an organization's live events, from the pre-aggregated rollup (sign-weighted, so
+    /// amended/voided events net to zero) — sub-linear in event count.
     pub async fn event_count(&self, org_id: Uuid) -> Result<u64, ChError> {
         let row = self
             .client
-            .query("SELECT count() AS n FROM events FINAL WHERE org_id = ? AND status = 'recorded'")
+            .query("SELECT toUInt64(sum(events)) AS n FROM usage_rollup WHERE org_id = ?")
             .bind(org_id)
             .fetch_one::<CountRow>()
             .await?;

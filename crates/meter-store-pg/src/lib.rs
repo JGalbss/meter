@@ -8,10 +8,12 @@
 
 #![forbid(unsafe_code)]
 
+mod config;
 mod mapping;
 mod ops;
 mod report;
 
+pub use config::{BudgetRecord, PgConfig, RateCardRecord};
 pub use report::{DayUsage, PeriodUsage};
 
 use meter_ledger::LedgerError;

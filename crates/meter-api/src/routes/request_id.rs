@@ -9,8 +9,13 @@ use uuid::Uuid;
 
 const HEADER: &str = "x-request-id";
 
+/// The request's correlation id, stored in request extensions so inner layers (e.g. the audit log)
+/// and handlers can read it.
+#[derive(Debug, Clone)]
+pub struct RequestId(pub String);
+
 /// Middleware: tag the request/response with a correlation id and log the request line.
-pub async fn propagate(request: Request, next: Next) -> Response {
+pub async fn propagate(mut request: Request, next: Next) -> Response {
     let id = request
         .headers()
         .get(HEADER)
@@ -23,6 +28,8 @@ pub async fn propagate(request: Request, next: Next) -> Response {
         path = %request.uri().path(),
         "request"
     );
+    // Make the id available to inner middleware/handlers.
+    request.extensions_mut().insert(RequestId(id.clone()));
     let mut response = next.run(request).await;
     if let Ok(value) = HeaderValue::from_str(&id) {
         response.headers_mut().insert(HEADER, value);

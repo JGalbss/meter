@@ -731,6 +731,14 @@ async fn audit_log_over_http() {
     assert_eq!(latest["path"], "/v1/accounts");
     assert_eq!(latest["actor"], "system");
     assert_eq!(latest["status"], json!(200));
+    // The audit entry carries the request's correlation id (generated when none was supplied).
+    assert!(
+        !latest["request_id"]
+            .as_str()
+            .expect("request_id")
+            .is_empty(),
+        "audit entry should record a request id"
+    );
 }
 
 #[tokio::test]

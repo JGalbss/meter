@@ -71,11 +71,13 @@ pub struct AuditEntry {
     pub method: String,
     pub path: String,
     pub status: i32,
+    pub request_id: String,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
 }
 
 /// The `audit` row as stored in ClickHouse (RowBinary codecs); converted to [`AuditEntry`] on read.
+/// Field order matches the SELECT in `list_audit` (RowBinary is positional).
 #[derive(clickhouse::Row, Serialize, Deserialize)]
 struct AuditRow {
     #[serde(with = "clickhouse::serde::uuid")]
@@ -84,6 +86,7 @@ struct AuditRow {
     method: String,
     path: String,
     status: i32,
+    request_id: String,
     #[serde(with = "clickhouse::serde::time::datetime64::millis")]
     created_at: OffsetDateTime,
 }
@@ -95,6 +98,7 @@ fn audit_row_to_entry(row: AuditRow) -> AuditEntry {
         method: row.method,
         path: row.path,
         status: row.status,
+        request_id: row.request_id,
         created_at: row.created_at,
     }
 }
@@ -167,6 +171,10 @@ impl ChStore {
             .execute()
             .await?;
         self.client.query(schema::AUDIT).execute().await?;
+        self.client
+            .query(schema::AUDIT_ADD_REQUEST_ID)
+            .execute()
+            .await?;
         Ok(())
     }
 
@@ -183,6 +191,7 @@ impl ChStore {
         method: &str,
         path: &str,
         status: i32,
+        request_id: &str,
     ) -> Result<(), ChError> {
         let row = AuditRow {
             id: Uuid::now_v7(),
@@ -190,6 +199,7 @@ impl ChStore {
             method: method.to_owned(),
             path: path.to_owned(),
             status,
+            request_id: request_id.to_owned(),
             created_at: OffsetDateTime::now_utc(),
         };
         let mut insert = self.client.insert("audit")?;
@@ -203,7 +213,7 @@ impl ChStore {
         let rows = self
             .client
             .query(
-                "SELECT id, actor, method, path, status, created_at \
+                "SELECT id, actor, method, path, status, request_id, created_at \
                  FROM audit ORDER BY created_at DESC, id DESC LIMIT ?",
             )
             .bind(limit)

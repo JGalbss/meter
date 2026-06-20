@@ -34,6 +34,11 @@ pub async fn audit_middleware(
         .and_then(|value| value.to_str().ok())
         .unwrap_or("system")
         .to_owned();
+    let request_id = request
+        .extensions()
+        .get::<super::request_id::RequestId>()
+        .map(|id| id.0.clone())
+        .unwrap_or_default();
 
     let response = next.run(request).await;
 
@@ -41,7 +46,7 @@ pub async fn audit_middleware(
         let status = i32::from(response.status().as_u16());
         let _ = state
             .audit
-            .record_audit(&actor, method.as_str(), &path, status)
+            .record_audit(&actor, method.as_str(), &path, status, &request_id)
             .await;
     }
     response

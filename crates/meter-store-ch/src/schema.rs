@@ -107,8 +107,14 @@ CREATE TABLE IF NOT EXISTS audit (
     method     LowCardinality(String),
     path       String,
     status     Int32,
+    request_id String,
     created_at DateTime64(3, 'UTC')
 )
 ENGINE = MergeTree
 PARTITION BY toYYYYMM(created_at)
 ORDER BY (created_at, id)";
+
+/// Idempotent column add for `audit.request_id` so deployments created before request-id correlation
+/// pick it up without a destructive rewrite.
+pub const AUDIT_ADD_REQUEST_ID: &str =
+    "ALTER TABLE audit ADD COLUMN IF NOT EXISTS request_id String";

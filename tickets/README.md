@@ -10,7 +10,8 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 ---
 
 ## EPIC 00 — Foundations  ✅
-- [x] Repo `JGalbss/meter` (public, AGPL-3.0, no AI footprint)
+- [x] Repo `JGalbss/meter` (public, AGPL-3.0, no AI footprint) — canonical GNU AGPLv3 `LICENSE` file
+  committed; `AGPL-3.0-only` declared in the Cargo workspace, every `package.json`, and the Python SDK.
 - [x] `docs/`: VISION, ARCHITECTURE (ADR), SLO, DECISIONS, adr/0001, adr/0002
 - [x] Rust workspace + toolchain pin; CI (fmt, clippy -D, test)
 - [x] `meter-core` — Money/Credit (exact decimal), typed UUIDv7 ids

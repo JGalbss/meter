@@ -2,6 +2,7 @@
   "name": "@meter/sdk",
   "version": "0.0.0",
   "private": true,
+  "license": "AGPL-3.0-only",
   "type": "module",
   "description": "TypeScript SDK for the meter engine: usage events and reserve/settle run governance",
   "main": "./src/index.ts",

@@ -26,6 +26,8 @@ export {
 } from "./types";
 export {
   anthropicUsage,
+  bedrockUsage,
+  geminiUsage,
   meteredCall,
   openaiUsage,
   recordModelUsage,
@@ -34,6 +36,8 @@ export {
 } from "./adapters/index";
 export type {
   AnthropicUsage,
+  BedrockUsage,
+  GeminiUsage,
   MeterModelUsageInput,
   OpenAiUsage,
   TokenUsage,

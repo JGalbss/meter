@@ -55,6 +55,28 @@ def openai_usage(usage: dict[str, Any]) -> TokenUsage:
     )
 
 
+def gemini_usage(usage: dict[str, Any]) -> TokenUsage:
+    """Normalize Google Gemini / Vertex usageMetadata. promptTokenCount includes cached content."""
+    cached = _count(usage.get("cachedContentTokenCount"))
+    prompt = _count(usage.get("promptTokenCount"))
+    return TokenUsage(
+        input_uncached=max(0, prompt - cached),
+        cache_read=cached,
+        output=_count(usage.get("candidatesTokenCount")),
+        reasoning=_count(usage.get("thoughtsTokenCount")),
+    )
+
+
+def bedrock_usage(usage: dict[str, Any]) -> TokenUsage:
+    """Normalize AWS Bedrock Converse usage."""
+    return TokenUsage(
+        input_uncached=_count(usage.get("inputTokens")),
+        cache_read=_count(usage.get("cacheReadInputTokens")),
+        cache_write=_count(usage.get("cacheWriteInputTokens")),
+        output=_count(usage.get("outputTokens")),
+    )
+
+
 def record_model_usage(
     client: MeterClient,
     *,

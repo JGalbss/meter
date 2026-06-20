@@ -10,6 +10,8 @@ from meter import (
     MeterClient,
     MeterError,
     anthropic_usage,
+    bedrock_usage,
+    gemini_usage,
     openai_usage,
     record_model_usage,
     with_run,
@@ -84,6 +86,34 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(
             (usage.input_uncached, usage.cache_read, usage.output, usage.reasoning),
             (800, 200, 500, 120),
+        )
+
+    def test_gemini_usage_subtracts_cached(self) -> None:
+        usage = gemini_usage(
+            {
+                "promptTokenCount": 1000,
+                "candidatesTokenCount": 400,
+                "cachedContentTokenCount": 250,
+                "thoughtsTokenCount": 60,
+            }
+        )
+        self.assertEqual(
+            (usage.input_uncached, usage.cache_read, usage.output, usage.reasoning),
+            (750, 250, 400, 60),
+        )
+
+    def test_bedrock_usage(self) -> None:
+        usage = bedrock_usage(
+            {
+                "inputTokens": 900,
+                "outputTokens": 300,
+                "cacheReadInputTokens": 100,
+                "cacheWriteInputTokens": 20,
+            }
+        )
+        self.assertEqual(
+            (usage.input_uncached, usage.cache_read, usage.cache_write, usage.output),
+            (900, 100, 20, 300),
         )
 
     def test_record_model_usage_emits_event(self) -> None:

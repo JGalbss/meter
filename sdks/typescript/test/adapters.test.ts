@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   MeterClient,
   anthropicUsage,
+  bedrockUsage,
+  geminiUsage,
   meteredCall,
   openaiUsage,
   recordModelUsage,
@@ -48,6 +50,28 @@ describe("usage extractors", () => {
       inputUncached: 11,
       output: 8,
     });
+  });
+
+  it("normalizes Gemini/Vertex usage (prompt includes cached content)", () => {
+    expect(
+      geminiUsage({
+        promptTokenCount: 1000,
+        candidatesTokenCount: 400,
+        cachedContentTokenCount: 250,
+        thoughtsTokenCount: 60,
+      }),
+    ).toEqual({ inputUncached: 750, cacheRead: 250, cacheWrite: 0, output: 400, reasoning: 60 });
+  });
+
+  it("normalizes Bedrock Converse usage", () => {
+    expect(
+      bedrockUsage({
+        inputTokens: 900,
+        outputTokens: 300,
+        cacheReadInputTokens: 100,
+        cacheWriteInputTokens: 20,
+      }),
+    ).toEqual({ inputUncached: 900, cacheRead: 100, cacheWrite: 20, output: 300, reasoning: 0 });
   });
 });
 

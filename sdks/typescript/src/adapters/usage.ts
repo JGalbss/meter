@@ -87,3 +87,43 @@ export function vercelAiUsage(usage: VercelAiUsage): TokenUsage {
     reasoning: 0,
   };
 }
+
+/** Google Gemini / Vertex `usageMetadata` shape. */
+export interface GeminiUsage {
+  readonly promptTokenCount?: number | null;
+  readonly candidatesTokenCount?: number | null;
+  readonly cachedContentTokenCount?: number | null;
+  readonly thoughtsTokenCount?: number | null;
+}
+
+/** Normalize Gemini/Vertex usage. `promptTokenCount` includes cached content. */
+export function geminiUsage(usage: GeminiUsage): TokenUsage {
+  const cached = count(usage.cachedContentTokenCount);
+  const prompt = count(usage.promptTokenCount);
+  return {
+    inputUncached: Math.max(0, prompt - cached),
+    cacheRead: cached,
+    cacheWrite: 0,
+    output: count(usage.candidatesTokenCount),
+    reasoning: count(usage.thoughtsTokenCount),
+  };
+}
+
+/** AWS Bedrock Converse API usage shape. */
+export interface BedrockUsage {
+  readonly inputTokens?: number | null;
+  readonly outputTokens?: number | null;
+  readonly cacheReadInputTokens?: number | null;
+  readonly cacheWriteInputTokens?: number | null;
+}
+
+/** Normalize Bedrock usage. */
+export function bedrockUsage(usage: BedrockUsage): TokenUsage {
+  return {
+    inputUncached: count(usage.inputTokens),
+    cacheRead: count(usage.cacheReadInputTokens),
+    cacheWrite: count(usage.cacheWriteInputTokens),
+    output: count(usage.outputTokens),
+    reasoning: 0,
+  };
+}

@@ -2,7 +2,8 @@
 //!
 //! Connects to Postgres (money-truth) + `ClickHouse` (events, ADR 0003), applies migrations, and serves
 //! the HTTP API. Configuration is via environment: `METER_DATABASE_URL` and `METER_CLICKHOUSE_URL`
-//! (both required), and `METER_LISTEN_ADDR` (default `0.0.0.0:8080`).
+//! (both required), `METER_LISTEN_ADDR` (default `0.0.0.0:8080`), and `METER_INGEST_MODE`
+//! (`exactly_once` default | `append` for max throughput with upstream exactly-once, ADR 0005).
 
 #![forbid(unsafe_code)]
 
@@ -11,7 +12,7 @@ use std::net::SocketAddr;
 use anyhow::Context;
 use meter_api::{router, AppState};
 use meter_core::{Currency, Money};
-use meter_store_ch::ChStore;
+use meter_store_ch::{ChStore, IngestMode};
 use meter_store_pg::PgLedger;
 use rust_decimal::Decimal;
 use sqlx::postgres::PgPoolOptions;
@@ -45,7 +46,9 @@ async fn main() -> anyhow::Result<()> {
         .await
         .map_err(|error| anyhow::anyhow!("running migrations: {error}"))?;
     // ClickHouse holds events + the audit log (both high-velocity firehoses, ADR 0003/0004).
-    let events = ChStore::new(&clickhouse_url);
+    // METER_INGEST_MODE=append trades the cross-call dedup read for maximum throughput when ingest is
+    // made exactly-once upstream (Kafka EOS, ADR 0005); default is the safe ExactlyOnce mode.
+    let events = ChStore::new(&clickhouse_url).with_ingest_mode(ingest_mode_from_env());
     events
         .migrate()
         .await
@@ -66,4 +69,13 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!(%addr, "meter engine listening");
     axum::serve(listener, app).await.context("serving HTTP")?;
     Ok(())
+}
+
+/// The event-ingest idempotency mode from `METER_INGEST_MODE` (`exactly_once` | `append`); defaults to
+/// the safe `exactly_once`. See [`IngestMode`] / ADR 0005.
+fn ingest_mode_from_env() -> IngestMode {
+    match std::env::var("METER_INGEST_MODE").as_deref() {
+        Ok("append") => IngestMode::Append,
+        _ => IngestMode::ExactlyOnce,
+    }
 }

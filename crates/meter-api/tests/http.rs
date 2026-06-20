@@ -879,3 +879,12 @@ async fn model_priced_reserve_and_settle_over_http() {
     .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn readiness_reports_stores_up() {
+    let (_container, app) = app().await;
+    let (status, body) = call(&app, "GET", "/health/ready", &Value::Null).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["ledger"], json!(true));
+    assert_eq!(body["events"], json!(true));
+}

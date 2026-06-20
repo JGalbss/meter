@@ -53,6 +53,7 @@ pub fn router(state: AppState) -> Router {
 
     Router::new()
         .route("/health", get(health::health))
+        .route("/health/ready", get(health::ready))
         .nest("/v1", v1)
         .layer(middleware::from_fn_with_state(
             state.clone(),

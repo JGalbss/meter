@@ -43,4 +43,13 @@ impl PgLedger {
     pub const fn pool(&self) -> &PgPool {
         &self.pool
     }
+
+    /// Readiness check: confirm the database is reachable and answering queries.
+    pub async fn ping(&self) -> Result<(), LedgerError> {
+        sqlx::query("SELECT 1")
+            .execute(&self.pool)
+            .await
+            .map(|_| ())
+            .map_err(|error| LedgerError::Backend(format!("ping: {error}")))
+    }
 }

@@ -170,6 +170,12 @@ impl ChStore {
         Ok(())
     }
 
+    /// Readiness check: confirm `ClickHouse` is reachable and answering queries.
+    pub async fn ping(&self) -> Result<(), ChError> {
+        self.client.query("SELECT 1").execute().await?;
+        Ok(())
+    }
+
     /// Append an audit entry (ADR 0004). High-velocity, best-effort — kept off the money database.
     pub async fn record_audit(
         &self,

@@ -41,6 +41,9 @@ export interface ReserveInput {
   readonly reservationId: Uuid;
   readonly amount: string;
   readonly limit: LimitClass;
+  /** Optional hold expiry (RFC3339). An open hold past it is released by the engine's sweep; extend it
+   * with `extendReservation` to keep a long-running reservation alive. */
+  readonly expiresAt?: string;
 }
 
 export interface OpenLeaseInput {
@@ -113,11 +116,19 @@ export class MeterClient {
       reservation_id: input.reservationId,
       amount: input.amount,
       limit: input.limit,
+      expires_at: input.expiresAt ?? null,
     });
   }
 
   settle(reservationId: Uuid, actual: string): Promise<LedgerEntry> {
     return this.#post<LedgerEntry>(`/v1/reservations/${reservationId}/settle`, { actual });
+  }
+
+  /** Push out a hold's expiry (RFC3339) — a heartbeat so a long-running reservation isn't swept. */
+  async extendReservation(reservationId: Uuid, expiresAt: string): Promise<void> {
+    await this.#send<unknown>("POST", `/v1/reservations/${reservationId}/extend`, {
+      expires_at: expiresAt,
+    });
   }
 
   async voidReservation(reservationId: Uuid): Promise<void> {

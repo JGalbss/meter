@@ -71,8 +71,12 @@ response = metered_call(
 
 ## `MeterClient`
 
-`open_account`, `balance`, `grant`, `entries`, `reserve`, `settle`, `void_reservation`, `open_lease`,
-`close_lease`, `record_event`, `amend_event`, `list_events`, `void_run`, `invoice`, `meter_usage`.
+`open_account`, `balance`, `grant`, `entries`, `reserve`, `settle`, `extend_reservation`,
+`void_reservation`, `open_lease`, `close_lease`, `record_event`, `amend_event`, `list_events`,
+`void_run`, `invoice`, `meter_usage`.
+
+`reserve` accepts an optional `expires_at` (RFC3339) hold timeout; `extend_reservation` pushes it out — a
+heartbeat so a long-running reservation isn't swept.
 
 Per-session **leasing** (`open_lease` / `close_lease`) funds a child account from a parent once and
 spends locally, avoiding a ledger round-trip per call — see

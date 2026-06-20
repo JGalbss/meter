@@ -161,4 +161,27 @@ describe("withRun", () => {
       ),
     ).rejects.toBeInstanceOf(MeterError);
   });
+
+  it("extends a reservation hold with the new expiry", async () => {
+    const calls: Array<{ url: string; method: string; body: unknown }> = [];
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push({
+        url,
+        method: init?.method ?? "GET",
+        body: init?.body === undefined ? undefined : JSON.parse(init.body as string),
+      });
+      return new Response(null, { status: 204 });
+    });
+    const client = new MeterClient({
+      baseUrl: "http://engine",
+      fetch: fetchMock as unknown as typeof fetch,
+    });
+
+    await client.extendReservation("res-1", "2026-01-01T00:00:00Z");
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.method).toBe("POST");
+    expect(calls[0]?.url).toBe("http://engine/v1/reservations/res-1/extend");
+    expect(calls[0]?.body).toEqual({ expires_at: "2026-01-01T00:00:00Z" });
+  });
 });

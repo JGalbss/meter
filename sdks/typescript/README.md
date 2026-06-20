@@ -52,8 +52,12 @@ plus `meterModelUsage` (price + charge), `recordModelUsage` (emit a usage event 
 
 ## `MeterClient`
 
-`openAccount`, `balance`, `grant`, `entries`, `reserve`, `settle`, `voidReservation`, `openLease`,
-`closeLease`, `recordEvent`, `amendEvent`, `listEvents`, `voidRun`, `invoice`, `meterUsage`.
+`openAccount`, `balance`, `grant`, `entries`, `reserve`, `settle`, `extendReservation`,
+`voidReservation`, `openLease`, `closeLease`, `recordEvent`, `amendEvent`, `listEvents`, `voidRun`,
+`invoice`, `meterUsage`.
+
+`reserve` accepts an optional `expiresAt` (RFC3339) hold timeout; `extendReservation` pushes it out — a
+heartbeat so a long-running reservation isn't swept.
 
 Per-session **leasing** (`openLease` / `closeLease`) funds a child account from a parent once and spends
 locally, avoiding a ledger round-trip per call — see `docs/adr/0005-provider-scale-throughput.md`.

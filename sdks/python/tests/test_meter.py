@@ -105,6 +105,15 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(method, "GET")
         self.assertTrue(url.endswith("/v1/accounts/acc-1/entries"))
 
+    def test_extend_reservation_posts_new_expiry(self) -> None:
+        transport, calls = make_transport(lambda _m, _u: (200, {}))
+        client = MeterClient("http://engine", transport)
+        client.extend_reservation("res-1", "2026-01-01T00:00:00Z")
+        method, url, body = calls[0]
+        self.assertEqual(method, "POST")
+        self.assertTrue(url.endswith("/v1/reservations/res-1/extend"))
+        self.assertEqual(body, {"expires_at": "2026-01-01T00:00:00Z"})
+
 
 class AdapterTests(unittest.TestCase):
     def test_anthropic_usage(self) -> None:

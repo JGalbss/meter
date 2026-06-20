@@ -68,7 +68,13 @@ class MeterClient:
         return self._get(f"/v1/accounts/{account}/entries")
 
     def reserve(
-        self, *, account: str, reservation_id: str, amount: str, limit: str
+        self,
+        *,
+        account: str,
+        reservation_id: str,
+        amount: str,
+        limit: str,
+        expires_at: str | None = None,
     ) -> dict[str, Any]:
         return self._post(
             "/v1/reservations",
@@ -77,11 +83,20 @@ class MeterClient:
                 "reservation_id": reservation_id,
                 "amount": amount,
                 "limit": limit,
+                "expires_at": expires_at,
             },
         )
 
     def settle(self, reservation_id: str, actual: str) -> dict[str, Any]:
         return self._post(f"/v1/reservations/{reservation_id}/settle", {"actual": actual})
+
+    def extend_reservation(self, reservation_id: str, expires_at: str) -> None:
+        """Push out a hold's expiry (RFC3339) — a heartbeat so a long run's hold isn't swept."""
+        self._send(
+            "POST",
+            f"/v1/reservations/{reservation_id}/extend",
+            {"expires_at": expires_at},
+        )
 
     def void_reservation(self, reservation_id: str) -> None:
         self._send("POST", f"/v1/reservations/{reservation_id}/void", None)

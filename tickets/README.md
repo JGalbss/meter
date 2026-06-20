@@ -213,7 +213,12 @@ screens pending (need control-plane config resources)
 - [ ] Single-tenant & multi-tenant modes; opt-in scale-out backends behind traits
 
 ## EPIC 16 — Cross-cutting: security, observability, e2e, benchmarks
-- [ ] RBAC + tenant isolation tests; secrets handling
+- [ ] RBAC + tenant isolation tests; secrets handling. **Tenant isolation gap identified**: the
+  control plane enforces RBAC by role but does not scope data access to the key's org (a key for org A
+  can read org B via `?orgId=`). Fix designed in **[ADR 0007](../docs/adr/0007-tenant-isolation.md)
+  (proposed)** — platform vs org-scoped keys + app-level enforcement + RLS defense-in-depth; **awaiting
+  sign-off** before implementation (security-critical, schema migration, diverges from a pure-RLS
+  approach).
 - [x] **Dependency audit + CI gate (TS).** All high/critical advisories fixed: drizzle-orm
   0.38→**0.45.2** (runtime), vitest 2→**3.2.6** + vite→**6.4.3** (dev) across control-plane + SDK —
   every suite green (27 + 15), typecheck clean, `db:generate` no drift. `pnpm audit` 8→1 (the lone

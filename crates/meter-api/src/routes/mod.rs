@@ -44,6 +44,8 @@ pub fn router(state: AppState) -> Router {
         .route("/events/:id/amend", post(events::amend))
         .route("/runs/:id/void", post(events::void_run))
         .route("/usage", post(usage::meter_usage))
+        .route("/usage/reserve", post(usage::reserve_usage))
+        .route("/usage/reservations/:id/settle", post(usage::settle_usage))
         .route("/simulate", post(simulate::simulate))
         .route("/catalog", get(catalog::list))
         .route("/catalog/:model_id", get(catalog::get_card))

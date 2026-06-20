@@ -3,6 +3,8 @@
 use meter_core::{AccountId, Credit, OrgId, RunId};
 use meter_event::RecordEvent;
 use meter_ledger::{AccountScope, CreditSource, LimitClass, ReservationId};
+use meter_pricing::{ContextTier, Modality, PricingDimension, Usage};
+use rust_decimal::Decimal;
 use serde::Deserialize;
 use serde_json::Value;
 use time::OffsetDateTime;
@@ -108,6 +110,27 @@ pub struct UsageDimensions {
     pub reasoning: u64,
 }
 
+impl UsageDimensions {
+    /// Build a priceable [`Usage`] (text, standard context) from these token counts, including only
+    /// positive quantities — a catalog card need not have a component for every dimension.
+    #[must_use]
+    pub fn to_usage(&self) -> Usage {
+        let mut usage = Usage::new(Modality::Text, ContextTier::Standard);
+        let dimensions = [
+            (PricingDimension::InputUncached, self.input_uncached),
+            (PricingDimension::CacheRead, self.cache_read),
+            (PricingDimension::CacheWrite, self.cache_write),
+            (PricingDimension::Output, self.output),
+        ];
+        for (dimension, quantity) in dimensions {
+            if quantity > 0 {
+                usage = usage.with(dimension, Decimal::from(quantity));
+            }
+        }
+        usage
+    }
+}
+
 /// `POST /v1/usage` — price token usage via the catalog, record the event, and charge credits.
 #[derive(Debug, Deserialize)]
 pub struct MeterUsageBody {
@@ -129,4 +152,25 @@ pub struct SimulateBody {
     pub proposed_model: String,
     #[serde(default)]
     pub events: Vec<UsageDimensions>,
+}
+
+/// `POST /v1/usage/reserve` — price a worst-case usage estimate against a catalog model and place a
+/// hold before the call. The engine computes the credits (ADR 0001), not the caller.
+#[derive(Debug, Deserialize)]
+pub struct ReserveUsageBody {
+    pub account: AccountId,
+    pub reservation_id: ReservationId,
+    pub model: String,
+    #[serde(default)]
+    pub estimate: UsageDimensions,
+    pub limit: LimitClass,
+}
+
+/// `POST /v1/usage/reservations/{id}/settle` — price the actual usage against a catalog model and
+/// settle the reservation. Idempotent on the reservation id.
+#[derive(Debug, Deserialize)]
+pub struct SettleUsageBody {
+    pub model: String,
+    #[serde(default)]
+    pub actual: UsageDimensions,
 }

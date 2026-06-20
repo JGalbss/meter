@@ -799,3 +799,83 @@ async fn simulate_over_http() {
     .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn model_priced_reserve_and_settle_over_http() {
+    let (_container, app) = app().await;
+
+    let (_status, account) = call(
+        &app,
+        "POST",
+        "/v1/accounts",
+        &json!({ "org_id": "11111111-1111-1111-1111-111111111111", "scope": "org", "no_overdraft": true }),
+    )
+    .await;
+    let account_id = account["id"].as_str().expect("account id").to_owned();
+    call(
+        &app,
+        "POST",
+        &format!("/v1/accounts/{account_id}/grants"),
+        &json!({ "amount": "100000", "source": "paid" }),
+    )
+    .await;
+
+    // Reserve a worst-case estimate priced by the engine (gpt-5: 1000 in + 500 out -> 6250 credits).
+    let reservation = "a1a1a1a1-a1a1-a1a1-a1a1-a1a1a1a1a1a1";
+    let (status, outcome) = call(
+        &app,
+        "POST",
+        "/v1/usage/reserve",
+        &json!({
+            "account": account_id,
+            "reservation_id": reservation,
+            "model": "gpt-5",
+            "estimate": { "input_uncached": 1000, "output": 500 },
+            "limit": "hard"
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(outcome["outcome"], "allowed");
+    assert_eq!(outcome["reserved_credits"], "6250");
+
+    let (_status, balance) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{account_id}/balance"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(balance["held"], "6250");
+
+    // Settle the actual usage (1000 in + 300 out -> 4250 credits); the engine prices and charges it.
+    let (status, settled) = call(
+        &app,
+        "POST",
+        &format!("/v1/usage/reservations/{reservation}/settle"),
+        &json!({ "model": "gpt-5", "actual": { "input_uncached": 1000, "output": 300 } }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(settled["credits_charged"], "4250");
+
+    let (_status, balance) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{account_id}/balance"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(balance["settled"], "95750"); // 100000 - 4250
+    assert_eq!(balance["held"], "0");
+
+    // An unknown model is a 404 on the reserve path.
+    let (status, _) = call(
+        &app,
+        "POST",
+        "/v1/usage/reserve",
+        &json!({ "account": account_id, "reservation_id": "b2b2b2b2-b2b2-b2b2-b2b2-b2b2b2b2b2b2", "model": "nope", "estimate": {}, "limit": "soft" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}

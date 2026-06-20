@@ -3,33 +3,14 @@
 
 use axum::extract::State;
 use axum::Json;
-use rust_decimal::Decimal;
 use serde_json::{json, Value};
 
-use meter_pricing::{simulate_rerate, ContextTier, Modality, PricingDimension, Usage};
+use meter_pricing::{simulate_rerate, Usage};
 use meter_ratecards::rate_card_for;
 
-use crate::dto::{SimulateBody, UsageDimensions};
+use crate::dto::SimulateBody;
 use crate::error::ApiError;
 use crate::AppState;
-
-/// Build a priceable [`Usage`] from token dimensions, including only positive quantities (a catalog
-/// card need not cover every dimension).
-fn to_usage(dims: &UsageDimensions) -> Usage {
-    let mut usage = Usage::new(Modality::Text, ContextTier::Standard);
-    let dimensions = [
-        (PricingDimension::InputUncached, dims.input_uncached),
-        (PricingDimension::CacheRead, dims.cache_read),
-        (PricingDimension::CacheWrite, dims.cache_write),
-        (PricingDimension::Output, dims.output),
-    ];
-    for (dimension, quantity) in dimensions {
-        if quantity > 0 {
-            usage = usage.with(dimension, Decimal::from(quantity));
-        }
-    }
-    usage
-}
 
 /// `POST /v1/simulate`
 pub async fn simulate(
@@ -41,7 +22,7 @@ pub async fn simulate(
     let proposed = rate_card_for(&body.proposed_model)
         .ok_or_else(|| ApiError::not_found(format!("unknown model: {}", body.proposed_model)))?;
 
-    let usages: Vec<Usage> = body.events.iter().map(to_usage).collect();
+    let usages: Vec<Usage> = body.events.iter().map(|d| d.to_usage()).collect();
     let summary = simulate_rerate(&usages, &current, &proposed, &state.credit_value)
         .map_err(|error| ApiError::unprocessable(format!("pricing: {error}")))?;
 

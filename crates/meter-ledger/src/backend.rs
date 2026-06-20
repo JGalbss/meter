@@ -45,6 +45,14 @@ pub trait LedgerBackend: Send + Sync {
     /// holds, so the released credits return to the account exactly as a manual [`void`](Self::void).
     async fn void_expired_holds(&self, now: OffsetDateTime) -> Result<u64, LedgerError>;
 
+    /// Push an open hold's expiry forward (a heartbeat keep-alive for a long-running reservation).
+    /// Errors if the reservation is unknown or already closed (settled/voided).
+    async fn extend_hold(
+        &self,
+        reservation: ReservationId,
+        expires_at: OffsetDateTime,
+    ) -> Result<(), LedgerError>;
+
     /// Lease credits from a parent pool into a fresh per-session sub-balance (hot-account mitigation).
     /// Moves `amount` from the parent to a new `Session` child via a conserving transfer; refuses to
     /// overdraw a no-overdraft parent. The session then reserves/settles against the returned account.

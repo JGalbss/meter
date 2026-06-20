@@ -312,6 +312,26 @@ impl LedgerBackend for InMemoryLedger {
         Ok(released)
     }
 
+    async fn extend_hold(
+        &self,
+        reservation: ReservationId,
+        expires_at: OffsetDateTime,
+    ) -> Result<(), LedgerError> {
+        let mut state = self.lock();
+        match state.holds.get_mut(&reservation) {
+            None => Err(LedgerError::ReservationNotFound(reservation)),
+            Some(hold) => match hold.status {
+                HoldStatus::Open => {
+                    hold.expires_at = Some(expires_at);
+                    Ok(())
+                }
+                HoldStatus::Settled | HoldStatus::Voided => {
+                    Err(LedgerError::ReservationClosed(reservation))
+                }
+            },
+        }
+    }
+
     async fn open_lease(&self, req: LeaseRequest) -> Result<LedgerAccount, LedgerError> {
         if !req.amount.is_positive() {
             return Err(LedgerError::NonPositiveAmount);

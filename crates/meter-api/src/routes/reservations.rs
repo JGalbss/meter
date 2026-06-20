@@ -9,7 +9,7 @@ use meter_ledger::{
     LedgerBackend, LedgerEntry, ReservationId, ReserveOutcome, ReserveRequest, SettleRequest,
 };
 
-use crate::dto::{ReserveBody, SettleBody};
+use crate::dto::{ExtendBody, ReserveBody, SettleBody};
 use crate::error::ApiError;
 use crate::AppState;
 
@@ -53,5 +53,18 @@ pub async fn void(
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
     state.ledger.void(ReservationId::from_uuid(id)).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// `POST /v1/reservations/{id}/extend` — push the hold's expiry forward (heartbeat keep-alive).
+pub async fn extend(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ExtendBody>,
+) -> Result<StatusCode, ApiError> {
+    state
+        .ledger
+        .extend_hold(ReservationId::from_uuid(id), body.expires_at)
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }

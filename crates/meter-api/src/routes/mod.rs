@@ -36,6 +36,7 @@ pub fn router(state: AppState) -> Router {
         .route("/reservations", post(reservations::reserve))
         .route("/reservations/:id/settle", post(reservations::settle))
         .route("/reservations/:id/void", post(reservations::void))
+        .route("/reservations/:id/extend", post(reservations::extend))
         .route("/leases", post(leases::open_lease))
         .route("/leases/:id/close", post(leases::close_lease))
         .route("/events", post(events::record))

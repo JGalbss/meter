@@ -54,6 +54,13 @@ pub struct SettleBody {
     pub actual: Credit,
 }
 
+/// `POST /v1/reservations/{id}/extend` — push the hold's expiry forward (heartbeat).
+#[derive(Debug, Deserialize)]
+pub struct ExtendBody {
+    #[serde(with = "time::serde::rfc3339")]
+    pub expires_at: OffsetDateTime,
+}
+
 /// `POST /v1/events`
 #[derive(Debug, Deserialize)]
 pub struct RecordEventBody {

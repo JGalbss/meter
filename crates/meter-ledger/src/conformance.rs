@@ -603,10 +603,67 @@ pub async fn expired_holds_are_swept<L: LedgerBackend>(ledger: &L) {
     assert_eq!(balance.held, Credit::ZERO);
 }
 
+/// Extending an open hold's expiry keeps it alive past a sweep; extending a closed hold is refused.
+pub async fn extend_hold_keeps_it_alive<L: LedgerBackend>(ledger: &L) {
+    let account = open_no_overdraft_org(ledger).await;
+    ledger
+        .grant(GrantRequest {
+            account,
+            amount: credits(100),
+            source: CreditSource::Paid,
+            idempotency_key: None,
+        })
+        .await
+        .expect("grant");
+    let reservation = ReservationId::new();
+    ledger
+        .reserve(ReserveRequest {
+            account,
+            reservation_id: reservation,
+            amount: credits(40),
+            limit: LimitClass::Hard,
+            expires_at: Some(OffsetDateTime::UNIX_EPOCH),
+        })
+        .await
+        .expect("reserve");
+
+    // Heartbeat: push expiry far into the future, so the sweep leaves it alone.
+    let far_future = OffsetDateTime::now_utc() + time::Duration::days(3650);
+    ledger
+        .extend_hold(reservation, far_future)
+        .await
+        .expect("extend");
+    assert_eq!(
+        ledger
+            .void_expired_holds(OffsetDateTime::now_utc())
+            .await
+            .expect("sweep"),
+        0
+    );
+    assert_eq!(
+        ledger.balance(account).await.expect("balance").held,
+        credits(40)
+    );
+
+    // Once settled, the hold cannot be extended.
+    ledger
+        .settle(SettleRequest {
+            reservation_id: reservation,
+            actual: credits(30),
+        })
+        .await
+        .expect("settle");
+    assert_eq!(
+        ledger.extend_hold(reservation, far_future).await,
+        Err(LedgerError::ReservationClosed(reservation))
+    );
+}
+
 pub async fn run_all_scenarios<L: LedgerBackend>(ledger: &L) {
     grant_increases_balance(ledger).await;
     reserve_denies_when_insufficient(ledger).await;
     expired_holds_are_swept(ledger).await;
+    extend_hold_keeps_it_alive(ledger).await;
     reserve_hold_then_settle_charges_actual(ledger).await;
     reserve_and_settle_are_idempotent(ledger).await;
     grant_is_idempotent_on_key(ledger).await;

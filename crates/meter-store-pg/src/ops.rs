@@ -455,6 +455,36 @@ impl LedgerBackend for PgLedger {
         Ok(result.rows_affected())
     }
 
+    async fn extend_hold(
+        &self,
+        reservation: ReservationId,
+        expires_at: OffsetDateTime,
+    ) -> Result<(), LedgerError> {
+        let mut tx = self.pool().begin().await.map_err(be)?;
+        let status: Option<String> = sqlx::query_scalar(
+            "SELECT status FROM ledger_holds WHERE reservation_id = $1 FOR UPDATE",
+        )
+        .bind(reservation.as_uuid())
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(be)?;
+        let result = match status.as_deref() {
+            None => Err(LedgerError::ReservationNotFound(reservation)),
+            Some("open") => {
+                sqlx::query("UPDATE ledger_holds SET expires_at = $2 WHERE reservation_id = $1")
+                    .bind(reservation.as_uuid())
+                    .bind(expires_at)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(be)?;
+                Ok(())
+            }
+            Some(_) => Err(LedgerError::ReservationClosed(reservation)),
+        };
+        tx.commit().await.map_err(be)?;
+        result
+    }
+
     async fn open_lease(&self, req: LeaseRequest) -> Result<LedgerAccount, LedgerError> {
         if !req.amount.is_positive() {
             return Err(LedgerError::NonPositiveAmount);

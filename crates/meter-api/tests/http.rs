@@ -1035,3 +1035,65 @@ async fn usage_prices_with_a_synced_rate_card() {
     .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn extend_hold_over_http() {
+    let (_container, app) = app().await;
+    let org = "11111111-1111-1111-1111-111111111111";
+
+    let (_status, account) = call(
+        &app,
+        "POST",
+        "/v1/accounts",
+        &json!({ "org_id": org, "scope": "org", "no_overdraft": true }),
+    )
+    .await;
+    let account_id = account["id"].as_str().expect("account id").to_owned();
+    call(
+        &app,
+        "POST",
+        &format!("/v1/accounts/{account_id}/grants"),
+        &json!({ "amount": "100", "source": "paid" }),
+    )
+    .await;
+
+    let reservation = "77777777-7777-7777-7777-777777777777";
+    let (status, _) = call(
+        &app,
+        "POST",
+        "/v1/reservations",
+        &json!({
+            "account": account_id, "reservation_id": reservation,
+            "amount": "40", "limit": "hard", "expires_at": "2100-01-01T00:00:00Z"
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    // Heartbeat: extend the hold's expiry.
+    let (status, _) = call(
+        &app,
+        "POST",
+        &format!("/v1/reservations/{reservation}/extend"),
+        &json!({ "expires_at": "2101-01-01T00:00:00Z" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    // After voiding, the hold can no longer be extended -> 409.
+    call(
+        &app,
+        "POST",
+        &format!("/v1/reservations/{reservation}/void"),
+        &Value::Null,
+    )
+    .await;
+    let (status, _) = call(
+        &app,
+        "POST",
+        &format!("/v1/reservations/{reservation}/extend"),
+        &json!({ "expires_at": "2102-01-01T00:00:00Z" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+}

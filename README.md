@@ -78,8 +78,16 @@ The control plane (config + notifications/alerts/webhooks) is the API the dashbo
 engine for money-truth. Run the dashboard against it:
 
 ```bash
-cd apps/dashboard && bun install && METER_CONTROL_PLANE_URL=http://localhost:8090 bun run dev
+cd apps/dashboard && bun install \
+  && METER_CONTROL_PLANE_URL=http://localhost:8090 \
+     METER_ENGINE_URL=http://localhost:8080 \
+     DASHBOARD_SESSION_SECRET=$(openssl rand -hex 32) DASHBOARD_PASSWORD=changeme \
+     bun run dev
 ```
+
+The dashboard is auth-gated (signed-cookie session); set `DASHBOARD_SESSION_SECRET` and
+`DASHBOARD_PASSWORD` or it stays locked. React code is reviewed by **react-doctor** (advisory PR
+workflow + `bun run doctor`).
 
 ## Status — what works today
 

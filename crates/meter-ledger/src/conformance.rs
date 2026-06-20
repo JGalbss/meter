@@ -199,6 +199,81 @@ pub async fn void_releases_a_failed_run<L: LedgerBackend>(ledger: &L) {
     );
 }
 
+/// A reservation that was voided cannot then be settled — money is never charged against a released
+/// hold. Settle returns [`LedgerError::ReservationClosed`] and the balance is unchanged.
+pub async fn settle_after_void_is_refused<L: LedgerBackend>(ledger: &L) {
+    let account = open_no_overdraft_org(ledger).await;
+    ledger
+        .grant(GrantRequest {
+            account,
+            amount: credits(100),
+            source: CreditSource::Paid,
+            idempotency_key: None,
+        })
+        .await
+        .expect("grant");
+    let reservation = Default::default();
+    ledger
+        .reserve(ReserveRequest {
+            account,
+            reservation_id: reservation,
+            amount: credits(40),
+            limit: LimitClass::Hard,
+        })
+        .await
+        .expect("reserve");
+    ledger.void(reservation).await.expect("void");
+    let settled = ledger
+        .settle(SettleRequest {
+            reservation_id: reservation,
+            actual: credits(30),
+        })
+        .await;
+    assert_eq!(settled, Err(LedgerError::ReservationClosed(reservation)));
+    // The void released the hold and nothing was charged.
+    let balance = ledger.balance(account).await.expect("balance");
+    assert_eq!(balance.settled, credits(100));
+    assert_eq!(balance.held, Credit::ZERO);
+}
+
+/// A reservation that was settled cannot then be voided — a charge is never reversed by a late void.
+/// Void returns [`LedgerError::ReservationClosed`] and the settled balance stands.
+pub async fn void_after_settle_is_refused<L: LedgerBackend>(ledger: &L) {
+    let account = open_no_overdraft_org(ledger).await;
+    ledger
+        .grant(GrantRequest {
+            account,
+            amount: credits(100),
+            source: CreditSource::Paid,
+            idempotency_key: None,
+        })
+        .await
+        .expect("grant");
+    let reservation = Default::default();
+    ledger
+        .reserve(ReserveRequest {
+            account,
+            reservation_id: reservation,
+            amount: credits(40),
+            limit: LimitClass::Hard,
+        })
+        .await
+        .expect("reserve");
+    ledger
+        .settle(SettleRequest {
+            reservation_id: reservation,
+            actual: credits(30),
+        })
+        .await
+        .expect("settle");
+    let voided = ledger.void(reservation).await;
+    assert_eq!(voided, Err(LedgerError::ReservationClosed(reservation)));
+    // The settle stands: 100 − 30 charged, nothing held, nothing refunded.
+    let balance = ledger.balance(account).await.expect("balance");
+    assert_eq!(balance.settled, credits(70));
+    assert_eq!(balance.held, Credit::ZERO);
+}
+
 /// A direct charge posts usage and lowers the balance; it is idempotent on its key.
 pub async fn charge_records_usage<L: LedgerBackend>(ledger: &L) {
     let account = open_no_overdraft_org(ledger).await;
@@ -369,6 +444,8 @@ pub async fn run_all_scenarios<L: LedgerBackend>(ledger: &L) {
     reserve_and_settle_are_idempotent(ledger).await;
     grant_is_idempotent_on_key(ledger).await;
     void_releases_a_failed_run(ledger).await;
+    settle_after_void_is_refused(ledger).await;
+    void_after_settle_is_refused(ledger).await;
     charge_records_usage(ledger).await;
     lease_moves_credits_and_conserves(ledger).await;
     lease_spend_then_close_returns_remainder(ledger).await;

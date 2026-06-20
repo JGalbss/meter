@@ -20,6 +20,7 @@ import { RevokeApiKeyButton } from "./revoke-api-key-button";
 export const dynamic = "force-dynamic";
 
 const STATUS_VARIANTS = { active: "default", revoked: "outline" } as const;
+const ROLE_VARIANTS = { admin: "default", member: "secondary", viewer: "outline" } as const;
 
 function keyStatus(revokedAt: string | null): string {
   if (revokedAt === null) {
@@ -77,6 +78,7 @@ export default async function ApiKeysPage({
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
+                <TableHead>Role</TableHead>
                 <TableHead>Prefix</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead>Last used</TableHead>
@@ -87,7 +89,7 @@ export default async function ApiKeysPage({
             <TableBody>
               {keys.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
                     No API keys.
                   </TableCell>
                 </TableRow>
@@ -95,6 +97,9 @@ export default async function ApiKeysPage({
               {keys.map((key) => (
                 <TableRow key={key.id}>
                   <TableCell className="font-medium">{key.name}</TableCell>
+                  <TableCell>
+                    <ValueBadge value={key.role} variants={ROLE_VARIANTS} />
+                  </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">
                     {key.prefix}…
                   </TableCell>

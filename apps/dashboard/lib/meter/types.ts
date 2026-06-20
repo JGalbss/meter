@@ -67,10 +67,13 @@ export interface ModelUsage {
   readonly credits: number;
 }
 
+export type ApiKeyRole = "viewer" | "member" | "admin";
+
 export interface ApiKey {
   readonly id: string;
   readonly orgId: string;
   readonly name: string;
+  readonly role: ApiKeyRole;
   readonly prefix: string;
   readonly createdAt: string;
   readonly lastUsedAt: string | null;

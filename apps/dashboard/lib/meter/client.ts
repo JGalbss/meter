@@ -5,6 +5,7 @@
 import type {
   AlertRule,
   ApiKey,
+  ApiKeyRole,
   CreatedApiKey,
   Notification,
   Organization,
@@ -130,7 +131,11 @@ export function listApiKeys(orgId: string): Promise<Result<readonly ApiKey[]>> {
   return getJson(`/v1/api-keys?orgId=${encodeURIComponent(orgId)}`);
 }
 
-export function createApiKey(input: { orgId: string; name: string }): Promise<CreatedApiKey> {
+export function createApiKey(input: {
+  orgId: string;
+  name: string;
+  role: ApiKeyRole;
+}): Promise<CreatedApiKey> {
   return postJson<CreatedApiKey>("/v1/api-keys", input);
 }
 

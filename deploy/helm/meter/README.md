@@ -48,6 +48,11 @@ per ADR 0005) and a ClickHouse cluster carry the load. See `docs/adr/0005-provid
 | `postgres.enabled` / `clickhouse.enabled` | `true` | Run the data store in-cluster. |
 | `engine.databaseUrl` / `engine.clickhouseUrl` | in-cluster | External store URLs. |
 | `credentials.*` | `meter` | In-cluster Postgres credentials (stored in a Secret). |
+| `dashboard.enabled` | `true` | Deploy the operator console; `dashboard.password` / `dashboard.sessionSecret` set its login. |
+| `ingress.enabled` | `false` | Expose the dashboard at `ingress.host` (set `className`, `tls.*`). |
+
+Images for `engine` / `controlPlane` / `dashboard` are built and pushed to
+`ghcr.io/<owner>/meter-*` by the repo's `release.yml` workflow on a `v*` tag.
 
 Render the manifests without installing:
 

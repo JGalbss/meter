@@ -86,3 +86,14 @@ clickhouse:
 
 service:
   type: ClusterIP
+
+# Optional Ingress exposing the dashboard console at `host`. Engine/control-plane stay internal
+# (the dashboard calls them server-side); add paths here if you need to expose the APIs too.
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  host: meter.local
+  tls:
+    enabled: false
+    secretName: ""

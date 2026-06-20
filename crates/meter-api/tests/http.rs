@@ -1,21 +1,39 @@
 //! End-to-end HTTP tests: drive the engine API over the wire against a real Postgres.
 
+use std::sync::{Arc, LazyLock};
+
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use axum::Router;
 use http_body_util::BodyExt;
 use meter_api::{router, AppState};
 use meter_core::{Currency, Money};
-use meter_store_pg::{PgEventStore, PgLedger};
+use meter_store_pg::{PgAuditLog, PgEventStore, PgLedger};
 use rust_decimal::Decimal;
 use serde_json::{json, Value};
 use sqlx::postgres::PgPoolOptions;
 use testcontainers_modules::postgres::Postgres;
 use testcontainers_modules::testcontainers::runners::AsyncRunner;
 use testcontainers_modules::testcontainers::ContainerAsync;
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tower::ServiceExt;
 
-async fn app() -> (ContainerAsync<Postgres>, Router) {
+// Bound concurrent Postgres containers so the suite is reliable regardless of the test-thread count
+// (spinning one container per test in full parallel overwhelms the Docker daemon).
+static CONTAINER_LIMIT: LazyLock<Arc<Semaphore>> = LazyLock::new(|| Arc::new(Semaphore::new(2)));
+
+/// Keeps a test's container (and its concurrency permit) alive for the test's duration.
+struct TestApp {
+    _permit: OwnedSemaphorePermit,
+    _container: ContainerAsync<Postgres>,
+}
+
+async fn app() -> (TestApp, Router) {
+    let permit = CONTAINER_LIMIT
+        .clone()
+        .acquire_owned()
+        .await
+        .expect("container semaphore");
     let container = Postgres::default().start().await.expect("start postgres");
     let port = container
         .get_host_port_ipv4(5432)
@@ -29,12 +47,17 @@ async fn app() -> (ContainerAsync<Postgres>, Router) {
         .expect("connect");
     let ledger = PgLedger::new(pool.clone());
     ledger.migrate().await.expect("migrate");
-    let events = PgEventStore::new(pool);
+    let events = PgEventStore::new(pool.clone());
+    let audit = PgAuditLog::new(pool);
     // 1 credit = 1 micro-USD, so credits == COGS in micro-dollars.
     let credit_value = Money::new(Decimal::new(1, 6), Currency::new("USD").expect("usd"));
+    let guard = TestApp {
+        _permit: permit,
+        _container: container,
+    };
     (
-        container,
-        router(AppState::new(ledger, events, credit_value)),
+        guard,
+        router(AppState::new(ledger, events, audit, credit_value)),
     )
 }
 
@@ -383,4 +406,28 @@ async fn budget_status_over_http() {
     )
     .await;
     assert_eq!(exceeded["status"], "exceeded");
+}
+
+#[tokio::test]
+async fn audit_log_over_http() {
+    let (_container, app) = app().await;
+
+    // A mutating action is audited.
+    call(
+        &app,
+        "POST",
+        "/v1/accounts",
+        &json!({ "org_id": "11111111-1111-1111-1111-111111111111", "scope": "org" }),
+    )
+    .await;
+
+    let (status, audit) = call(&app, "GET", "/v1/audit?limit=10", &Value::Null).await;
+    assert_eq!(status, StatusCode::OK);
+    let entries = audit.as_array().expect("array");
+    assert!(!entries.is_empty());
+    let latest = &entries[0];
+    assert_eq!(latest["method"], "POST");
+    assert_eq!(latest["path"], "/v1/accounts");
+    assert_eq!(latest["actor"], "system");
+    assert_eq!(latest["status"], json!(200));
 }

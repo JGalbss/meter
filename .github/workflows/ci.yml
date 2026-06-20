@@ -27,7 +27,8 @@ jobs:
       - name: clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: test
-        run: cargo test --workspace
+        # Bound parallel testcontainers so the Docker daemon is not overwhelmed.
+        run: cargo test --workspace -- --test-threads=2
 
   typescript:
     name: typescript — biome, typecheck, test

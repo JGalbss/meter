@@ -1,6 +1,7 @@
 //! Route assembly.
 
 mod accounts;
+mod audit;
 mod budgets;
 mod events;
 mod health;
@@ -8,6 +9,7 @@ mod invoices;
 mod reservations;
 mod usage;
 
+use axum::middleware;
 use axum::routing::{get, post};
 use axum::Router;
 
@@ -30,10 +32,15 @@ pub fn router(state: AppState) -> Router {
         .route("/events/:id", get(events::get))
         .route("/events/:id/amend", post(events::amend))
         .route("/runs/:id/void", post(events::void_run))
-        .route("/usage", post(usage::meter_usage));
+        .route("/usage", post(usage::meter_usage))
+        .route("/audit", get(audit::list));
 
     Router::new()
         .route("/health", get(health::health))
         .nest("/v1", v1)
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            audit::audit_middleware,
+        ))
         .with_state(state)
 }

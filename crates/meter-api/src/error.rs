@@ -30,6 +30,16 @@ impl ApiError {
             message.into(),
         )
     }
+
+    /// A 500 with a message.
+    #[must_use]
+    pub fn internal(message: impl Into<String>) -> Self {
+        Self::Status(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal",
+            message.into(),
+        )
+    }
 }
 
 impl From<LedgerError> for ApiError {

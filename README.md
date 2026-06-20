@@ -139,10 +139,12 @@ Beyond the engine:
   top-models-by-spend summary), organizations, products, API keys (mint + RBAC role select),
   notifications, alert rules, and webhooks (wired to the control plane); plus engine-read views — usage
   analytics (usage-by-model + daily credit burn), an events explorer with **amend / void-run** actions,
-  accounts (balance + ledger entries), invoices (month-to-date statement), and the audit log. Shipped
-  as a Docker image; run-verified.
-- **Docs site** (`apps/docs`, Next.js + MDX) — concepts, full API reference (engine + control plane),
-  SDK guides with provider adapters, and self-host instructions. Built and typechecked in CI.
+  accounts (balance + ledger entries), invoices (month-to-date statement), the audit log, a
+  **rate-card catalog** viewer, and a **pricing simulator** (re-rate a usage profile across two
+  catalogued models). Shipped as a Docker image; run-verified.
+- **Docs site** (`apps/docs`, Next.js + MDX) — concepts, a narrative API reference plus a **generated
+  control-plane reference** (rendered from the OpenAPI contract, drift-checked in CI), SDK guides with
+  provider adapters, and self-host instructions (incl. air-gapped). Built and typechecked in CI.
 
 - **ClickHouse** (`meter-store-ch`, required) — the **system of record for events** (editable model:
   record/amend/void via `ReplacingMergeTree` + `FINAL`) plus the **audit log** and **usage analytics**
@@ -151,8 +153,9 @@ Beyond the engine:
 - **Deployment** — engine, control-plane, and dashboard Docker images; a 5-service docker-compose; a
   Helm chart (toggleable in-cluster Postgres/ClickHouse, Ingress/TLS) and a GHCR publish workflow.
 
-In progress (see [tickets](tickets/README.md)): the OpenAPI/protobuf contract surfaces (generated
-typed clients), and a rate-card catalog scraper for more providers.
+In progress (see [tickets](tickets/README.md)): the protobuf engine↔control-plane contract and its
+generated TypeScript client (the OpenAPI surface and the generated dashboard client are done), and a
+rate-card catalog scraper for more providers.
 
 ## Self-hosting
 

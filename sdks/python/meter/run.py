@@ -53,6 +53,51 @@ def with_run(
         raise
 
 
+def with_run_usage(
+    client: MeterClient,
+    *,
+    account: str,
+    model: str,
+    estimate: dict[str, int],
+    work: Callable[[Callable[[dict[str, int]], None]], T],
+    reservation_id: str | None = None,
+    limit: str = "hard",
+) -> T:
+    """Run an operation under a token-priced reservation.
+
+    The token ``estimate`` is priced by the engine and reserved up front; if denied, the work never
+    runs. ``work`` receives a ``settle`` callback for the actual token usage; if it raises or never
+    settles, the reservation is voided so a failed run leaves no lingering hold.
+    """
+    reservation = reservation_id or str(uuid.uuid4())
+    outcome = client.reserve_usage(
+        account=account,
+        reservation_id=reservation,
+        model=model,
+        estimate=estimate,
+        limit=limit,
+    )
+    if outcome.get("outcome") == "denied":
+        raise MeterError(402, "reservation_denied", "reservation denied")
+
+    settled = False
+
+    def settle(actual: dict[str, int]) -> None:
+        nonlocal settled
+        client.settle_usage(reservation, model=model, actual=actual)
+        settled = True
+
+    try:
+        result = work(settle)
+        if not settled:
+            client.void_reservation(reservation)
+        return result
+    except Exception:
+        if not settled:
+            _safe_void(client, reservation)
+        raise
+
+
 def _safe_void(client: MeterClient, reservation_id: str) -> None:
     # Best-effort cleanup; never mask the original error that triggered the void.
     with contextlib.suppress(Exception):

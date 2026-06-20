@@ -15,7 +15,7 @@ from .adapters import (
 )
 from .client import MeterClient, Transport
 from .errors import MeterError
-from .run import with_run
+from .run import with_run, with_run_usage
 
 __all__ = [
     "MeterClient",
@@ -31,4 +31,5 @@ __all__ = [
     "openai_usage",
     "record_model_usage",
     "with_run",
+    "with_run_usage",
 ]

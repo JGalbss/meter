@@ -47,6 +47,24 @@ def work(settle):
 with_run(meter, account=account, estimate="40", work=work)
 ```
 
+Prefer to govern in **token terms**? `with_run_usage` reserves a hold sized to an estimated token usage
+for a model (the engine prices it) and settles with the actual tokens — same auto-void-on-failure:
+
+```python
+def work(settle):
+    completion = call_the_model()
+    settle(anthropic_usage(completion.usage))  # actual tokens; the engine reprices
+    return completion
+
+with_run_usage(
+    meter,
+    account=account,
+    model="claude-opus-4-8",
+    estimate={"input_uncached": 4000, "output": 1000},
+    work=work,
+)
+```
+
 ## Provider adapters
 
 Each maps a provider's usage object to meter's normalized token dimensions:

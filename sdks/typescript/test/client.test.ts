@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { MeterClient, MeterError, withRun } from "../src/index";
+import { MeterClient, MeterError, withRun, withRunUsage } from "../src/index";
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -234,5 +234,43 @@ describe("withRun", () => {
       model: "claude-opus-4-8",
       actual: { input_uncached: 900, output: 480 },
     });
+  });
+
+  it("runs token-priced work under withRunUsage and settles without voiding", async () => {
+    const calls: string[] = [];
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push(`${init?.method ?? "GET"} ${url}`);
+      if (url.endsWith("/usage/reserve")) {
+        return jsonResponse(200, {
+          outcome: "allowed",
+          reservation: "res-1",
+          reserved_credits: "52500",
+        });
+      }
+      return jsonResponse(200, { credits_charged: "50000", balance_after: "950000" });
+    });
+    const client = new MeterClient({
+      baseUrl: "http://engine",
+      fetch: fetchMock as unknown as typeof fetch,
+    });
+
+    const result = await withRunUsage(
+      client,
+      {
+        account: "acc-1",
+        model: "claude-opus-4-8",
+        estimate: { input_uncached: 1000, output: 500 },
+        reservationId: "res-1",
+      },
+      async (run) => {
+        await run.settle({ input_uncached: 900, output: 480 });
+        return "done";
+      },
+    );
+
+    expect(result).toBe("done");
+    expect(calls.some((entry) => entry.includes("/usage/reserve"))).toBe(true);
+    expect(calls.some((entry) => entry.includes("/usage/reservations/res-1/settle"))).toBe(true);
+    expect(calls.some((entry) => entry.includes("/void"))).toBe(false);
   });
 });

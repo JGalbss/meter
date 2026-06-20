@@ -19,6 +19,7 @@ from meter import (
     openai_usage,
     record_model_usage,
     with_run,
+    with_run_usage,
 )
 
 Handler = Callable[[str, str], "tuple[int, Any]"]
@@ -342,6 +343,37 @@ class RunTests(unittest.TestCase):
             with_run(
                 client, account="acc-1", estimate="40", reservation_id="res-1", work=lambda _s: "x"
             )
+
+    def test_with_run_usage_reserves_and_settles(self) -> None:
+        def handler(_method: str, url: str):
+            if url.endswith("/usage/reserve"):
+                return 200, {
+                    "outcome": "allowed",
+                    "reservation": "res-1",
+                    "reserved_credits": "52500",
+                }
+            return 200, {"credits_charged": "50000", "balance_after": "950000"}
+
+        transport, calls = make_transport(handler)
+        client = MeterClient("http://engine", transport)
+
+        def work(settle):
+            settle({"input_uncached": 900, "output": 480})
+            return "done"
+
+        result = with_run_usage(
+            client,
+            account="acc-1",
+            model="claude-opus-4-8",
+            estimate={"input_uncached": 1000, "output": 500},
+            reservation_id="res-1",
+            work=work,
+        )
+        self.assertEqual(result, "done")
+        urls = [url for _m, url, _b in calls]
+        self.assertTrue(any(u.endswith("/usage/reserve") for u in urls))
+        self.assertTrue(any(u.endswith("/usage/reservations/res-1/settle") for u in urls))
+        self.assertFalse(any(u.endswith("/void") for u in urls))
 
 
 if __name__ == "__main__":

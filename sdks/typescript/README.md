@@ -43,6 +43,22 @@ await withRun(meter, { account, estimate: "40" }, async (run) => {
 })
 ```
 
+Prefer to govern in **token terms**? `withRunUsage` reserves a hold sized to an estimated token usage
+for a model (the engine prices it) and settles with the actual tokens — same auto-void-on-failure:
+
+```ts
+import { withRunUsage } from "@meter/sdk"
+
+await withRunUsage(
+  meter,
+  { account, model: "claude-opus-4-8", estimate: { input_uncached: 4000, output: 1000 } },
+  async (run) => {
+    const completion = await callTheModel()
+    await run.settle(anthropicUsage(completion.usage))
+  },
+)
+```
+
 ## Provider adapters
 
 Each maps a provider's usage object to meter's normalized token dimensions:

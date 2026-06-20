@@ -13,8 +13,8 @@ export type {
   SettleUsageInput,
 } from "./client";
 export { MeterError } from "./errors";
-export { withRun } from "./run";
-export type { RunHandle, RunOptions } from "./run";
+export { withRun, withRunUsage } from "./run";
+export type { RunHandle, RunOptions, UsageRunHandle, UsageRunOptions } from "./run";
 export {
   isAllowed,
   isDenied,

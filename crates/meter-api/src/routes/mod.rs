@@ -10,6 +10,7 @@ mod health;
 mod invoices;
 mod leases;
 mod reservations;
+mod simulate;
 mod usage;
 
 use axum::middleware;
@@ -43,6 +44,7 @@ pub fn router(state: AppState) -> Router {
         .route("/events/:id/amend", post(events::amend))
         .route("/runs/:id/void", post(events::void_run))
         .route("/usage", post(usage::meter_usage))
+        .route("/simulate", post(simulate::simulate))
         .route("/catalog", get(catalog::list))
         .route("/catalog/:model_id", get(catalog::get_card))
         .route("/audit", get(audit::list));

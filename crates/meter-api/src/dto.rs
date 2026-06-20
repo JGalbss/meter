@@ -120,3 +120,13 @@ pub struct MeterUsageBody {
     #[serde(default)]
     pub usage: UsageDimensions,
 }
+
+/// `POST /v1/simulate` — re-rate a stream of usage events from one catalog model onto another to
+/// preview the credit impact of switching, without touching the ledger.
+#[derive(Debug, Deserialize)]
+pub struct SimulateBody {
+    pub current_model: String,
+    pub proposed_model: String,
+    #[serde(default)]
+    pub events: Vec<UsageDimensions>,
+}

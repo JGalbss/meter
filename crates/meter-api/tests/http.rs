@@ -759,3 +759,43 @@ async fn catalog_over_http() {
     let (status, _) = call(&app, "GET", "/v1/catalog/not-a-model", &Value::Null).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn simulate_over_http() {
+    let (_container, app) = app().await;
+
+    // Two identical events re-rated from gpt-5 onto the pricier claude-opus-4-8.
+    // credit_value = 1 micro-USD, provider-cost cards have no margin.
+    // Per event (1000 input + 500 output):
+    //   gpt-5 : 1000*1.25e-6 + 500*1e-5 = 0.00625 USD -> 6250 credits
+    //   opus  : 1000*1.5e-5 + 500*7.5e-5 = 0.0525 USD -> 52500 credits
+    let (status, body) = call(
+        &app,
+        "POST",
+        "/v1/simulate",
+        &json!({
+            "current_model": "gpt-5",
+            "proposed_model": "claude-opus-4-8",
+            "events": [
+                { "input_uncached": 1000, "output": 500 },
+                { "input_uncached": 1000, "output": 500 }
+            ]
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["event_count"], json!(2));
+    assert_eq!(body["credits_current"], "12500"); // 2 * 6250
+    assert_eq!(body["credits_proposed"], "105000"); // 2 * 52500
+    assert_eq!(body["credit_delta"], "92500");
+
+    // An unknown model is a 404.
+    let (status, _) = call(
+        &app,
+        "POST",
+        "/v1/simulate",
+        &json!({ "current_model": "nope", "proposed_model": "gpt-5", "events": [] }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}

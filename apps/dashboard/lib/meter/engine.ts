@@ -2,7 +2,14 @@
 //! straight from the engine's authoritative data; reads degrade gracefully when the engine is down.
 
 import type { Result } from "./client"
-import type { AuditEntry, DayUsage, ModelUsage, UsageEvent } from "./types"
+import type {
+  AuditEntry,
+  Balance,
+  DayUsage,
+  LedgerEntry,
+  ModelUsage,
+  UsageEvent,
+} from "./types"
 
 const ENGINE_URL = process.env.METER_ENGINE_URL ?? "http://127.0.0.1:8080"
 
@@ -93,6 +100,46 @@ export async function fetchAuditLog(
       return { ok: false, error: `engine responded ${response.status}` }
     }
     return { ok: true, data: (await response.json()) as AuditEntry[] }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "engine unreachable",
+    }
+  }
+}
+
+export async function fetchBalance(
+  accountId: string
+): Promise<Result<Balance>> {
+  try {
+    const response = await fetch(
+      `${ENGINE_URL}/v1/accounts/${encodeURIComponent(accountId)}/balance`,
+      { cache: "no-store", headers: authHeaders() }
+    )
+    if (!response.ok) {
+      return { ok: false, error: `engine responded ${response.status}` }
+    }
+    return { ok: true, data: (await response.json()) as Balance }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "engine unreachable",
+    }
+  }
+}
+
+export async function fetchEntries(
+  accountId: string
+): Promise<Result<readonly LedgerEntry[]>> {
+  try {
+    const response = await fetch(
+      `${ENGINE_URL}/v1/accounts/${encodeURIComponent(accountId)}/entries`,
+      { cache: "no-store", headers: authHeaders() }
+    )
+    if (!response.ok) {
+      return { ok: false, error: `engine responded ${response.status}` }
+    }
+    return { ok: true, data: (await response.json()) as LedgerEntry[] }
   } catch (error) {
     return {
       ok: false,

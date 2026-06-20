@@ -12,6 +12,7 @@ import {
   Package,
   Plugs,
   ShieldWarning,
+  Wallet,
 } from "@phosphor-icons/react"
 import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
@@ -39,6 +40,7 @@ const NAV: readonly NavItem[] = [
   { href: "/", label: "Overview", icon: House },
   { href: "/usage", label: "Usage", icon: ChartLineUp },
   { href: "/events", label: "Events", icon: ListBullets },
+  { href: "/accounts", label: "Accounts", icon: Wallet },
   { href: "/organizations", label: "Organizations", icon: Buildings },
   { href: "/products", label: "Products", icon: Package },
   { href: "/notifications", label: "Notifications", icon: Bell },

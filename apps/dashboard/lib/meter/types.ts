@@ -92,6 +92,41 @@ export interface UsageEvent {
   readonly created_at: string
 }
 
+export interface Balance {
+  readonly settled: string
+  readonly held: string
+}
+
+export type EntryType =
+  | "grant"
+  | "usage"
+  | "reservation_hold"
+  | "settle"
+  | "partial_return"
+  | "transfer"
+  | "void"
+  | "refund"
+  | "chargeback"
+  | "expiration"
+  | "amendment"
+  | "fx"
+  | "sealing"
+
+export interface LedgerEntry {
+  readonly id: string
+  readonly account_id: string
+  readonly paired_account_id: string
+  readonly entry_type: EntryType
+  readonly delta_credits: string
+  readonly balance_after: string
+  readonly source: string | null
+  readonly revenue_recognizable: boolean
+  readonly reverses_entry_id: string | null
+  readonly reservation_id: string | null
+  readonly idempotency_key: string | null
+  readonly created_at: string
+}
+
 export type ApiKeyRole = "viewer" | "member" | "admin"
 
 export interface ApiKey {

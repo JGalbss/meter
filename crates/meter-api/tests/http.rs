@@ -1204,4 +1204,44 @@ async fn synced_rate_card_is_readable() {
     )
     .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // Sync a v2 of the same card plus a second card; the list returns one (latest) per id.
+    let config = PgConfig::new(ledger.pool().clone());
+    config
+        .put_rate_card(&RateCardRecord {
+            version: 2,
+            margin: Decimal::new(15, 1),
+            ..RateCardRecord {
+                id: card_id,
+                version: 0,
+                kind: "customer".to_owned(),
+                currency: "USD".to_owned(),
+                margin: Decimal::ZERO,
+                components: json!([]),
+            }
+        })
+        .await
+        .expect("put v2");
+    config
+        .put_rate_card(&RateCardRecord {
+            id: uuid::Uuid::now_v7(),
+            version: 1,
+            kind: "provider_cost".to_owned(),
+            currency: "USD".to_owned(),
+            margin: Decimal::ONE,
+            components: json!([]),
+        })
+        .await
+        .expect("put second");
+
+    let (status, list) = call(&app, "GET", "/v1/rate-cards", &Value::Null).await;
+    assert_eq!(status, StatusCode::OK);
+    let cards = list.as_array().expect("array");
+    assert_eq!(cards.len(), 2);
+    // The first card resolves to its latest version (2).
+    let first = cards
+        .iter()
+        .find(|c| c["id"] == card_id.to_string())
+        .expect("first card present");
+    assert_eq!(first["version"], json!(2));
 }

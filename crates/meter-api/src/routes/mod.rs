@@ -52,6 +52,7 @@ pub fn router(state: AppState) -> Router {
         .route("/simulate", post(simulate::simulate))
         .route("/catalog", get(catalog::list))
         .route("/catalog/:model_id", get(catalog::get_card))
+        .route("/rate-cards", get(rate_cards::list))
         .route("/rate-cards/:id", get(rate_cards::get))
         .route("/audit", get(audit::list));
 

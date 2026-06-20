@@ -5,13 +5,25 @@
 
 use rust_decimal::Decimal;
 use serde_json::Value;
-use sqlx::postgres::PgPool;
+use sqlx::postgres::{PgPool, PgRow};
 use sqlx::Row;
 use uuid::Uuid;
 
 use meter_ledger::LedgerError;
 
 use crate::mapping::be;
+
+/// Map a `rate_cards` row to a [`RateCardRecord`].
+fn record_from_row(row: &PgRow) -> Result<RateCardRecord, LedgerError> {
+    Ok(RateCardRecord {
+        id: row.try_get("id").map_err(be)?,
+        version: row.try_get("version").map_err(be)?,
+        kind: row.try_get("kind").map_err(be)?,
+        currency: row.try_get("currency").map_err(be)?,
+        margin: row.try_get("margin").map_err(be)?,
+        components: row.try_get("components").map_err(be)?,
+    })
+}
 
 /// One stored rate-card version. `components` is the priced dimensional matrix as JSON.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -75,17 +87,19 @@ impl PgConfig {
         .fetch_optional(&self.pool)
         .await
         .map_err(be)?;
-        match row {
-            None => Ok(None),
-            Some(row) => Ok(Some(RateCardRecord {
-                id: row.try_get("id").map_err(be)?,
-                version: row.try_get("version").map_err(be)?,
-                kind: row.try_get("kind").map_err(be)?,
-                currency: row.try_get("currency").map_err(be)?,
-                margin: row.try_get("margin").map_err(be)?,
-                components: row.try_get("components").map_err(be)?,
-            })),
-        }
+        row.map(|row| record_from_row(&row)).transpose()
+    }
+
+    /// The live (highest-version) rate card for every synced logical id, ordered by id.
+    pub async fn list_rate_cards(&self) -> Result<Vec<RateCardRecord>, LedgerError> {
+        let rows = sqlx::query(
+            "SELECT DISTINCT ON (id) id, version, kind, currency, margin, components \
+             FROM rate_cards ORDER BY id, version DESC",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(be)?;
+        rows.iter().map(record_from_row).collect()
     }
 
     /// Upsert the current budget for an account (idempotent on `account_id`).

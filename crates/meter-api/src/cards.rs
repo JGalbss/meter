@@ -50,6 +50,16 @@ pub async fn load_stored_card(state: &AppState, id: Uuid) -> Result<RateCard, Ap
     rate_card_from_record(record)
 }
 
+/// Every synced rate card (live version each), reconstructed as pricing [`RateCard`]s.
+pub async fn list_stored_cards(state: &AppState) -> Result<Vec<RateCard>, ApiError> {
+    PgConfig::new(state.ledger.pool().clone())
+        .list_rate_cards()
+        .await?
+        .into_iter()
+        .map(rate_card_from_record)
+        .collect()
+}
+
 /// The card to price against: the synced card `rate_card_id` (its latest version) when given, else the
 /// catalog card for `model`. `404` if the chosen source has no such card.
 pub async fn resolve_card(

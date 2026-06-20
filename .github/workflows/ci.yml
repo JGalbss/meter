@@ -75,7 +75,7 @@ jobs:
         run: PYTHONPATH=. python3 -m unittest discover -s tests -p "test_*.py"
 
   dashboard:
-    name: dashboard — typecheck, lint, format, build
+    name: dashboard — typecheck, lint, format, test, build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -95,6 +95,8 @@ jobs:
         run: bun run lint
       - name: format
         run: bun run format:check
+      - name: test
+        run: bun run test
       - name: build
         run: bun run build
 

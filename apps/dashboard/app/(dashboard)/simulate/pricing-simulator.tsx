@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { deltaVerdict } from "@/lib/meter/pricing-format"
 import type { RateCardEntry, SimulateResult } from "@/lib/meter/types"
 import { simulateAction } from "./actions"
 
@@ -31,24 +32,6 @@ function toCount(value: FormDataEntryValue | null): number {
     return 0
   }
   return Math.floor(parsed)
-}
-
-function isZeroDelta(delta: string): boolean {
-  return /^-?0(\.0+)?$/.test(delta)
-}
-
-function isCheaper(delta: string): boolean {
-  return delta.startsWith("-")
-}
-
-function deltaLabel(delta: string): string {
-  if (isZeroDelta(delta)) {
-    return "Same cost on both models."
-  }
-  if (isCheaper(delta)) {
-    return "The proposed model is cheaper for this usage."
-  }
-  return "The proposed model is more expensive for this usage."
 }
 
 export function PricingSimulator({
@@ -182,7 +165,7 @@ export function PricingSimulator({
               </div>
             </dl>
             <p className="text-sm text-muted-foreground">
-              {deltaLabel(result.credit_delta)}
+              {deltaVerdict(result.credit_delta)}
             </p>
           </CardContent>
         </Card>

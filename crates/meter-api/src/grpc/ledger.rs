@@ -210,6 +210,19 @@ impl v1::ledger_service_server::LedgerService for LedgerGrpc {
         Ok(Response::new(v1::ExtendHoldResponse {}))
     }
 
+    async fn void_expired_holds(
+        &self,
+        _request: Request<v1::VoidExpiredHoldsRequest>,
+    ) -> Result<Response<v1::VoidExpiredHoldsResponse>, Status> {
+        // The server uses its own clock; callers don't dictate "now".
+        let released = self
+            .ledger
+            .void_expired_holds(time::OffsetDateTime::now_utc())
+            .await
+            .map_err(|error| status_from_ledger(&error))?;
+        Ok(Response::new(v1::VoidExpiredHoldsResponse { released }))
+    }
+
     async fn balance(
         &self,
         request: Request<v1::BalanceRequest>,

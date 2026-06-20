@@ -97,6 +97,13 @@ message ExtendHoldRequest {
 
 message ExtendHoldResponse {}
 
+message VoidExpiredHoldsRequest {}
+
+message VoidExpiredHoldsResponse {
+  // How many expired open holds were released.
+  uint64 released = 1;
+}
+
 message BalanceRequest {
   string account_id = 1;
 }
@@ -115,5 +122,6 @@ service LedgerService {
   rpc Settle(SettleRequest) returns (SettleResponse);
   rpc Void(VoidRequest) returns (VoidResponse);
   rpc ExtendHold(ExtendHoldRequest) returns (ExtendHoldResponse);
+  rpc VoidExpiredHolds(VoidExpiredHoldsRequest) returns (VoidExpiredHoldsResponse);
   rpc Balance(BalanceRequest) returns (BalanceResponse);
 }

@@ -3,14 +3,12 @@
 //! mapping and the money logic end to end.
 
 use meter_api::grpc::ledger::LedgerGrpc;
-use meter_ledger::LedgerBackend;
 use meter_proto::v1;
 use meter_proto::v1::ledger_service_server::LedgerService;
 use meter_store_pg::PgLedger;
 use sqlx::postgres::PgPoolOptions;
 use testcontainers_modules::postgres::Postgres;
 use testcontainers_modules::testcontainers::runners::AsyncRunner;
-use time::OffsetDateTime;
 use tonic::Request;
 
 fn credit(amount: &str) -> Option<v1::Credit> {
@@ -34,7 +32,7 @@ async fn ledger_grpc_reserve_settle_flow() {
         .expect("connect");
     let ledger = PgLedger::new(pool);
     ledger.migrate().await.expect("migrate");
-    let service = LedgerGrpc::new(ledger.clone());
+    let service = LedgerGrpc::new(ledger);
 
     // Open a no-overdraft org account.
     let account = service
@@ -138,10 +136,12 @@ async fn ledger_grpc_reserve_settle_flow() {
         }))
         .await
         .expect("extend_hold");
-    let swept = ledger
-        .void_expired_holds(OffsetDateTime::now_utc())
+    let swept = service
+        .void_expired_holds(Request::new(v1::VoidExpiredHoldsRequest {}))
         .await
-        .expect("sweep");
+        .expect("sweep")
+        .into_inner()
+        .released;
     assert_eq!(swept, 1);
     // The extended hold survives: 5 credits still held.
     assert_eq!(

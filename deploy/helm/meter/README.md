@@ -15,7 +15,8 @@ helm install meter deploy/helm/meter \
 ```
 
 The engine applies its Postgres + ClickHouse migrations on boot; the control plane applies its config
-migrations on boot. Health is gated by readiness probes on `/health`.
+migrations on boot. Liveness probes hit `/health` (static); readiness probes hit `/health/ready` on the
+engine and control plane (which ping their stores), so traffic is gated until dependencies are reachable.
 
 ## Production: external data stores
 

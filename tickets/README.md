@@ -116,7 +116,7 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 - [~] `apps/control-plane`: Effect HTTP API (`HttpRouter`, one module per resource) over Drizzle — health, organizations, products, notifications (raise/pull/read/ack), alert rules (create/list/enable) with `Schema`-validated bodies/query/path params and typed-error→JSON mapping (400/404/500); `Database` service (Postgres in prod, PGlite in tests); shared repository error channel; e2e-tested via in-process test server + `HttpClient` (11 tests). RLS/`withTenant`, RBAC/API keys, gRPC-to-engine pending
 - [ ] Resources: orgs/teams/users/roles (RBAC), API keys, products/agents, rate-card config, budgets/grants config, webhooks, invoices
 - [ ] gRPC client to engine for all money/usage ops; never computes money
-- [~] API-key auth: mint (SHA-256 hashed, token shown once) / list / revoke, and a Bearer middleware (`METER_REQUIRE_AUTH`) enforced on all routes except `/health`; dashboard sends its key when configured; e2e-tested. **RBAC** done: every key carries a role (`viewer`/`member`/`admin`, ranked); the middleware enforces it by method + resource (reads → viewer, writes → member, credential management → admin), keys default to `admin` for backward-compat, migration `0005` adds the column; e2e-tested (`auth.test.ts` RBAC block, 27 control-plane tests green). **OpenAPI emission** done (EPIC 01).
+- [~] API-key auth: mint (SHA-256 hashed, token shown once) / list / revoke, and a Bearer middleware (`METER_REQUIRE_AUTH`) enforced on all routes except `/health`; dashboard sends its key when configured; e2e-tested. **RBAC** done: every key carries a role (`viewer`/`member`/`admin`, ranked); the middleware enforces it by method + resource (reads → viewer, writes → member, credential management → admin), keys default to `admin` for backward-compat, migration `0005` adds the column; e2e-tested (`auth.test.ts` RBAC block, 28 control-plane tests green). **OpenAPI emission** done (EPIC 01).
 **agent-doctor in CI** done: a CI job scans the control-plane's Effect-TS code (`@jgalbsss/agent-doctor`),
 **99/100** after remediation — auth returns 500 (not a silent 401) on a DB error; webhook dispatch bounds
 fan-out, retries only transient failures, and forwards the abort signal; time is read from the Effect
@@ -186,9 +186,10 @@ screens pending (need control-plane config resources)
   dashboard), `docker compose config` valid.
 - [x] **Helm chart** (`deploy/helm/meter`): engine + control-plane + **dashboard** Deployments
   (stateless engine scales via `engine.replicas`; dashboard toggleable) + Postgres/ClickHouse
-  StatefulSets (toggleable for external managed stores) + credentials Secret; readiness/liveness on
-  `/health` (dashboard on `/login`); `helm lint` clean, renders for default / external-store / HA /
-  dashboard-disabled value sets. Migrations run on boot (no separate job).
+  StatefulSets (toggleable for external managed stores) + credentials Secret; liveness on `/health`,
+  readiness on `/health/ready` (engine + control plane ping their stores; dashboard on `/login`);
+  optional `controlPlaneHost`/`engineHost` ingress; `helm lint` clean, renders for default /
+  external-store / HA / dashboard-disabled value sets. Migrations run on boot (no separate job).
 - [x] **Published images**: `release.yml` builds + pushes the engine, control-plane, and dashboard
   images to `ghcr.io/<owner>/meter-*` on a `v*` tag (semver + sha + latest tags, buildx + gha cache).
 - [x] **Helm Ingress/TLS**: optional, gated `ingress.enabled` template routing a host to the dashboard

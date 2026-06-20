@@ -78,11 +78,16 @@ duplicates the other.
 ## Health checks
 
 ```bash
-curl http://localhost:8080/health    # engine
-curl http://localhost:8090/health    # control plane
+curl http://localhost:8080/health        # engine — liveness (static)
+curl http://localhost:8080/health/ready  # engine — readiness (pings Postgres + ClickHouse)
+curl http://localhost:8090/health        # control plane — liveness (static)
+curl http://localhost:8090/health/ready  # control plane — readiness (pings Postgres)
 ```
 
-Both return `{ "status": "ok" }` once migrations have applied and the service is serving.
+`/health` is static liveness (the process is up) — independent of the stores, so a transient database
+blip never trips a restart loop. `/health/ready` returns `200` only when the service's stores answer
+(otherwise `503`), so it's the probe a load balancer or Kubernetes should gate traffic on. The Helm
+chart wires liveness to `/health` and readiness to `/health/ready`.
 
 ## Production notes
 

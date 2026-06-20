@@ -22,6 +22,20 @@ describe("control-plane HTTP API", () => {
     expect(body).toEqual({ status: "ok" });
   });
 
+  it("reports readiness when the database is reachable", async () => {
+    const db = await freshDb();
+    const result = await run(
+      db,
+      Effect.gen(function* () {
+        const client = yield* HttpClient.HttpClient;
+        const response = yield* client.get("/health/ready");
+        return { status: response.status, body: yield* response.json };
+      }),
+    );
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ status: "ok", database: true });
+  });
+
   it("creates and lists organizations and their products", async () => {
     const db = await freshDb();
     const result = await run(

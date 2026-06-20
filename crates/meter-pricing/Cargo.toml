@@ -19,3 +19,8 @@ rust_decimal = { workspace = true }
 
 [dev-dependencies]
 rust_decimal_macros = { workspace = true }
+criterion = "0.5"
+
+[[bench]]
+name = "pricing"
+harness = false

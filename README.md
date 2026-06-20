@@ -47,6 +47,13 @@ meter splits along a hard data-plane / control-plane seam:
 Money-truth lives only in the engine, so there is exactly one ledger and no cross-language drift. The
 engine↔control-plane contract is protobuf; the dashboard/customer contract is OpenAPI.
 
+**Scale.** meter is built toward provider-grade volume (millions of metering ops/sec, billions of
+events/day) without softening the ledger. Pricing is in-memory; events and audit are ClickHouse
+firehoses; the only true bottleneck is the transactional money path, attacked behind the
+`LedgerBackend` seam — per-session **leasing** (one round-trip per session, not per token) and a
+**TigerBeetle** backend (two-phase transfers, integer credits, database-enforced no-overdraft) — so
+correctness and simplicity are never traded for speed. See [ADR 0005](docs/adr/0005-provider-scale-throughput.md).
+
 Docs: [VISION](docs/VISION.md) · [ARCHITECTURE](docs/ARCHITECTURE.md) · [SLO](docs/SLO.md) ·
 [DECISIONS](docs/DECISIONS.md) · [ADRs](docs/adr/) · [tickets](tickets/README.md).
 

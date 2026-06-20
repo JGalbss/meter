@@ -8,7 +8,7 @@ commit (`git commit -s`).
 
 - **Rust 1.88** (pinned via `rust-toolchain.toml`).
 - **Docker** running — the integration tests spin up Postgres via testcontainers.
-- **Node 22+ / pnpm** for the TypeScript packages (SDK, dashboard) once they land.
+- **Node 24 + pnpm 10** for the control plane and SDKs; **bun** for the dashboard (shadcn preset).
 - Restore the project skills (design system, transitions, Rust helpers) with
   `npx skills experimental_install` (they are pinned in `skills-lock.json`, not vendored).
 
@@ -22,6 +22,19 @@ cargo test --workspace           # unit + property + integration (needs Docker)
 
 The ledger has a shared conformance suite (`meter_ledger::conformance`) run against every backend, plus
 a concurrency no-overdraft test and end-to-end HTTP tests against a real Postgres. Keep all of it green.
+
+TypeScript (control plane + SDK) and the dashboard:
+
+```bash
+pnpm install
+pnpm exec biome check sdks apps
+pnpm --filter "@meter/*" run typecheck
+pnpm --workspace-concurrency=1 --filter "@meter/*" run test   # control plane runs on PGlite
+cd sdks/python && PYTHONPATH=. python3 -m unittest discover -s tests -p "test_*.py"
+cd apps/dashboard && bun install && bun run typecheck && bun run lint && bun run build
+```
+
+CI runs four jobs — **rust**, **typescript**, **python**, **dashboard** — all must pass.
 
 ## Standards
 

@@ -134,6 +134,40 @@ pub fn catalog() -> Vec<ModelCatalogEntry> {
             cache_write_per_token: dec!(0.0000003),
             output_per_token: dec!(0.0000025),
         },
+        // --- DeepSeek (explicit cache-hit input discount; no separate write charge). ---
+        ModelCatalogEntry {
+            provider: "deepseek",
+            model_id: "deepseek-chat",
+            input_per_token: dec!(0.00000027),
+            cache_read_per_token: dec!(0.00000007),
+            cache_write_per_token: dec!(0.00000027),
+            output_per_token: dec!(0.0000011),
+        },
+        ModelCatalogEntry {
+            provider: "deepseek",
+            model_id: "deepseek-reasoner",
+            input_per_token: dec!(0.00000055),
+            cache_read_per_token: dec!(0.00000014),
+            cache_write_per_token: dec!(0.00000055),
+            output_per_token: dec!(0.00000219),
+        },
+        // --- Alibaba Qwen (no published cache tier; caching mapped to the input rate). ---
+        ModelCatalogEntry {
+            provider: "alibaba",
+            model_id: "qwen-max",
+            input_per_token: dec!(0.0000016),
+            cache_read_per_token: dec!(0.0000016),
+            cache_write_per_token: dec!(0.0000016),
+            output_per_token: dec!(0.0000064),
+        },
+        ModelCatalogEntry {
+            provider: "alibaba",
+            model_id: "qwen-plus",
+            input_per_token: dec!(0.0000004),
+            cache_read_per_token: dec!(0.0000004),
+            cache_write_per_token: dec!(0.0000004),
+            output_per_token: dec!(0.0000012),
+        },
     ]
 }
 
@@ -166,14 +200,30 @@ mod tests {
 
     #[test]
     fn covers_the_major_providers() {
-        for model in ["claude-opus-4-8", "gpt-5", "gemini-2.5-pro"] {
+        for model in [
+            "claude-opus-4-8",
+            "gpt-5",
+            "gemini-2.5-pro",
+            "deepseek-chat",
+            "qwen-max",
+        ] {
             assert!(find(model).is_some(), "{model} should be in the catalog");
         }
         let providers: std::collections::BTreeSet<_> =
             catalog().iter().map(|entry| entry.provider).collect();
-        assert!(providers.contains("anthropic"));
-        assert!(providers.contains("openai"));
-        assert!(providers.contains("google"));
+        for provider in ["anthropic", "openai", "google", "deepseek", "alibaba"] {
+            assert!(providers.contains(provider), "{provider} should be covered");
+        }
+    }
+
+    #[test]
+    fn prices_a_deepseek_model() {
+        // deepseek-chat: 1000 input @ $0.27/M + 500 output @ $1.10/M = 0.00027 + 0.00055 = 0.00082
+        let card = rate_card_for("deepseek-chat").expect("deepseek-chat in catalog");
+        let usage = Usage::new(Modality::Text, ContextTier::Standard)
+            .with(PricingDimension::InputUncached, dec!(1000))
+            .with(PricingDimension::Output, dec!(500));
+        assert_eq!(cost(&usage, &card).expect("priced").amount(), dec!(0.00082));
     }
 
     #[test]

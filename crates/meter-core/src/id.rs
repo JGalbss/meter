@@ -136,6 +136,10 @@ entities! {
     Transaction => TransactionId,
     /// A single ledger entry (one posting in the append-only ledger).
     Entry => EntryId,
+    /// A usage event.
+    Event => EventId,
+    /// An agent run (groups a reservation and its events).
+    Run => RunId,
     /// A rate card (pricing definition).
     RateCard => RateCardId,
     /// A credit grant.

@@ -1,0 +1,28 @@
+[package]
+name = "meter-event"
+description = "Usage events: custom fields, run grouping, editable (amend) and voidable (void_run); EventStore trait + in-memory reference"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# Exposes the reusable conformance suite (crate::conformance) for other backends.
+conformance = []
+
+[dependencies]
+meter-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+async-trait = { workspace = true }
+time = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

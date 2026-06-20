@@ -1336,6 +1336,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "meter-event"
+version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "meter-core",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "time",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "meter-ledger"
 version = "0.0.0"
 dependencies = [

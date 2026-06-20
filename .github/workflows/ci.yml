@@ -28,3 +28,24 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: test
         run: cargo test --workspace
+
+  typescript:
+    name: typescript — biome, typecheck, test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: install
+        run: pnpm install --frozen-lockfile
+      - name: biome
+        run: pnpm exec biome check sdks
+      - name: typecheck
+        run: pnpm --filter @meter/sdk run typecheck
+      - name: test
+        run: pnpm --filter @meter/sdk run test

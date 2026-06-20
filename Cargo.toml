@@ -19,6 +19,8 @@ tokio = { version = "1", features = ["full"] }
 axum = "0.7"
 tower = "0.5"
 tower-http = { version = "0.6", features = ["trace", "cors"] }
+tonic = "0.12"
+prost = "0.13"
 
 # serialization
 serde = { version = "1", features = ["derive"] }
@@ -66,6 +68,7 @@ meter-enforcement = { path = "crates/meter-enforcement" }
 meter-store-pg = { path = "crates/meter-store-pg" }
 meter-store-ch = { path = "crates/meter-store-ch" }
 meter-api = { path = "crates/meter-api" }
+meter-proto = { path = "crates/meter-proto" }
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }

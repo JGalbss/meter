@@ -8,6 +8,7 @@
 
 mod dto;
 mod error;
+pub mod grpc;
 mod routes;
 
 use meter_core::Money;

@@ -4,12 +4,17 @@ package meter.v1;
 
 import "meter/v1/common.proto";
 
-// The scope of a ledger account.
+// The scope of a ledger account (mirrors the engine's AccountScope).
 enum AccountScope {
   ACCOUNT_SCOPE_UNSPECIFIED = 0;
   ACCOUNT_SCOPE_ORG = 1;
   ACCOUNT_SCOPE_TEAM = 2;
-  ACCOUNT_SCOPE_SESSION = 3;
+  ACCOUNT_SCOPE_USER = 3;
+  ACCOUNT_SCOPE_PRODUCT = 4;
+  // A per-session sub-balance leased from a parent pool (hot-account mitigation).
+  ACCOUNT_SCOPE_SESSION = 5;
+  ACCOUNT_SCOPE_PROMO = 6;
+  ACCOUNT_SCOPE_PAID = 7;
 }
 
 // How a reservation is enforced.
@@ -21,12 +26,12 @@ enum LimitClass {
   LIMIT_CLASS_SOFT = 2;
 }
 
-// Where granted credits came from.
+// Where granted credits came from (mirrors the engine's CreditSource).
 enum CreditSource {
   CREDIT_SOURCE_UNSPECIFIED = 0;
   CREDIT_SOURCE_PAID = 1;
-  CREDIT_SOURCE_PROMOTIONAL = 2;
-  CREDIT_SOURCE_REFUND = 3;
+  CREDIT_SOURCE_PROMO = 2;
+  CREDIT_SOURCE_GRANT = 3;
 }
 
 message OpenAccountRequest {

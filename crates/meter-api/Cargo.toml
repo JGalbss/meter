@@ -29,6 +29,8 @@ meter-pricing = { workspace = true }
 meter-ratecards = { workspace = true }
 meter-store-pg = { workspace = true }
 meter-store-ch = { workspace = true }
+meter-proto = { workspace = true }
+tonic = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true }

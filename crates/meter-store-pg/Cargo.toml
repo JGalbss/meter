@@ -14,7 +14,6 @@ workspace = true
 [dependencies]
 meter-core = { workspace = true }
 meter-ledger = { workspace = true }
-meter-event = { workspace = true }
 sqlx = { workspace = true }
 async-trait = { workspace = true }
 rust_decimal = { workspace = true }
@@ -28,7 +27,6 @@ tracing = { workspace = true }
 [dev-dependencies]
 tokio = { workspace = true }
 meter-ledger = { workspace = true, features = ["conformance"] }
-meter-event = { workspace = true, features = ["conformance"] }
 testcontainers-modules = { version = "0.12", features = ["postgres"] }
 criterion = { version = "0.5", features = ["async_tokio"] }
 

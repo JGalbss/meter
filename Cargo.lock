@@ -1875,7 +1875,6 @@ dependencies = [
  "async-trait",
  "criterion",
  "meter-core",
- "meter-event",
  "meter-ledger",
  "rust_decimal",
  "serde",

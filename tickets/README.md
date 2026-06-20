@@ -58,8 +58,9 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 > - [x] ClickHouse `EventStore` backend (`meter-store-ch`, `events` ReplacingMergeTree; status changes
 >   are versioned rows, reads use `FINAL`) — **passes the shared event conformance suite against a real
 >   ClickHouse container** (record/get, idempotency, amend-supersedes, void_run).
-> - [ ] Rewire the engine (`/v1/usage`, `/v1/events`, ingest) to the ClickHouse `EventStore`; ledger
->   stays on Postgres; retire `PgEventStore`; make ClickHouse a required component in compose/self-host.
+> - [x] Engine rewired to the ClickHouse `EventStore` (`/v1/usage`, `/v1/events`, ingest); ledger
+>   stays on Postgres; **`PgEventStore` + the Postgres `events` table/migration removed**; ClickHouse is
+>   required (`METER_CLICKHOUSE_URL`) and in the production compose. http e2e runs Postgres+ClickHouse.
 - [x] `meter-event`: EventStore trait + in-memory reference + conformance — custom-field events, idempotency on (org,key), amend-as-new-version, void_run, latest-non-voided reads
 - [x] Postgres EventStore backend (events table, JSONB props, run_id, status, supersedes) + conformance against real PG
 - [~] Event API on the engine (record/get/list/amend/void_run) done; 202-fast batch + per-meter schema validation pending

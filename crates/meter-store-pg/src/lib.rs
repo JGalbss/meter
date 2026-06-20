@@ -9,13 +9,11 @@
 #![forbid(unsafe_code)]
 
 mod audit;
-mod event;
 mod mapping;
 mod ops;
 mod report;
 
 pub use audit::{AuditEntry, PgAuditLog};
-pub use event::PgEventStore;
 pub use report::{DayUsage, PeriodUsage};
 
 use meter_ledger::LedgerError;

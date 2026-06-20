@@ -5,7 +5,7 @@ use axum::http::{Request, StatusCode};
 use axum::Router;
 use http_body_util::BodyExt;
 use meter_api::{router, AppState};
-use meter_store_pg::PgLedger;
+use meter_store_pg::{PgEventStore, PgLedger};
 use serde_json::{json, Value};
 use sqlx::postgres::PgPoolOptions;
 use testcontainers_modules::postgres::Postgres;
@@ -25,9 +25,10 @@ async fn app() -> (ContainerAsync<Postgres>, Router) {
         .connect(&url)
         .await
         .expect("connect");
-    let ledger = PgLedger::new(pool);
+    let ledger = PgLedger::new(pool.clone());
     ledger.migrate().await.expect("migrate");
-    (container, router(AppState::new(ledger)))
+    let events = PgEventStore::new(pool);
+    (container, router(AppState::new(ledger, events)))
 }
 
 async fn call(app: &Router, method: &str, uri: &str, body: &Value) -> (StatusCode, Value) {
@@ -150,4 +151,83 @@ async fn full_ledger_flow_over_http() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(outcome["outcome"], "denied");
+}
+
+#[tokio::test]
+async fn event_flow_over_http() {
+    let (_container, app) = app().await;
+    let org = "11111111-1111-1111-1111-111111111111";
+    let account = "44444444-4444-4444-4444-444444444444";
+    let run = "55555555-5555-5555-5555-555555555555";
+
+    // Record an event with arbitrary custom fields.
+    let (status, event) = call(
+        &app,
+        "POST",
+        "/v1/events",
+        &json!({
+            "org_id": org,
+            "idempotency_key": "evt-1",
+            "meter": "tokens",
+            "account": account,
+            "run_id": run,
+            "properties": { "input": 1200, "output": 340, "model": "claude-opus-4-8" }
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let event_id = event["id"].as_str().expect("event id").to_owned();
+    assert_eq!(event["properties"]["model"], "claude-opus-4-8");
+    assert_eq!(event["status"], "recorded");
+
+    // Recording with the same key is idempotent.
+    let (_status, again) = call(
+        &app,
+        "POST",
+        "/v1/events",
+        &json!({
+            "org_id": org,
+            "idempotency_key": "evt-1",
+            "meter": "tokens",
+            "account": account
+        }),
+    )
+    .await;
+    assert_eq!(again["id"], event["id"]);
+
+    // Amend the event (append-only edit).
+    let (status, amended) = call(
+        &app,
+        "POST",
+        &format!("/v1/events/{event_id}/amend"),
+        &json!({ "properties": { "input": 1500, "output": 400 } }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(amended["supersedes"], event["id"]);
+    assert_eq!(amended["properties"]["input"], json!(1500));
+
+    // The account lists only the latest (recorded) version.
+    let (_status, list) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{account}/events"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(list.as_array().expect("array").len(), 1);
+    assert_eq!(list[0]["id"], amended["id"]);
+
+    // Voiding the run reverses the run's current event; the list empties.
+    let (status, voided) = call(&app, "POST", &format!("/v1/runs/{run}/void"), &Value::Null).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(voided["voided"], json!(1));
+    let (_status, after) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{account}/events"),
+        &Value::Null,
+    )
+    .await;
+    assert!(after.as_array().expect("array").is_empty());
 }

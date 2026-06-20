@@ -3,7 +3,6 @@
 use async_trait::async_trait;
 use rust_decimal::Decimal;
 use sqlx::Row;
-use time::OffsetDateTime;
 use uuid::Uuid;
 
 use meter_core::{AccountId, EntryId};
@@ -14,17 +13,9 @@ use meter_ledger::{
 };
 
 use crate::mapping::{
-    be, credit_from_db, entry_from_row, entry_type_to_str, scope_to_str, source_to_str,
+    be, credit_from_db, entry_from_row, entry_type_to_str, now_micros, scope_to_str, source_to_str,
 };
 use crate::PgLedger;
-
-/// Current UTC time truncated to microsecond precision (Postgres `TIMESTAMPTZ` resolution), so a value
-/// constructed in Rust equals the same value read back from the database.
-fn now_micros() -> OffsetDateTime {
-    let now = OffsetDateTime::now_utc();
-    now.replace_nanosecond(now.microsecond() * 1000)
-        .expect("microsecond-aligned nanoseconds are always in range")
-}
 
 async fn insert_entry(
     conn: &mut sqlx::PgConnection,

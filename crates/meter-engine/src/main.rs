@@ -9,7 +9,7 @@ use std::net::SocketAddr;
 
 use anyhow::Context;
 use meter_api::{router, AppState};
-use meter_store_pg::PgLedger;
+use meter_store_pg::{PgEventStore, PgLedger};
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::EnvFilter;
 
@@ -33,13 +33,14 @@ async fn main() -> anyhow::Result<()> {
         .connect(&database_url)
         .await
         .context("connecting to Postgres")?;
-    let ledger = PgLedger::new(pool);
+    let ledger = PgLedger::new(pool.clone());
     ledger
         .migrate()
         .await
         .map_err(|error| anyhow::anyhow!("running migrations: {error}"))?;
+    let events = PgEventStore::new(pool);
 
-    let app = router(AppState::new(ledger));
+    let app = router(AppState::new(ledger, events));
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .with_context(|| format!("binding {addr}"))?;

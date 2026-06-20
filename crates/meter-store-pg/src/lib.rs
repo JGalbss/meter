@@ -8,8 +8,11 @@
 
 #![forbid(unsafe_code)]
 
+mod event;
 mod mapping;
 mod ops;
+
+pub use event::PgEventStore;
 
 use meter_ledger::LedgerError;
 use sqlx::postgres::PgPool;

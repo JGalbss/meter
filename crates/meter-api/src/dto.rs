@@ -1,8 +1,10 @@
 //! Request bodies. Responses reuse the domain types directly (they already derive serde).
 
-use meter_core::{AccountId, Credit, OrgId};
+use meter_core::{AccountId, Credit, OrgId, RunId};
 use meter_ledger::{AccountScope, CreditSource, LimitClass, ReservationId};
 use serde::Deserialize;
+use serde_json::Value;
+use time::OffsetDateTime;
 
 /// `POST /v1/accounts`
 #[derive(Debug, Deserialize)]
@@ -37,4 +39,25 @@ pub struct ReserveBody {
 #[derive(Debug, Deserialize)]
 pub struct SettleBody {
     pub actual: Credit,
+}
+
+/// `POST /v1/events`
+#[derive(Debug, Deserialize)]
+pub struct RecordEventBody {
+    pub org_id: OrgId,
+    pub idempotency_key: String,
+    #[serde(with = "time::serde::rfc3339::option", default)]
+    pub event_time: Option<OffsetDateTime>,
+    pub meter: String,
+    pub account: AccountId,
+    #[serde(default)]
+    pub run_id: Option<RunId>,
+    #[serde(default)]
+    pub properties: Value,
+}
+
+/// `POST /v1/events/{id}/amend`
+#[derive(Debug, Deserialize)]
+pub struct AmendBody {
+    pub properties: Value,
 }

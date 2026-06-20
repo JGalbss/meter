@@ -10,7 +10,7 @@ mod dto;
 mod error;
 mod routes;
 
-use meter_store_pg::PgLedger;
+use meter_store_pg::{PgEventStore, PgLedger};
 
 pub use routes::router;
 
@@ -18,12 +18,13 @@ pub use routes::router;
 #[derive(Clone)]
 pub struct AppState {
     pub ledger: PgLedger,
+    pub events: PgEventStore,
 }
 
 impl AppState {
-    /// Build state over a Postgres ledger.
+    /// Build state over a Postgres ledger and event store.
     #[must_use]
-    pub fn new(ledger: PgLedger) -> Self {
-        Self { ledger }
+    pub fn new(ledger: PgLedger, events: PgEventStore) -> Self {
+        Self { ledger, events }
     }
 }

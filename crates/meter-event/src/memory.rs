@@ -107,7 +107,7 @@ impl EventStore for InMemoryEventStore {
         let mut events = self.lock();
         let mut voided = 0;
         for event in events.iter_mut() {
-            if event.run_id == Some(run) && event.status != EventStatus::Voided {
+            if event.run_id == Some(run) && event.status == EventStatus::Recorded {
                 event.status = EventStatus::Voided;
                 voided += 1;
             }

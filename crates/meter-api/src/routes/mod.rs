@@ -1,6 +1,7 @@
 //! Route assembly.
 
 mod accounts;
+mod events;
 mod health;
 mod reservations;
 
@@ -16,9 +17,14 @@ pub fn router(state: AppState) -> Router {
         .route("/accounts/:id/balance", get(accounts::balance))
         .route("/accounts/:id/grants", post(accounts::grant))
         .route("/accounts/:id/entries", get(accounts::entries))
+        .route("/accounts/:id/events", get(events::list_for_account))
         .route("/reservations", post(reservations::reserve))
         .route("/reservations/:id/settle", post(reservations::settle))
-        .route("/reservations/:id/void", post(reservations::void));
+        .route("/reservations/:id/void", post(reservations::void))
+        .route("/events", post(events::record))
+        .route("/events/:id", get(events::get))
+        .route("/events/:id/amend", post(events::amend))
+        .route("/runs/:id/void", post(events::void_run));
 
     Router::new()
         .route("/health", get(health::health))

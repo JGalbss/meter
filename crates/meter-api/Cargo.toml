@@ -16,9 +16,11 @@ axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
+time = { workspace = true }
 tracing = { workspace = true }
 meter-core = { workspace = true }
 meter-ledger = { workspace = true }
+meter-event = { workspace = true }
 meter-store-pg = { workspace = true }
 
 [dev-dependencies]

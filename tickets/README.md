@@ -54,9 +54,11 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 - [ ] Latency SLO instrumentation (per SLO.md); circuit breaker; fail-closed (HARD) / fail-open (SOFT) wiring at the engine API
 
 ## EPIC 06 — Ingest & event model
-- [ ] `meter-ingest`: `IngestSource` trait; Postgres-outbox default source; effectively-once consumer (poll→validate→dedup→sink→ack); dead-letter
-- [ ] Event API: custom fields (schema-validated per meter), client idempotency key, 202-fast, batch with per-event accept/reject
-- [ ] `amend_event` (version + delta posting), `void_run` (reverse a run's holds/settles), latest-non-voided reads
+- [x] `meter-event`: EventStore trait + in-memory reference + conformance — custom-field events, idempotency on (org,key), amend-as-new-version, void_run, latest-non-voided reads
+- [ ] Postgres EventStore backend (events table, JSONB props, run_id, status, supersedes) + conformance against real PG
+- [ ] Event API on the engine: 202-fast, batch with per-event accept/reject, per-meter schema validation
+- [ ] Compose void_run with the ledger (reverse a run's holds/settles); event amend → delta posting
+- [ ] `meter-ingest`: `IngestSource` trait; Postgres-outbox default source; effectively-once consumer; dead-letter
 - [ ] Reconciliation job (aggregates vs raw; ledger vs invoice)
 
 ## EPIC 07 — Analytics store (ClickHouse, optional add-on)

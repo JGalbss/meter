@@ -22,6 +22,14 @@ pub(crate) fn credit_from_db(value: Decimal) -> Credit {
     Credit::from_decimal(value.normalize())
 }
 
+/// Current UTC time truncated to microsecond precision (Postgres `TIMESTAMPTZ` resolution), so a value
+/// constructed in Rust equals the same value read back from the database.
+pub(crate) fn now_micros() -> OffsetDateTime {
+    let now = OffsetDateTime::now_utc();
+    now.replace_nanosecond(now.microsecond() * 1000)
+        .expect("microsecond-aligned nanoseconds are always in range")
+}
+
 fn col<'r, T>(row: &'r PgRow, name: &str) -> Result<T, LedgerError>
 where
     T: sqlx::Decode<'r, sqlx::Postgres> + sqlx::Type<sqlx::Postgres>,

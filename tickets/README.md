@@ -64,7 +64,7 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 ## EPIC 07 — Analytics store (ClickHouse, optional add-on)
 - [~] `meter-store-ch`: events_raw (`ReplacingMergeTree(version)`, partitioned by month) + batch ingest + `usage_by_model` rollup + `event_count`; **integration-tested against a real ClickHouse container** (`clickhouse` 0.13). minute/day AggregatingMergeTree MVs + events_dead_letter pending
 - [x] Idempotent ingest — ReplacingMergeTree dedup on `(org_id, event_id)` with `FINAL` (proven in the test). Deterministic re-rating (INSERT…SELECT partition-by-partition) pending
-- [~] Rollup query (`usage_by_model`) done; full query API surfaced over the control plane + workload isolation pending
+- [~] Rollup queries (`usage_by_model`, `usage_by_day` time series) done; surfacing them over the control plane + workload isolation pending
 
 ## EPIC 08 — Engine binary & CLI
 - [x] `meter-api` HTTP surface: accounts (open/balance/grant/entries), reservations (reserve/settle/void), health; typed error→HTTP mapping

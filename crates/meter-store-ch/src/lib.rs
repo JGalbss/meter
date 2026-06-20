@@ -53,6 +53,14 @@ pub struct ModelUsage {
     pub credits: f64,
 }
 
+/// Daily usage totals for an organization (a time series for charts). `day` is `YYYY-MM-DD`.
+#[derive(clickhouse::Row, Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct DayUsage {
+    pub day: String,
+    pub events: u64,
+    pub credits: f64,
+}
+
 #[derive(clickhouse::Row, Deserialize)]
 struct CountRow {
     n: u64,
@@ -99,6 +107,20 @@ impl ChStore {
             )
             .bind(org_id)
             .fetch_all::<ModelUsage>()
+            .await?;
+        Ok(rows)
+    }
+
+    /// Daily credit + event totals for an organization (deduped via `FINAL`), oldest day first.
+    pub async fn usage_by_day(&self, org_id: Uuid) -> Result<Vec<DayUsage>, ChError> {
+        let rows = self
+            .client
+            .query(
+                "SELECT toString(toDate(ts)) AS day, count() AS events, sum(credits) AS credits \
+                 FROM events_raw FINAL WHERE org_id = ? GROUP BY day ORDER BY day",
+            )
+            .bind(org_id)
+            .fetch_all::<DayUsage>()
             .await?;
         Ok(rows)
     }

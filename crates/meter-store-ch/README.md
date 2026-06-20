@@ -17,6 +17,7 @@ let store = ChStore::new("http://clickhouse:8123");
 store.migrate().await?;                 // CREATE TABLE IF NOT EXISTS events_raw
 store.insert_events(&rows).await?;      // batch ingest (idempotent on org_id + event_id)
 let by_model = store.usage_by_model(org).await?;  // rollup, highest spend first
+let by_day = store.usage_by_day(org).await?;      // daily credit/event time series (for charts)
 let n = store.event_count(org).await?;            // distinct events (deduped)
 ```
 

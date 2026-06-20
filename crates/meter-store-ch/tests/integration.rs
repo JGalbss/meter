@@ -101,4 +101,11 @@ async fn ingests_dedups_and_aggregates_by_model() {
     assert_eq!(gpt.events, 1);
     assert_eq!(gpt.input_tokens, 400);
     assert_eq!(gpt.credits, 40.0);
+
+    // All events share one day; credits dedup A to v2 → 20 + 30 + 40 = 90.
+    let days = store.usage_by_day(org).await.expect("usage by day");
+    assert_eq!(days.len(), 1);
+    assert_eq!(days[0].day, "2026-06-20");
+    assert_eq!(days[0].events, 3);
+    assert_eq!(days[0].credits, 90.0);
 }

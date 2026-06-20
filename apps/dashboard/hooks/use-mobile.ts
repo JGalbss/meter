@@ -12,6 +12,6 @@ export function useIsMobile(): boolean {
   return React.useSyncExternalStore(
     subscribe,
     () => window.innerWidth < MOBILE_BREAKPOINT,
-    () => false,
+    () => false
   )
 }

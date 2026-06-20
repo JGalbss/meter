@@ -1,9 +1,9 @@
-import { Lightning } from "@phosphor-icons/react/dist/ssr";
+import { Lightning } from "@phosphor-icons/react/dist/ssr"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { LoginForm } from "./login-form";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { LoginForm } from "./login-form"
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"
 
 export default function LoginPage() {
   return (
@@ -13,12 +13,14 @@ export default function LoginPage() {
           <div className="mx-auto flex size-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <Lightning size={20} weight="fill" />
           </div>
-          <CardTitle className="font-heading text-xl tracking-tight">meter</CardTitle>
+          <CardTitle className="font-heading text-xl tracking-tight">
+            meter
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <LoginForm />
         </CardContent>
       </Card>
     </div>
-  );
+  )
 }

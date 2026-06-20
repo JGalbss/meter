@@ -1,9 +1,9 @@
-"use client";
+"use client"
 
-import { type FormEvent, useState, useTransition } from "react";
-import { toast } from "sonner";
+import { type FormEvent, useState, useTransition } from "react"
+import { toast } from "sonner"
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
@@ -12,60 +12,60 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import type { ApiKeyRole } from "@/lib/meter/types";
-import { createApiKeyAction } from "./actions";
+} from "@/components/ui/select"
+import type { ApiKeyRole } from "@/lib/meter/types"
+import { createApiKeyAction } from "./actions"
 
 const ROLES: readonly { value: ApiKeyRole; label: string }[] = [
   { value: "viewer", label: "Viewer — read-only" },
   { value: "member", label: "Member — read & write" },
   { value: "admin", label: "Admin — full access" },
-];
+]
 
 export function CreateApiKeyDialog({ orgId }: { orgId: string }) {
-  const [open, setOpen] = useState(false);
-  const [pending, startTransition] = useTransition();
-  const [token, setToken] = useState<string | null>(null);
-  const [role, setRole] = useState<ApiKeyRole>("member");
+  const [open, setOpen] = useState(false)
+  const [pending, startTransition] = useTransition()
+  const [token, setToken] = useState<string | null>(null)
+  const [role, setRole] = useState<ApiKeyRole>("member")
 
   const onOpenChange = (next: boolean) => {
-    setOpen(next);
+    setOpen(next)
     if (!next) {
-      setToken(null);
-      setRole("member");
+      setToken(null)
+      setRole("member")
     }
-  };
+  }
 
   // The select is typed over our role values; it emits ApiKeyRole | null (null only on clear).
   const onRoleChange = (value: ApiKeyRole | null) => {
     if (value !== null) {
-      setRole(value);
+      setRole(value)
     }
-  };
+  }
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    const name = String(data.get("name") ?? "");
+    event.preventDefault()
+    const data = new FormData(event.currentTarget)
+    const name = String(data.get("name") ?? "")
     startTransition(async () => {
-      const result = await createApiKeyAction({ orgId, name, role });
+      const result = await createApiKeyAction({ orgId, name, role })
       if (!result.ok) {
-        toast.error(result.error);
-        return;
+        toast.error(result.error)
+        return
       }
-      setToken(result.token);
-      toast.success("API key created");
-    });
-  };
+      setToken(result.token)
+      toast.success("API key created")
+    })
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -73,7 +73,9 @@ export function CreateApiKeyDialog({ orgId }: { orgId: string }) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>New API key</DialogTitle>
-          <DialogDescription>The token is shown once — copy it now.</DialogDescription>
+          <DialogDescription>
+            The token is shown once — copy it now.
+          </DialogDescription>
         </DialogHeader>
         {token === null && (
           <form onSubmit={submit} className="space-y-4">
@@ -107,7 +109,12 @@ export function CreateApiKeyDialog({ orgId }: { orgId: string }) {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="token">Token</Label>
-              <Input id="token" readOnly value={token} className="font-mono text-xs" />
+              <Input
+                id="token"
+                readOnly
+                value={token}
+                className="font-mono text-xs"
+              />
             </div>
             <DialogFooter>
               <Button onClick={() => onOpenChange(false)}>Done</Button>
@@ -116,5 +123,5 @@ export function CreateApiKeyDialog({ orgId }: { orgId: string }) {
         )}
       </DialogContent>
     </Dialog>
-  );
+  )
 }

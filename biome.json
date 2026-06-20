@@ -8,8 +8,7 @@
       "**/node_modules/**",
       "**/target/**",
       "**/drizzle/**",
-      "apps/dashboard/**",
-      "apps/docs/**"
+      "apps/dashboard/**"
     ]
   },
   "formatter": {
@@ -39,6 +38,17 @@
         "**/*.config.js",
         "**/*.config.mjs",
         "**/*.config.cjs"
+      ],
+      "linter": { "rules": { "style": { "noDefaultExport": "off" } } }
+    },
+    {
+      "include": [
+        "**/app/**/page.tsx",
+        "**/app/**/layout.tsx",
+        "**/app/**/template.tsx",
+        "**/app/**/error.tsx",
+        "**/app/**/not-found.tsx",
+        "**/app/**/loading.tsx"
       ],
       "linter": { "rules": { "style": { "noDefaultExport": "off" } } }
     }

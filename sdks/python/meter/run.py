@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import uuid
-from typing import Any, Callable, Optional, TypeVar
+from collections.abc import Callable
+from typing import TypeVar
 
 from .client import MeterClient
 from .errors import MeterError
@@ -17,7 +19,7 @@ def with_run(
     account: str,
     estimate: str,
     work: Callable[[Callable[[str], None]], T],
-    reservation_id: Optional[str] = None,
+    reservation_id: str | None = None,
     limit: str = "hard",
 ) -> T:
     """Run an operation under a credit reservation.
@@ -27,7 +29,9 @@ def with_run(
     voided so a failed run leaves no lingering hold.
     """
     reservation = reservation_id or str(uuid.uuid4())
-    outcome = client.reserve(account=account, reservation_id=reservation, amount=estimate, limit=limit)
+    outcome = client.reserve(
+        account=account, reservation_id=reservation, amount=estimate, limit=limit
+    )
     if outcome.get("outcome") == "denied":
         raise MeterError(402, "reservation_denied", "reservation denied")
 
@@ -50,7 +54,6 @@ def with_run(
 
 
 def _safe_void(client: MeterClient, reservation_id: str) -> None:
-    try:
+    # Best-effort cleanup; never mask the original error that triggered the void.
+    with contextlib.suppress(Exception):
         client.void_reservation(reservation_id)
-    except Exception:  # noqa: BLE001 - best-effort cleanup; surface the original error
-        pass

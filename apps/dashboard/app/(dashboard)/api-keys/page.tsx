@@ -1,9 +1,9 @@
-import { Key, PlugsConnected } from "@phosphor-icons/react/dist/ssr";
+import { Key, PlugsConnected } from "@phosphor-icons/react/dist/ssr"
 
-import { EmptyState } from "@/components/empty-state";
-import { PageHeader } from "@/components/page-header";
-import { ValueBadge } from "@/components/value-badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/empty-state"
+import { PageHeader } from "@/components/page-header"
+import { ValueBadge } from "@/components/value-badge"
+import { Card, CardContent } from "@/components/ui/card"
 import {
   Table,
   TableBody,
@@ -11,59 +11,71 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { listApiKeys, unwrapOr } from "@/lib/meter/client";
-import { resolveOrgScope } from "@/lib/meter/org";
-import { CreateApiKeyDialog } from "./create-api-key-dialog";
-import { RevokeApiKeyButton } from "./revoke-api-key-button";
+} from "@/components/ui/table"
+import { listApiKeys, unwrapOr } from "@/lib/meter/client"
+import { resolveOrgScope } from "@/lib/meter/org"
+import { CreateApiKeyDialog } from "./create-api-key-dialog"
+import { RevokeApiKeyButton } from "./revoke-api-key-button"
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"
 
-const STATUS_VARIANTS = { active: "default", revoked: "outline" } as const;
-const ROLE_VARIANTS = { admin: "default", member: "secondary", viewer: "outline" } as const;
+const STATUS_VARIANTS = { active: "default", revoked: "outline" } as const
+const ROLE_VARIANTS = {
+  admin: "default",
+  member: "secondary",
+  viewer: "outline",
+} as const
 
 function keyStatus(revokedAt: string | null): string {
   if (revokedAt === null) {
-    return "active";
+    return "active"
   }
-  return "revoked";
+  return "revoked"
 }
 
 function whenOrNever(at: string | null): string {
   if (at === null) {
-    return "never";
+    return "never"
   }
-  return new Date(at).toLocaleString();
+  return new Date(at).toLocaleString()
 }
 
 export default async function ApiKeysPage({
   searchParams,
 }: {
-  searchParams: Promise<{ org?: string }>;
+  searchParams: Promise<{ org?: string }>
 }) {
-  const { org } = await searchParams;
-  const scope = await resolveOrgScope(org);
+  const { org } = await searchParams
+  const scope = await resolveOrgScope(org)
 
   if (scope.error !== null) {
     return (
       <>
         <PageHeader title="API keys" />
-        <EmptyState icon={PlugsConnected} title="Control plane unreachable" message={scope.error} />
+        <EmptyState
+          icon={PlugsConnected}
+          title="Control plane unreachable"
+          message={scope.error}
+        />
       </>
-    );
+    )
   }
 
   if (scope.activeOrg === null) {
     return (
       <>
         <PageHeader title="API keys" />
-        <EmptyState icon={Key} title="No organization" message="Create an organization first." />
+        <EmptyState
+          icon={Key}
+          title="No organization"
+          message="Create an organization first."
+        />
       </>
-    );
+    )
   }
 
-  const orgId = scope.activeOrg.id;
-  const keys = unwrapOr(await listApiKeys(orgId), []);
+  const orgId = scope.activeOrg.id
+  const keys = unwrapOr(await listApiKeys(orgId), [])
 
   return (
     <>
@@ -89,7 +101,10 @@ export default async function ApiKeysPage({
             <TableBody>
               {keys.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={7}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
                     No API keys.
                   </TableCell>
                 </TableRow>
@@ -106,12 +121,19 @@ export default async function ApiKeysPage({
                   <TableCell className="text-muted-foreground">
                     {new Date(key.createdAt).toLocaleDateString()}
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{whenOrNever(key.lastUsedAt)}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {whenOrNever(key.lastUsedAt)}
+                  </TableCell>
                   <TableCell>
-                    <ValueBadge value={keyStatus(key.revokedAt)} variants={STATUS_VARIANTS} />
+                    <ValueBadge
+                      value={keyStatus(key.revokedAt)}
+                      variants={STATUS_VARIANTS}
+                    />
                   </TableCell>
                   <TableCell className="text-right">
-                    {key.revokedAt === null && <RevokeApiKeyButton id={key.id} />}
+                    {key.revokedAt === null && (
+                      <RevokeApiKeyButton id={key.id} />
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -120,5 +142,5 @@ export default async function ApiKeysPage({
         </CardContent>
       </Card>
     </>
-  );
+  )
 }

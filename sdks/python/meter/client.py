@@ -5,19 +5,20 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 from urllib.parse import urlencode
 
 from .errors import MeterError
 
 # A transport runs one request: (method, url, body_bytes, headers) -> (status, body_bytes).
 # Defaults to urllib; tests inject a fake to avoid the network.
-Transport = Callable[[str, str, Optional[bytes], "dict[str, str]"], "tuple[int, bytes]"]
+Transport = Callable[[str, str, bytes | None, "dict[str, str]"], "tuple[int, bytes]"]
 
 
 def _urllib_transport(
-    method: str, url: str, body: Optional[bytes], headers: "dict[str, str]"
-) -> "tuple[int, bytes]":
+    method: str, url: str, body: bytes | None, headers: dict[str, str]
+) -> tuple[int, bytes]:
     request = urllib.request.Request(url, data=body, method=method, headers=headers)
     try:
         with urllib.request.urlopen(request) as response:  # noqa: S310 - engine URL is caller-controlled
@@ -29,7 +30,7 @@ def _urllib_transport(
 class MeterClient:
     """A thin, drop-in client for the meter engine's HTTP API."""
 
-    def __init__(self, base_url: str, transport: Optional[Transport] = None) -> None:
+    def __init__(self, base_url: str, transport: Transport | None = None) -> None:
         self._base_url = base_url.rstrip("/")
         self._transport = transport or _urllib_transport
 
@@ -39,28 +40,40 @@ class MeterClient:
         org_id: str,
         scope: str,
         no_overdraft: bool = False,
-        parent_id: Optional[str] = None,
+        parent_id: str | None = None,
     ) -> dict[str, Any]:
         return self._post(
             "/v1/accounts",
-            {"org_id": org_id, "scope": scope, "no_overdraft": no_overdraft, "parent_id": parent_id},
+            {
+                "org_id": org_id,
+                "scope": scope,
+                "no_overdraft": no_overdraft,
+                "parent_id": parent_id,
+            },
         )
 
     def balance(self, account: str) -> dict[str, Any]:
         return self._get(f"/v1/accounts/{account}/balance")
 
     def grant(
-        self, account: str, *, amount: str, source: str, idempotency_key: Optional[str] = None
+        self, account: str, *, amount: str, source: str, idempotency_key: str | None = None
     ) -> dict[str, Any]:
         return self._post(
             f"/v1/accounts/{account}/grants",
             {"amount": amount, "source": source, "idempotency_key": idempotency_key},
         )
 
-    def reserve(self, *, account: str, reservation_id: str, amount: str, limit: str) -> dict[str, Any]:
+    def reserve(
+        self, *, account: str, reservation_id: str, amount: str, limit: str
+    ) -> dict[str, Any]:
         return self._post(
             "/v1/reservations",
-            {"account": account, "reservation_id": reservation_id, "amount": amount, "limit": limit},
+            {
+                "account": account,
+                "reservation_id": reservation_id,
+                "amount": amount,
+                "limit": limit,
+            },
         )
 
     def settle(self, reservation_id: str, actual: str) -> dict[str, Any]:
@@ -70,11 +83,11 @@ class MeterClient:
         self._send("POST", f"/v1/reservations/{reservation_id}/void", None)
 
     def open_lease(self, *, parent: str, amount: str) -> dict[str, Any]:
-        """Open a per-session lease: a child account funded by a conserving transfer from the parent."""
+        """Open a per-session lease: a child account funded by a transfer from a parent."""
         return self._post("/v1/leases", {"parent": parent, "amount": amount})
 
     def close_lease(self, lease_id: str) -> str:
-        """Close a lease, returning its unused balance to the parent; returns the credits returned."""
+        """Close a lease, returning its unused balance to the parent."""
         body = self._post(f"/v1/leases/{lease_id}/close", None)
         return str(body["returned"])
 
@@ -85,9 +98,9 @@ class MeterClient:
         idempotency_key: str,
         meter: str,
         account: str,
-        run_id: Optional[str] = None,
-        properties: Optional[dict[str, Any]] = None,
-        event_time: Optional[str] = None,
+        run_id: str | None = None,
+        properties: dict[str, Any] | None = None,
+        event_time: str | None = None,
     ) -> dict[str, Any]:
         return self._post(
             "/v1/events",
@@ -124,7 +137,7 @@ class MeterClient:
         model: str,
         idempotency_key: str,
         usage: dict[str, int],
-        run_id: Optional[str] = None,
+        run_id: str | None = None,
     ) -> dict[str, Any]:
         """Price token usage via the catalog, record the event, and charge credits (idempotent)."""
         return self._post(
@@ -142,10 +155,10 @@ class MeterClient:
     def _get(self, path: str) -> Any:
         return self._send("GET", path, None)
 
-    def _post(self, path: str, body: Optional[dict[str, Any]]) -> Any:
+    def _post(self, path: str, body: dict[str, Any] | None) -> Any:
         return self._send("POST", path, body)
 
-    def _send(self, method: str, path: str, body: Optional[dict[str, Any]]) -> Any:
+    def _send(self, method: str, path: str, body: dict[str, Any] | None) -> Any:
         data = None if body is None else json.dumps(body).encode("utf-8")
         status, raw = self._transport(
             method, f"{self._base_url}{path}", data, {"content-type": "application/json"}

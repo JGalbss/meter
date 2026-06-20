@@ -1,21 +1,24 @@
-"use client";
+"use client"
 
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
 import {
   type ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-} from "@/components/ui/chart";
-import type { DayUsage } from "@/lib/meter/types";
+} from "@/components/ui/chart"
+import type { DayUsage } from "@/lib/meter/types"
 
 const config = {
   credits: { label: "Credits", color: "var(--chart-1)" },
-} satisfies ChartConfig;
+} satisfies ChartConfig
 
 export function UsageChart({ data }: { data: readonly DayUsage[] }) {
-  const points = data.map((point) => ({ day: point.day, credits: Number(point.total_credits) }));
+  const points = data.map((point) => ({
+    day: point.day,
+    credits: Number(point.total_credits),
+  }))
 
   return (
     <ChartContainer config={config} className="h-[300px] w-full">
@@ -33,5 +36,5 @@ export function UsageChart({ data }: { data: readonly DayUsage[] }) {
         />
       </AreaChart>
     </ChartContainer>
-  );
+  )
 }

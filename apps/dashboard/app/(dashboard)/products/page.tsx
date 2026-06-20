@@ -1,8 +1,8 @@
-import { Package, PlugsConnected } from "@phosphor-icons/react/dist/ssr";
+import { Package, PlugsConnected } from "@phosphor-icons/react/dist/ssr"
 
-import { EmptyState } from "@/components/empty-state";
-import { PageHeader } from "@/components/page-header";
-import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/empty-state"
+import { PageHeader } from "@/components/page-header"
+import { Card, CardContent } from "@/components/ui/card"
 import {
   Table,
   TableBody,
@@ -10,41 +10,49 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { listProducts, unwrapOr } from "@/lib/meter/client";
-import { resolveOrgScope } from "@/lib/meter/org";
-import { CreateProductDialog } from "./create-product-dialog";
+} from "@/components/ui/table"
+import { listProducts, unwrapOr } from "@/lib/meter/client"
+import { resolveOrgScope } from "@/lib/meter/org"
+import { CreateProductDialog } from "./create-product-dialog"
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"
 
 export default async function ProductsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ org?: string }>;
+  searchParams: Promise<{ org?: string }>
 }) {
-  const { org } = await searchParams;
-  const scope = await resolveOrgScope(org);
+  const { org } = await searchParams
+  const scope = await resolveOrgScope(org)
 
   if (scope.error !== null) {
     return (
       <>
         <PageHeader title="Products" />
-        <EmptyState icon={PlugsConnected} title="Control plane unreachable" message={scope.error} />
+        <EmptyState
+          icon={PlugsConnected}
+          title="Control plane unreachable"
+          message={scope.error}
+        />
       </>
-    );
+    )
   }
 
   if (scope.activeOrg === null) {
     return (
       <>
         <PageHeader title="Products" />
-        <EmptyState icon={Package} title="No organization" message="Create an organization first." />
+        <EmptyState
+          icon={Package}
+          title="No organization"
+          message="Create an organization first."
+        />
       </>
-    );
+    )
   }
 
-  const orgId = scope.activeOrg.id;
-  const products = unwrapOr(await listProducts(orgId), []);
+  const orgId = scope.activeOrg.id
+  const products = unwrapOr(await listProducts(orgId), [])
 
   return (
     <>
@@ -66,7 +74,10 @@ export default async function ProductsPage({
             <TableBody>
               {products.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={3} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={3}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
                     No products.
                   </TableCell>
                 </TableRow>
@@ -87,5 +98,5 @@ export default async function ProductsPage({
         </CardContent>
       </Card>
     </>
-  );
+  )
 }

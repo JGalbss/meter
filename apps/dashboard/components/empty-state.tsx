@@ -1,13 +1,13 @@
-import type { ComponentType } from "react";
+import type { ComponentType } from "react"
 
 export function EmptyState({
   icon: Icon,
   title,
   message,
 }: {
-  icon: ComponentType<{ size?: number; className?: string }>;
-  title: string;
-  message: string;
+  icon: ComponentType<{ size?: number; className?: string }>
+  title: string
+  message: string
 }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-12 text-center">
@@ -22,5 +22,5 @@ export function EmptyState({
         </p>
       </div>
     </div>
-  );
+  )
 }

@@ -1,7 +1,7 @@
-import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
 
-const ROWS = ["a", "b", "c", "d", "e", "f"];
+const ROWS = ["a", "b", "c", "d", "e", "f"]
 
 export default function Loading() {
   return (
@@ -18,5 +18,5 @@ export default function Loading() {
         </CardContent>
       </Card>
     </div>
-  );
+  )
 }

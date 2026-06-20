@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import json
 import unittest
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from meter import (
     MeterClient,
@@ -39,7 +40,13 @@ class ClientTests(unittest.TestCase):
         transport, calls = make_transport(
             lambda _m, _u: (
                 200,
-                {"id": "acc-1", "org_id": "org-1", "scope": "org", "no_overdraft": True, "parent_id": None},
+                {
+                    "id": "acc-1",
+                    "org_id": "org-1",
+                    "scope": "org",
+                    "no_overdraft": True,
+                    "parent_id": None,
+                },
             )
         )
         client = MeterClient("http://engine", transport)
@@ -148,7 +155,13 @@ class AdapterTests(unittest.TestCase):
             }
         )
         self.assertEqual(
-            (usage.input_uncached, usage.cache_read, usage.cache_write, usage.output, usage.reasoning),
+            (
+                usage.input_uncached,
+                usage.cache_read,
+                usage.cache_write,
+                usage.output,
+                usage.reasoning,
+            ),
             (750, 200, 50, 500, 120),
         )
 
@@ -173,7 +186,9 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(body["usage"]["input_uncached"], 1000)
 
     def test_record_model_usage_emits_event(self) -> None:
-        transport, calls = make_transport(lambda _m, _u: (200, {"id": "evt-1", "status": "recorded"}))
+        transport, calls = make_transport(
+            lambda _m, _u: (200, {"id": "evt-1", "status": "recorded"})
+        )
         client = MeterClient("http://engine", transport)
         record_model_usage(
             client,
@@ -236,7 +251,9 @@ class RunTests(unittest.TestCase):
         )
         client = MeterClient("http://engine", transport)
         with self.assertRaises(MeterError):
-            with_run(client, account="acc-1", estimate="40", reservation_id="res-1", work=lambda _s: "x")
+            with_run(
+                client, account="acc-1", estimate="40", reservation_id="res-1", work=lambda _s: "x"
+            )
 
 
 if __name__ == "__main__":

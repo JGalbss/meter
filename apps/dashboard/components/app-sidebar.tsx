@@ -1,4 +1,4 @@
-"use client";
+"use client"
 
 import {
   Bell,
@@ -12,10 +12,10 @@ import {
   Package,
   Plugs,
   ShieldWarning,
-} from "@phosphor-icons/react";
-import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
-import type { ComponentType } from "react";
+} from "@phosphor-icons/react"
+import Link from "next/link"
+import { usePathname, useSearchParams } from "next/navigation"
+import type { ComponentType } from "react"
 
 import {
   Sidebar,
@@ -27,12 +27,12 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/sidebar";
+} from "@/components/ui/sidebar"
 
 interface NavItem {
-  readonly href: string;
-  readonly label: string;
-  readonly icon: ComponentType<{ size?: number }>;
+  readonly href: string
+  readonly label: string
+  readonly icon: ComponentType<{ size?: number }>
 }
 
 const NAV: readonly NavItem[] = [
@@ -46,25 +46,25 @@ const NAV: readonly NavItem[] = [
   { href: "/webhooks", label: "Webhooks", icon: Plugs },
   { href: "/api-keys", label: "API keys", icon: Key },
   { href: "/audit", label: "Audit log", icon: ClipboardText },
-];
+]
 
 function isActive(pathname: string, href: string): boolean {
   if (href === "/") {
-    return pathname === "/";
+    return pathname === "/"
   }
-  return pathname.startsWith(href);
+  return pathname.startsWith(href)
 }
 
 function withOrg(href: string, org: string | null): string {
   if (org === null) {
-    return href;
+    return href
   }
-  return `${href}?org=${org}`;
+  return `${href}?org=${org}`
 }
 
 export function AppSidebar() {
-  const pathname = usePathname();
-  const org = useSearchParams().get("org");
+  const pathname = usePathname()
+  const org = useSearchParams().get("org")
   return (
     <Sidebar>
       <SidebarHeader>
@@ -72,7 +72,9 @@ export function AppSidebar() {
           <div className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <Lightning size={18} weight="fill" />
           </div>
-          <span className="font-heading text-lg font-semibold tracking-tight">meter</span>
+          <span className="font-heading text-lg font-semibold tracking-tight">
+            meter
+          </span>
         </div>
       </SidebarHeader>
       <SidebarContent>
@@ -81,7 +83,7 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {NAV.map((item) => {
-                const Icon = item.icon;
+                const Icon = item.icon
                 return (
                   <SidebarMenuItem key={item.href}>
                     <SidebarMenuButton
@@ -93,12 +95,12 @@ export function AppSidebar() {
                       <span>{item.label}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                );
+                )
               })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
     </Sidebar>
-  );
+  )
 }

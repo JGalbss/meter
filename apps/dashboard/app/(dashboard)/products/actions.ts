@@ -1,23 +1,26 @@
-"use server";
+"use server"
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath } from "next/cache"
 
-import { requireSession } from "@/lib/auth/session";
-import { createProduct } from "@/lib/meter/client";
+import { requireSession } from "@/lib/auth/session"
+import { createProduct } from "@/lib/meter/client"
 
-export type ActionResult = { ok: true } | { ok: false; error: string };
+export type ActionResult = { ok: true } | { ok: false; error: string }
 
 export async function createProductAction(input: {
-  orgId: string;
-  key: string;
-  name: string;
+  orgId: string
+  key: string
+  name: string
 }): Promise<ActionResult> {
   try {
-    await requireSession();
-    await createProduct(input);
-    revalidatePath("/products");
-    return { ok: true };
+    await requireSession()
+    await createProduct(input)
+    revalidatePath("/products")
+    return { ok: true }
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : "request failed" };
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "request failed",
+    }
   }
 }

@@ -1,9 +1,9 @@
-import { PlugsConnected, ShieldWarning } from "@phosphor-icons/react/dist/ssr";
+import { PlugsConnected, ShieldWarning } from "@phosphor-icons/react/dist/ssr"
 
-import { EmptyState } from "@/components/empty-state";
-import { PageHeader } from "@/components/page-header";
-import { ValueBadge } from "@/components/value-badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/empty-state"
+import { PageHeader } from "@/components/page-header"
+import { ValueBadge } from "@/components/value-badge"
+import { Card, CardContent } from "@/components/ui/card"
 import {
   Table,
   TableBody,
@@ -11,47 +11,55 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { listAlertRules, unwrapOr } from "@/lib/meter/client";
-import { resolveOrgScope } from "@/lib/meter/org";
-import { AlertToggle } from "./alert-toggle";
-import { CreateAlertRuleDialog } from "./create-alert-rule-dialog";
-import { EvaluateButton } from "./evaluate-button";
+} from "@/components/ui/table"
+import { listAlertRules, unwrapOr } from "@/lib/meter/client"
+import { resolveOrgScope } from "@/lib/meter/org"
+import { AlertToggle } from "./alert-toggle"
+import { CreateAlertRuleDialog } from "./create-alert-rule-dialog"
+import { EvaluateButton } from "./evaluate-button"
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"
 
-const ENABLED_VARIANTS = { enabled: "default", disabled: "outline" } as const;
-const STATUS_VARIANTS = { ok: "secondary", warning: "default", exceeded: "destructive" } as const;
+const ENABLED_VARIANTS = { enabled: "default", disabled: "outline" } as const
+const STATUS_VARIANTS = {
+  ok: "secondary",
+  warning: "default",
+  exceeded: "destructive",
+} as const
 
 function enabledLabel(enabled: boolean): string {
   if (enabled) {
-    return "enabled";
+    return "enabled"
   }
-  return "disabled";
+  return "disabled"
 }
 
 function statusLabel(status: string | null): string {
   if (status === null) {
-    return "—";
+    return "—"
   }
-  return status;
+  return status
 }
 
 export default async function AlertsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ org?: string }>;
+  searchParams: Promise<{ org?: string }>
 }) {
-  const { org } = await searchParams;
-  const scope = await resolveOrgScope(org);
+  const { org } = await searchParams
+  const scope = await resolveOrgScope(org)
 
   if (scope.error !== null) {
     return (
       <>
         <PageHeader title="Alert rules" />
-        <EmptyState icon={PlugsConnected} title="Control plane unreachable" message={scope.error} />
+        <EmptyState
+          icon={PlugsConnected}
+          title="Control plane unreachable"
+          message={scope.error}
+        />
       </>
-    );
+    )
   }
 
   if (scope.activeOrg === null) {
@@ -64,11 +72,11 @@ export default async function AlertsPage({
           message="Create an organization first."
         />
       </>
-    );
+    )
   }
 
-  const orgId = scope.activeOrg.id;
-  const rules = unwrapOr(await listAlertRules(orgId), []);
+  const orgId = scope.activeOrg.id
+  const rules = unwrapOr(await listAlertRules(orgId), [])
 
   return (
     <>
@@ -100,7 +108,10 @@ export default async function AlertsPage({
             <TableBody>
               {rules.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={8}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
                     No alert rules.
                   </TableCell>
                 </TableRow>
@@ -108,15 +119,29 @@ export default async function AlertsPage({
               {rules.map((rule) => (
                 <TableRow key={rule.id}>
                   <TableCell className="font-medium">{rule.name}</TableCell>
-                  <TableCell className="text-muted-foreground">{rule.scope}</TableCell>
-                  <TableCell className="text-muted-foreground">{rule.metric}</TableCell>
-                  <TableCell className="tabular-nums">{rule.threshold}</TableCell>
-                  <TableCell className="text-muted-foreground">{rule.action}</TableCell>
-                  <TableCell>
-                    <ValueBadge value={statusLabel(rule.lastStatus)} variants={STATUS_VARIANTS} />
+                  <TableCell className="text-muted-foreground">
+                    {rule.scope}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {rule.metric}
+                  </TableCell>
+                  <TableCell className="tabular-nums">
+                    {rule.threshold}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {rule.action}
                   </TableCell>
                   <TableCell>
-                    <ValueBadge value={enabledLabel(rule.enabled)} variants={ENABLED_VARIANTS} />
+                    <ValueBadge
+                      value={statusLabel(rule.lastStatus)}
+                      variants={STATUS_VARIANTS}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <ValueBadge
+                      value={enabledLabel(rule.enabled)}
+                      variants={ENABLED_VARIANTS}
+                    />
                   </TableCell>
                   <TableCell className="text-right">
                     <AlertToggle id={rule.id} enabled={rule.enabled} />
@@ -128,5 +153,5 @@ export default async function AlertsPage({
         </CardContent>
       </Card>
     </>
-  );
+  )
 }

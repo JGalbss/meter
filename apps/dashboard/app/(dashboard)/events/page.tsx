@@ -1,10 +1,10 @@
-import { ListBullets } from "@phosphor-icons/react/dist/ssr";
+import { ListBullets } from "@phosphor-icons/react/dist/ssr"
 
-import { AccountSearchForm } from "@/components/account-search-form";
-import { EmptyState } from "@/components/empty-state";
-import { PageHeader } from "@/components/page-header";
-import { ValueBadge } from "@/components/value-badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { AccountSearchForm } from "@/components/account-search-form"
+import { EmptyState } from "@/components/empty-state"
+import { PageHeader } from "@/components/page-header"
+import { ValueBadge } from "@/components/value-badge"
+import { Card, CardContent } from "@/components/ui/card"
 import {
   Table,
   TableBody,
@@ -12,39 +12,51 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { unwrapOr } from "@/lib/meter/client";
-import { fetchEventsForAccount } from "@/lib/meter/engine";
-import { resolveOrgScope } from "@/lib/meter/org";
+} from "@/components/ui/table"
+import { unwrapOr } from "@/lib/meter/client"
+import { fetchEventsForAccount } from "@/lib/meter/engine"
+import { resolveOrgScope } from "@/lib/meter/org"
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"
 
-const STATUS_VARIANTS = { recorded: "default", amended: "secondary", voided: "outline" } as const;
+const STATUS_VARIANTS = {
+  recorded: "default",
+  amended: "secondary",
+  voided: "outline",
+} as const
 
 function summarize(properties: unknown): string {
   if (properties === null || typeof properties !== "object") {
-    return "";
+    return ""
   }
-  return JSON.stringify(properties);
+  return JSON.stringify(properties)
 }
 
 export default async function EventsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ org?: string; account?: string }>;
+  searchParams: Promise<{ org?: string; account?: string }>
 }) {
-  const { org, account } = await searchParams;
-  const scope = await resolveOrgScope(org);
-  const orgId = scope.activeOrg?.id;
-  const hasAccount = account !== undefined && account.length > 0;
-  const events = hasAccount ? unwrapOr(await fetchEventsForAccount(account), []) : [];
+  const { org, account } = await searchParams
+  const scope = await resolveOrgScope(org)
+  const orgId = scope.activeOrg?.id
+  const hasAccount = account !== undefined && account.length > 0
+  const events = hasAccount
+    ? unwrapOr(await fetchEventsForAccount(account), [])
+    : []
 
   return (
     <>
       <PageHeader
         title="Events"
         description="Usage events recorded against an engine account (latest version, non-voided)."
-        action={<AccountSearchForm basePath="/events" initial={account ?? ""} org={orgId} />}
+        action={
+          <AccountSearchForm
+            basePath="/events"
+            initial={account ?? ""}
+            org={orgId}
+          />
+        }
       />
       {!hasAccount && (
         <EmptyState
@@ -84,7 +96,10 @@ export default async function EventsPage({
                     </TableCell>
                     <TableCell className="font-medium">{event.meter}</TableCell>
                     <TableCell>
-                      <ValueBadge value={event.status} variants={STATUS_VARIANTS} />
+                      <ValueBadge
+                        value={event.status}
+                        variants={STATUS_VARIANTS}
+                      />
                     </TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">
                       {event.run_id ?? "—"}
@@ -100,5 +115,5 @@ export default async function EventsPage({
         </Card>
       )}
     </>
-  );
+  )
 }

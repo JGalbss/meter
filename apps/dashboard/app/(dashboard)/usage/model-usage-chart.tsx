@@ -1,25 +1,32 @@
-"use client";
+"use client"
 
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
 import {
   type ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-} from "@/components/ui/chart";
-import type { ModelUsage } from "@/lib/meter/types";
+} from "@/components/ui/chart"
+import type { ModelUsage } from "@/lib/meter/types"
 
 const config = {
   credits: { label: "Credits", color: "var(--chart-1)" },
-} satisfies ChartConfig;
+} satisfies ChartConfig
 
 export function ModelUsageChart({ data }: { data: readonly ModelUsage[] }) {
-  const points = data.map((usage) => ({ model: usage.model, credits: usage.credits }));
+  const points = data.map((usage) => ({
+    model: usage.model,
+    credits: usage.credits,
+  }))
 
   return (
     <ChartContainer config={config} className="h-[300px] w-full">
-      <BarChart data={points} layout="vertical" margin={{ left: 12, right: 12 }}>
+      <BarChart
+        data={points}
+        layout="vertical"
+        margin={{ left: 12, right: 12 }}
+      >
         <CartesianGrid horizontal={false} />
         <XAxis type="number" tickLine={false} axisLine={false} tickMargin={8} />
         <YAxis
@@ -34,5 +41,5 @@ export function ModelUsageChart({ data }: { data: readonly ModelUsage[] }) {
         <Bar dataKey="credits" fill="var(--color-credits)" radius={4} />
       </BarChart>
     </ChartContainer>
-  );
+  )
 }

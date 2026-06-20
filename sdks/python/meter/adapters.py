@@ -7,7 +7,7 @@ SDK versions.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from .client import MeterClient
 
@@ -32,7 +32,7 @@ def _count(value: Any) -> int:
 
 
 def anthropic_usage(usage: dict[str, Any]) -> TokenUsage:
-    """Normalize Anthropic / Claude (and Claude Agent SDK) usage. `input_tokens` excludes cache reads."""
+    """Normalize Anthropic / Claude usage. `input_tokens` already excludes cache reads."""
     return TokenUsage(
         input_uncached=_count(usage.get("input_tokens")),
         cache_read=_count(usage.get("cache_read_input_tokens")),
@@ -42,7 +42,7 @@ def anthropic_usage(usage: dict[str, Any]) -> TokenUsage:
 
 
 def openai_usage(usage: dict[str, Any]) -> TokenUsage:
-    """Normalize OpenAI usage. `prompt_tokens` includes cached tokens, so uncached = prompt - cached."""
+    """Normalize OpenAI usage. `prompt_tokens` includes cached, so uncached = prompt - cached."""
     prompt_details = usage.get("prompt_tokens_details") or {}
     completion_details = usage.get("completion_tokens_details") or {}
     cached = _count(prompt_details.get("cached_tokens"))
@@ -101,9 +101,9 @@ def meter_model_usage(
     model: str,
     usage: TokenUsage,
     idempotency_key: str,
-    run_id: Optional[str] = None,
+    run_id: str | None = None,
 ) -> dict[str, Any]:
-    """Price + charge normalized model usage in one idempotent call (records the event, debits credits)."""
+    """Price + charge normalized model usage in one idempotent call (record + debit)."""
     return client.meter_usage(
         org_id=org_id,
         account=account,
@@ -129,8 +129,8 @@ def record_model_usage(
     usage: TokenUsage,
     idempotency_key: str,
     meter: str = "tokens",
-    run_id: Optional[str] = None,
-    extra: Optional[dict[str, Any]] = None,
+    run_id: str | None = None,
+    extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Record normalized model token usage as a meter event (the OpenTelemetry-style emission)."""
     properties: dict[str, Any] = {

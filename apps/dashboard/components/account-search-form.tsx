@@ -1,10 +1,10 @@
-"use client";
+"use client"
 
-import { useRouter } from "next/navigation";
-import type { FormEvent } from "react";
+import { useRouter } from "next/navigation"
+import type { FormEvent } from "react"
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 
 /** A small form that navigates to `basePath?account=<uuid>` (preserving the active org). Shared by the
  * account-scoped engine views (usage, events). */
@@ -13,25 +13,25 @@ export function AccountSearchForm({
   initial,
   org,
 }: {
-  basePath: string;
-  initial: string;
-  org?: string;
+  basePath: string
+  initial: string
+  org?: string
 }) {
-  const router = useRouter();
+  const router = useRouter()
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    const account = String(data.get("account") ?? "").trim();
+    event.preventDefault()
+    const data = new FormData(event.currentTarget)
+    const account = String(data.get("account") ?? "").trim()
     if (account.length === 0) {
-      return;
+      return
     }
-    const params = new URLSearchParams({ account });
+    const params = new URLSearchParams({ account })
     if (org !== undefined && org.length > 0) {
-      params.set("org", org);
+      params.set("org", org)
     }
-    router.push(`${basePath}?${params.toString()}`);
-  };
+    router.push(`${basePath}?${params.toString()}`)
+  }
 
   return (
     <form onSubmit={submit} className="flex gap-2">
@@ -45,5 +45,5 @@ export function AccountSearchForm({
         View
       </Button>
     </form>
-  );
+  )
 }

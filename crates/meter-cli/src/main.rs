@@ -7,10 +7,11 @@
 
 use anyhow::Context;
 use clap::{Parser, Subcommand};
-use meter_core::{Credit, OrgId};
+use meter_core::{AccountId, Credit, OrgId};
 use meter_ledger::{AccountScope, CreditSource, GrantRequest, LedgerBackend, NewAccount};
 use meter_store_pg::PgLedger;
 use sqlx::postgres::PgPoolOptions;
+use uuid::Uuid;
 
 #[derive(Parser)]
 #[command(name = "meterctl", about = "Admin CLI for the meter engine", version)]
@@ -36,6 +37,27 @@ enum Command {
         #[arg(long, default_value_t = 1_000_000)]
         credits: u64,
     },
+    /// Print an account's balance (settled / held / available).
+    Balance {
+        /// Postgres connection string (defaults to $`METER_DATABASE_URL`).
+        #[arg(long, env = "METER_DATABASE_URL")]
+        database_url: String,
+        /// The account id (UUID).
+        #[arg(long)]
+        account: Uuid,
+    },
+    /// Grant credits to an existing account.
+    Grant {
+        /// Postgres connection string (defaults to $`METER_DATABASE_URL`).
+        #[arg(long, env = "METER_DATABASE_URL")]
+        database_url: String,
+        /// The account id (UUID).
+        #[arg(long)]
+        account: Uuid,
+        /// How many credits to grant.
+        #[arg(long)]
+        credits: u64,
+    },
 }
 
 #[tokio::main]
@@ -46,6 +68,15 @@ async fn main() -> anyhow::Result<()> {
             database_url,
             credits,
         } => seed(&database_url, credits).await,
+        Command::Balance {
+            database_url,
+            account,
+        } => balance(&database_url, AccountId::from_uuid(account)).await,
+        Command::Grant {
+            database_url,
+            account,
+            credits,
+        } => grant(&database_url, AccountId::from_uuid(account), credits).await,
     }
 }
 
@@ -101,6 +132,39 @@ async fn seed(database_url: &str, credits: u64) -> anyhow::Result<()> {
 
     println!("seeded org {org}");
     println!("  account {}", account.id);
+    println!("  balance {} credits", balance.settled.value());
+    Ok(())
+}
+
+async fn balance(database_url: &str, account: AccountId) -> anyhow::Result<()> {
+    let ledger = connect(database_url).await?;
+    let balance = ledger
+        .balance(account)
+        .await
+        .map_err(|error| anyhow::anyhow!("reading balance: {error}"))?;
+    println!("account {account}");
+    println!("  settled   {} credits", balance.settled.value());
+    println!("  held      {} credits", balance.held.value());
+    println!("  available {} credits", balance.available().value());
+    Ok(())
+}
+
+async fn grant(database_url: &str, account: AccountId, credits: u64) -> anyhow::Result<()> {
+    let ledger = connect(database_url).await?;
+    ledger
+        .grant(GrantRequest {
+            account,
+            amount: Credit::from(credits),
+            source: CreditSource::Paid,
+            idempotency_key: None,
+        })
+        .await
+        .map_err(|error| anyhow::anyhow!("granting credits: {error}"))?;
+    let balance = ledger
+        .balance(account)
+        .await
+        .map_err(|error| anyhow::anyhow!("reading balance: {error}"))?;
+    println!("granted {credits} credits to {account}");
     println!("  balance {} credits", balance.settled.value());
     Ok(())
 }

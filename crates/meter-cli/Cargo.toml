@@ -26,6 +26,7 @@ sqlx = { workspace = true }
 meter-core = { workspace = true }
 meter-ledger = { workspace = true }
 meter-store-pg = { workspace = true }
+uuid = { workspace = true }
 
 [dev-dependencies]
 testcontainers-modules = { version = "0.12", features = ["postgres"] }

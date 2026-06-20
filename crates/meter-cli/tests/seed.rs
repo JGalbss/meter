@@ -41,4 +41,53 @@ async fn seed_creates_a_funded_account() {
         String::from_utf8_lossy(&again.stderr)
     );
     assert!(String::from_utf8_lossy(&again.stdout).contains("balance 250 credits"));
+
+    // The account id printed by `seed` drives `grant` and `balance`.
+    let account = stdout
+        .lines()
+        .find_map(|line| line.trim().strip_prefix("account "))
+        .expect("seed prints the account id")
+        .to_owned();
+
+    let granted = Command::new(env!("CARGO_BIN_EXE_meterctl"))
+        .args([
+            "grant",
+            "--database-url",
+            &url,
+            "--account",
+            &account,
+            "--credits",
+            "250",
+        ])
+        .output()
+        .expect("run meterctl grant");
+    assert!(
+        granted.status.success(),
+        "grant failed: {}",
+        String::from_utf8_lossy(&granted.stderr)
+    );
+
+    let bal = Command::new(env!("CARGO_BIN_EXE_meterctl"))
+        .args(["balance", "--database-url", &url, "--account", &account])
+        .output()
+        .expect("run meterctl balance");
+    assert!(
+        bal.status.success(),
+        "balance failed: {}",
+        String::from_utf8_lossy(&bal.stderr)
+    );
+    let bal_out = String::from_utf8_lossy(&bal.stdout);
+    // 500 seeded + 250 granted = 750 settled and available, nothing held.
+    assert!(
+        bal_out.contains("settled   750 credits"),
+        "balance: {bal_out}"
+    );
+    assert!(
+        bal_out.contains("available 750 credits"),
+        "balance: {bal_out}"
+    );
+    assert!(
+        bal_out.contains("held      0 credits"),
+        "balance: {bal_out}"
+    );
 }

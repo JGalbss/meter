@@ -12,6 +12,7 @@ import { evaluateAllOrgs } from "./alerts/evaluate";
 import { makeDb } from "./db/client";
 import { Database } from "./db/service";
 import { requireApiKey } from "./http/auth";
+import { withObservability } from "./http/observability";
 import { router } from "./http/router";
 
 const port = Number.parseInt(process.env.METER_CONTROL_PLANE_PORT ?? "8090", 10);
@@ -35,7 +36,7 @@ const requireAuth = isTrue(process.env.METER_REQUIRE_AUTH);
 const db = makeDb(databaseUrl);
 await migrate(db, { migrationsFolder: "./drizzle" });
 
-const HttpLive = HttpServer.serve(requireApiKey(db, requireAuth)(router)).pipe(
+const HttpLive = HttpServer.serve(withObservability(requireApiKey(db, requireAuth)(router))).pipe(
   Layer.provide(Layer.succeed(Database, db)),
   Layer.provide(NodeHttpServer.layer(() => createServer(), { port })),
 );

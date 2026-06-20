@@ -15,6 +15,13 @@
       "when": 1781951652445,
       "tag": "0001_damp_mister_sinister",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781952093130,
+      "tag": "0002_known_sunset_bain",
+      "breakpoints": true
     }
   ]
 }

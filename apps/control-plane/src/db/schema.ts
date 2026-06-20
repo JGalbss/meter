@@ -4,6 +4,7 @@
 import {
   boolean,
   index,
+  integer,
   jsonb,
   numeric,
   pgTable,
@@ -79,5 +80,48 @@ export const notifications = pgTable(
   },
   (table) => ({
     byOrgStatus: index("notifications_org_status").on(table.orgId, table.status),
+  }),
+);
+
+// Webhooks: signed HTTP callbacks. `eventTypes` is a list of notification types this endpoint wants;
+// an empty list means all types. `secret` keys the HMAC-SHA256 signature on every delivery.
+export const webhooks = pgTable(
+  "webhooks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id),
+    url: text("url").notNull(),
+    secret: text("secret").notNull(),
+    eventTypes: jsonb("event_types").$type<string[]>().notNull().default([]),
+    enabled: boolean("enabled").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    byOrg: index("webhooks_org").on(table.orgId),
+  }),
+);
+
+// Webhook deliveries: an append-only record of every delivery attempt — the audit trail and the
+// dead-letter view for endpoints that ultimately failed.
+export const webhookDeliveries = pgTable(
+  "webhook_deliveries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    webhookId: uuid("webhook_id")
+      .notNull()
+      .references(() => webhooks.id),
+    notificationId: uuid("notification_id"),
+    event: text("event").notNull(),
+    payload: jsonb("payload").notNull(),
+    status: text("status").notNull(),
+    responseStatus: integer("response_status"),
+    error: text("error"),
+    attempts: integer("attempts").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    byWebhook: index("webhook_deliveries_webhook").on(table.webhookId),
   }),
 );

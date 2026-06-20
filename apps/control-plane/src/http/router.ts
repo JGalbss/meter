@@ -10,6 +10,7 @@ import { alertRoutes } from "./routes/alerts";
 import { notificationRoutes } from "./routes/notifications";
 import { organizationRoutes } from "./routes/organizations";
 import { productRoutes } from "./routes/products";
+import { webhookRoutes } from "./routes/webhooks";
 
 export const router: HttpRouter.HttpRouter<never, Database> = HttpRouter.empty.pipe(
   HttpRouter.get("/health", Effect.succeed(HttpServerResponse.unsafeJson({ status: "ok" }))),
@@ -17,4 +18,5 @@ export const router: HttpRouter.HttpRouter<never, Database> = HttpRouter.empty.p
   productRoutes,
   notificationRoutes,
   alertRoutes,
+  webhookRoutes,
 );

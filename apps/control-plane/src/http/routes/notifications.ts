@@ -10,6 +10,7 @@ import {
   listNotifications,
   markNotificationRead,
 } from "../../notifications/repository";
+import { dispatchForNotification } from "../../webhooks/dispatch";
 import { handle } from "../errors";
 
 const Severity = Schema.Literal("info", "warning", "critical");
@@ -53,6 +54,7 @@ export function notificationRoutes<E, R>(
           const db = yield* Database;
           const body = yield* HttpServerRequest.schemaBodyJson(NewNotificationBody);
           const notification = yield* createNotification(db, body);
+          yield* dispatchForNotification(db, notification);
           return HttpServerResponse.unsafeJson(notification, { status: 201 });
         }),
       ),

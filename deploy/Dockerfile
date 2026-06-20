@@ -3,6 +3,10 @@
 
 FROM rust:1.88-slim-bookworm AS build
 WORKDIR /app
+# protoc compiles the proto contract at build time (meter-proto's prost/tonic build script).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends protobuf-compiler \
+    && rm -rf /var/lib/apt/lists/*
 COPY . .
 RUN cargo build --release -p meter-engine
 

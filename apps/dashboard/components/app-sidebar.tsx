@@ -4,6 +4,7 @@ import {
   Bell,
   Buildings,
   ChartLineUp,
+  ClipboardText,
   House,
   Key,
   Lightning,
@@ -42,6 +43,7 @@ const NAV: readonly NavItem[] = [
   { href: "/alerts", label: "Alert rules", icon: ShieldWarning },
   { href: "/webhooks", label: "Webhooks", icon: Plugs },
   { href: "/api-keys", label: "API keys", icon: Key },
+  { href: "/audit", label: "Audit log", icon: ClipboardText },
 ];
 
 function isActive(pathname: string, href: string): boolean {

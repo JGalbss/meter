@@ -67,6 +67,15 @@ export interface ModelUsage {
   readonly credits: number;
 }
 
+export interface AuditEntry {
+  readonly id: string;
+  readonly actor: string;
+  readonly method: string;
+  readonly path: string;
+  readonly status: number;
+  readonly created_at: string;
+}
+
 export type ApiKeyRole = "viewer" | "member" | "admin";
 
 export interface ApiKey {

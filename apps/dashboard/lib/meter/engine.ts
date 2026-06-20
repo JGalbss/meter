@@ -2,7 +2,7 @@
 //! straight from the engine's authoritative data; reads degrade gracefully when the engine is down.
 
 import type { Result } from "./client";
-import type { DayUsage, ModelUsage } from "./types";
+import type { AuditEntry, DayUsage, ModelUsage } from "./types";
 
 const ENGINE_URL = process.env.METER_ENGINE_URL ?? "http://127.0.0.1:8080";
 
@@ -44,6 +44,22 @@ export async function fetchUsageByModel(orgId: string): Promise<Result<readonly 
       return { ok: false, error: `engine responded ${response.status}` };
     }
     return { ok: true, data: (await response.json()) as ModelUsage[] };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "engine unreachable" };
+  }
+}
+
+export async function fetchAuditLog(limit = 100): Promise<Result<readonly AuditEntry[]>> {
+  try {
+    const params = new URLSearchParams({ limit: String(limit) });
+    const response = await fetch(`${ENGINE_URL}/v1/audit?${params.toString()}`, {
+      cache: "no-store",
+      headers: authHeaders(),
+    });
+    if (!response.ok) {
+      return { ok: false, error: `engine responded ${response.status}` };
+    }
+    return { ok: true, data: (await response.json()) as AuditEntry[] };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "engine unreachable" };
   }

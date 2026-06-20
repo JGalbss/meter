@@ -132,3 +132,16 @@ jobs:
       - name: breaking
         # Compare the module against the contract on main so no change breaks the wire format.
         run: buf breaking --against "https://github.com/${{ github.repository }}.git#branch=main,subdir=proto"
+
+  agent-doctor:
+    name: agent-doctor — Effect-TS health (control plane)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # Effect-TS quality scan (idiomatic/correctness/performance). Warnings are advisory (exit 0);
+      # the job fails only on error-severity findings, so accepted idiomatic warns don't block.
+      - name: scan
+        run: npx --yes @jgalbsss/agent-doctor@0.3.0 apps/control-plane/src

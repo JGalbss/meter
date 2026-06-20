@@ -7,7 +7,8 @@ use axum::Json;
 use utoipa::OpenApi;
 
 use crate::dto::{
-    ExtendBody, GrantBody, OpenAccountBody, OpenLeaseBody, RefundBody, ReserveBody, SettleBody,
+    AmendBody, ExtendBody, GrantBody, OpenAccountBody, OpenLeaseBody, RecordBatchBody,
+    RecordEventBody, RefundBody, ReserveBody, SettleBody,
 };
 
 /// The engine's OpenAPI 3.1 description. The version tracks the crate version.
@@ -32,6 +33,12 @@ use crate::dto::{
         super::reservations::extend,
         super::leases::open_lease,
         super::leases::close_lease,
+        super::events::record,
+        super::events::record_batch,
+        super::events::get,
+        super::events::list_for_account,
+        super::events::amend,
+        super::events::void_run,
     ),
     components(schemas(
         OpenAccountBody,
@@ -40,13 +47,17 @@ use crate::dto::{
         ReserveBody,
         SettleBody,
         ExtendBody,
-        OpenLeaseBody
+        OpenLeaseBody,
+        RecordEventBody,
+        RecordBatchBody,
+        AmendBody
     )),
     tags(
         (name = "health", description = "Liveness and readiness probes"),
         (name = "accounts", description = "Ledger accounts: open, balance, grants, credit-notes, entries"),
         (name = "reservations", description = "The reserve -> settle/void hold lifecycle"),
-        (name = "leases", description = "Per-session credit leases (hot-account mitigation)")
+        (name = "leases", description = "Per-session credit leases (hot-account mitigation)"),
+        (name = "events", description = "Usage events: record, batch, amend (append-only), void-run")
     )
 )]
 pub struct ApiDoc;

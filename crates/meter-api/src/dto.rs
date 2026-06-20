@@ -101,17 +101,23 @@ pub struct ExtendBody {
 }
 
 /// `POST /v1/events`
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct RecordEventBody {
+    #[schema(value_type = String, format = "uuid")]
     pub org_id: OrgId,
     pub idempotency_key: String,
     #[serde(with = "time::serde::rfc3339::option", default)]
+    #[schema(value_type = Option<String>, format = "date-time")]
     pub event_time: Option<OffsetDateTime>,
     pub meter: String,
+    #[schema(value_type = String, format = "uuid")]
     pub account: AccountId,
     #[serde(default)]
+    #[schema(value_type = Option<String>, format = "uuid")]
     pub run_id: Option<RunId>,
+    /// Arbitrary customer JSON describing the usage.
     #[serde(default)]
+    #[schema(value_type = Object)]
     pub properties: Value,
 }
 
@@ -133,14 +139,16 @@ impl RecordEventBody {
 
 /// `POST /v1/events/batch` — the firehose ingest path: many events in one round-trip, written in a
 /// single bulk insert. Idempotent per event on `(org_id, idempotency_key)`, exactly like `record`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct RecordBatchBody {
     pub events: Vec<RecordEventBody>,
 }
 
 /// `POST /v1/events/{id}/amend`
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct AmendBody {
+    /// Replacement customer JSON (the amend records a new version).
+    #[schema(value_type = Object)]
     pub properties: Value,
 }
 

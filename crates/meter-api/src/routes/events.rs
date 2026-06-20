@@ -15,6 +15,13 @@ use crate::error::ApiError;
 use crate::AppState;
 
 /// `POST /v1/events`
+#[utoipa::path(
+    post,
+    path = "/v1/events",
+    request_body = RecordEventBody,
+    responses((status = 200, description = "Event recorded (idempotent on org + key)")),
+    tag = "events"
+)]
 pub async fn record(
     State(state): State<AppState>,
     Json(body): Json<RecordEventBody>,
@@ -25,6 +32,13 @@ pub async fn record(
 
 /// `POST /v1/events/batch` — bulk ingest. Returns `202 Accepted` with the count recorded; ids are
 /// content-addressed from `(org_id, idempotency_key)`, so callers can derive them without the payload.
+#[utoipa::path(
+    post,
+    path = "/v1/events/batch",
+    request_body = RecordBatchBody,
+    responses((status = 202, description = "Batch accepted; returns the count recorded")),
+    tag = "events"
+)]
 pub async fn record_batch(
     State(state): State<AppState>,
     Json(body): Json<RecordBatchBody>,
@@ -42,6 +56,16 @@ pub async fn record_batch(
 }
 
 /// `GET /v1/events/{id}`
+#[utoipa::path(
+    get,
+    path = "/v1/events/{id}",
+    params(("id" = String, Path, description = "Event id (UUID)")),
+    responses(
+        (status = 200, description = "The event"),
+        (status = 404, description = "Unknown event")
+    ),
+    tag = "events"
+)]
 pub async fn get(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -51,6 +75,13 @@ pub async fn get(
 }
 
 /// `GET /v1/accounts/{id}/events`
+#[utoipa::path(
+    get,
+    path = "/v1/accounts/{id}/events",
+    params(("id" = String, Path, description = "Account id (UUID)")),
+    responses((status = 200, description = "The account's latest (non-voided) events")),
+    tag = "events"
+)]
 pub async fn list_for_account(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -63,6 +94,14 @@ pub async fn list_for_account(
 }
 
 /// `POST /v1/events/{id}/amend`
+#[utoipa::path(
+    post,
+    path = "/v1/events/{id}/amend",
+    params(("id" = String, Path, description = "Event id (UUID) to amend")),
+    request_body = AmendBody,
+    responses((status = 200, description = "New event version superseding the prior")),
+    tag = "events"
+)]
 pub async fn amend(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -81,6 +120,13 @@ pub async fn amend(
 /// `POST /v1/runs/{id}/void` — kill a whole run. Voids the run's events (append-only: each is marked
 /// voided) and reverses its ledger impact (release open holds, refund settled charges). Both halves
 /// are idempotent, so retrying a void is safe.
+#[utoipa::path(
+    post,
+    path = "/v1/runs/{id}/void",
+    params(("id" = String, Path, description = "Run id (UUID) to kill")),
+    responses((status = 200, description = "Counts of events voided + ledger holds/charges reversed")),
+    tag = "events"
+)]
 pub async fn void_run(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,

@@ -1099,6 +1099,15 @@ async fn openapi_document_is_served() {
     assert!(doc["paths"]["/v1/leases/{id}/close"]["post"].is_object());
     assert!(doc["components"]["schemas"]["ReserveBody"].is_object());
     assert!(doc["components"]["schemas"]["OpenLeaseBody"].is_object());
+
+    // Events group.
+    assert!(doc["paths"]["/v1/events"]["post"].is_object());
+    assert!(doc["paths"]["/v1/events/batch"]["post"].is_object());
+    assert!(doc["paths"]["/v1/events/{id}"]["get"].is_object());
+    assert!(doc["paths"]["/v1/events/{id}/amend"]["post"].is_object());
+    assert!(doc["paths"]["/v1/runs/{id}/void"]["post"].is_object());
+    assert!(doc["components"]["schemas"]["RecordEventBody"].is_object());
+    assert!(doc["components"]["schemas"]["AmendBody"].is_object());
 }
 
 #[tokio::test]

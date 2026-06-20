@@ -7,7 +7,14 @@ is Rust and has its own rules below.
 
 ## Golden rules
 
-- **No shortcuts. Built for the long term.** Correct schemas, real migrations, heavy tests.
+- **No shortcuts, ever — enterprise quality.** Never make a short-term fix that sacrifices long-term
+  outcomes. Treat everything you touch as potential tech debt; never keep legacy/dead code or outdated
+  patterns — fix or replace them, push the code forward. Correct schemas, real migrations, full e2e
+  tests, no stubs left unfinished, no skipped tests, no "temporary" workarounds. Verify with real
+  commands/tests, never by assertion.
+- **UI uses the design system, always.** The dashboard is built on the shadcn preset `b1z2hUjZ5c`
+  (Dropbox aesthetic) with transitions.dev animations — never hand-roll primitives or ad-hoc
+  transitions. See the `meter-design-system` skill in `.claude/skills/`.
 - **The ledger is sacred.** Money/credits are never lost, double-counted, or overspent. Every credit
   movement is an immutable double-entry transaction; balances are derived. All ingest is idempotent.
   **Money-truth lives only in the Rust engine** — the control plane never computes money (ADR 0001).

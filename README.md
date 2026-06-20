@@ -32,23 +32,28 @@ small. Built to self-host in your own VPC, single-tenant or multi-tenant.
 
 ## Architecture
 
-meter is a **Rust** backend over **PostgreSQL** and **ClickHouse**:
+meter splits along a hard data-plane / control-plane seam:
 
 | Component | Tech | Responsibility |
 |---|---|---|
-| **Engine** | Rust | Event ingestion, the double-entry credit ledger, real-time reserve/settle enforcement. Ships as a single binary. |
-| **System of record** | PostgreSQL | Money & configuration: ledger, accounts, rate cards, budgets, grants, invoices, the org/team/user hierarchy. |
-| **Usage & analytics** | ClickHouse | The high-volume usage-event firehose and rollups. Optional for small deployments. |
-| **Dashboard** | Next.js / React | Stripe-quality console for usage, budgets, pricing, and invoices. |
-| **SDKs** | TypeScript, Python | Drop-in instrumentation that wraps agent/LLM calls like OpenTelemetry spans and emits usage automatically. |
+| **Engine** | Rust | The data plane and **sole owner of money-truth**: event ingestion, the double-entry credit ledger, real-time reserve/settle enforcement, pricing. Exposes gRPC. |
+| **Control plane** | TypeScript · Effect + Drizzle | The management API the dashboard hits: orgs/teams/users/roles, products, rate cards, budgets, grants, invoices, webhooks. Computes no money — it calls the engine over gRPC. |
+| **System of record** | PostgreSQL | Money & config. The engine owns the ledger/event schema; the control plane owns the config schema. |
+| **Usage & analytics** | ClickHouse | High-volume usage firehose + rollups. Optional add-on. |
+| **Dashboard** | Next.js / React | Dropbox-quality console on the shadcn design system. |
+| **SDKs** | TypeScript, Python | Drop-in instrumentation; the hot path (ingest / reserve / settle) talks to the engine directly. |
 
-The control plane and data plane share one Rust codebase and one money type — no cross-language drift on
-currency math. See [`docs/VISION.md`](docs/VISION.md) and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Money-truth lives only in the engine, so there is exactly one ledger and no cross-language drift. The
+engine↔control-plane contract is protobuf; the dashboard/customer contract is OpenAPI.
+
+Docs: [VISION](docs/VISION.md) · [ARCHITECTURE](docs/ARCHITECTURE.md) · [SLO](docs/SLO.md) ·
+[DECISIONS](docs/DECISIONS.md) · [ADRs](docs/adr/) · [tickets](tickets/README.md).
 
 ## Self-hosting
 
-Minimal footprint: the `meter` binary **+ PostgreSQL**. Add ClickHouse when you need high-volume usage
-analytics. Docker Compose for local/dev; Helm for production.
+Minimal footprint: the **engine** + **control plane** **+ PostgreSQL**. Add ClickHouse for high-volume
+usage analytics. Redpanda / Redis / TigerBeetle are opt-in scale-out backends behind traits. Docker
+Compose for local/dev; Helm for production.
 
 ## License
 

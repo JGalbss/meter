@@ -7,7 +7,7 @@
 
 use anyhow::Context;
 use clap::{Parser, Subcommand};
-use meter_core::{AccountId, Credit, Currency, Money, OrgId};
+use meter_core::{AccountId, Credit, Currency, Money, OrgId, RunId};
 use meter_ledger::{
     AccountScope, CreditSource, GrantRequest, LedgerBackend, NewAccount, ReservationId,
 };
@@ -96,6 +96,16 @@ enum Command {
         #[arg(long)]
         reservation: Uuid,
     },
+    /// Reverse a whole run's ledger impact: release its open holds and refund its settled charges
+    /// (the ledger half of killing a failed/abandoned run). Idempotent.
+    VoidRun {
+        /// Postgres connection string (defaults to $`METER_DATABASE_URL`).
+        #[arg(long, env = "METER_DATABASE_URL")]
+        database_url: String,
+        /// The run id (UUID).
+        #[arg(long)]
+        run: Uuid,
+    },
 }
 
 #[tokio::main]
@@ -135,6 +145,9 @@ async fn main() -> anyhow::Result<()> {
             database_url,
             reservation,
         } => void(&database_url, ReservationId::from_uuid(reservation)).await,
+        Command::VoidRun { database_url, run } => {
+            void_run(&database_url, RunId::from_uuid(run)).await
+        }
     }
 }
 
@@ -155,6 +168,22 @@ async fn void(database_url: &str, reservation: ReservationId) -> anyhow::Result<
         .await
         .map_err(|error| anyhow::anyhow!("voiding reservation: {error}"))?;
     println!("voided reservation {reservation}");
+    Ok(())
+}
+
+async fn void_run(database_url: &str, run: RunId) -> anyhow::Result<()> {
+    let summary = connect(database_url)
+        .await?
+        .void_run(run)
+        .await
+        .map_err(|error| anyhow::anyhow!("voiding run: {error}"))?;
+    println!("voided run {run}");
+    println!("  holds released   {}", summary.holds_released);
+    println!("  charges refunded {}", summary.charges_refunded);
+    println!(
+        "  credits refunded {}",
+        summary.credits_refunded.value().normalize()
+    );
     Ok(())
 }
 

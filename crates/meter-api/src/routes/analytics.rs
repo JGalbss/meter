@@ -48,8 +48,9 @@ pub async fn usage_by_day(
     Ok(Json(days))
 }
 
-/// `GET /v1/orgs/{id}/usage-by-model` — usage aggregated by model, derived from the event store
-/// (`ClickHouse`). Reflects amends and voids; ordered by spend, highest first.
+/// `GET /v1/orgs/{id}/usage-by-model` — usage aggregated by model, ordered by spend.
+///
+/// Derived from the event store (`ClickHouse`); reflects amends and voids; highest spend first.
 #[utoipa::path(
     get,
     path = "/v1/orgs/{id}/usage-by-model",

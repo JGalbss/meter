@@ -30,8 +30,10 @@ pub async fn record(
     Ok(Json(event))
 }
 
-/// `POST /v1/events/batch` — bulk ingest. Returns `202 Accepted` with the count recorded; ids are
-/// content-addressed from `(org_id, idempotency_key)`, so callers can derive them without the payload.
+/// `POST /v1/events/batch` — bulk ingest; returns `202 Accepted` with the count recorded.
+///
+/// Ids are content-addressed from `(org_id, idempotency_key)`, so callers can derive them without the
+/// payload.
 #[utoipa::path(
     post,
     path = "/v1/events/batch",
@@ -117,9 +119,10 @@ pub async fn amend(
     Ok(Json(event))
 }
 
-/// `POST /v1/runs/{id}/void` — kill a whole run. Voids the run's events (append-only: each is marked
-/// voided) and reverses its ledger impact (release open holds, refund settled charges). Both halves
-/// are idempotent, so retrying a void is safe.
+/// `POST /v1/runs/{id}/void` — kill a whole run: void its events and reverse its ledger impact.
+///
+/// Voids the run's events (append-only: each is marked voided) and reverses its ledger impact (release
+/// open holds, refund settled charges). Both halves are idempotent, so retrying a void is safe.
 #[utoipa::path(
     post,
     path = "/v1/runs/{id}/void",

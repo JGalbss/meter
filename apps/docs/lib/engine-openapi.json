@@ -17,8 +17,8 @@
         "tags": [
           "health"
         ],
-        "summary": "`GET /health` — liveness; static \"the process is up and serving\".",
-        "description": "Deliberately independent of the stores, so a transient database blip never trips a liveness probe\ninto a restart loop.",
+        "summary": "`GET /health` — liveness. Static: the process is up and serving. Deliberately independent of the",
+        "description": "stores, so a transient database blip never trips a liveness probe into a restart loop.",
         "operationId": "health",
         "responses": {
           "200": {
@@ -32,8 +32,8 @@
         "tags": [
           "health"
         ],
-        "summary": "`GET /health/ready` — readiness; pings both stores and reports which is down.",
-        "description": "`200` only when the money store (Postgres) and the event store (ClickHouse) both answer, otherwise\n`503`. This is the probe a load balancer / k8s should gate traffic on.",
+        "summary": "`GET /health/ready` — readiness. Pings the money store (Postgres) and the event store (ClickHouse);",
+        "description": "`200` only when both answer, otherwise `503` reporting which dependency is down. This is the probe a\nload balancer / k8s should gate traffic on.",
         "operationId": "ready",
         "responses": {
           "200": {
@@ -505,8 +505,8 @@
         "tags": [
           "catalog"
         ],
-        "summary": "`GET /v1/catalog` — the curated provider rate-card catalog.",
-        "description": "Prices are best-effort as of `as_of` (no billing-accuracy SLA); verify against the provider before\nbilling.",
+        "summary": "`GET /v1/catalog` — the curated provider rate-card catalog. Prices are best-effort as of `as_of`",
+        "description": "(no billing-accuracy SLA); verify against the provider before billing.",
         "operationId": "list",
         "responses": {
           "200": {
@@ -520,8 +520,8 @@
         "tags": [
           "catalog"
         ],
-        "summary": "`GET /v1/catalog/{model_id}` — the provider-cost rate card for a catalogued model.",
-        "description": "Ready to price usage against. `404` if the model is not in the catalog.",
+        "summary": "`GET /v1/catalog/{model_id}` — the provider-cost rate card for a catalogued model, ready to price",
+        "description": "usage against. `404` if the model is not in the catalog.",
         "operationId": "get_card",
         "parameters": [
           {
@@ -587,8 +587,8 @@
         "tags": [
           "events"
         ],
-        "summary": "`POST /v1/events/batch` — bulk ingest; returns `202 Accepted` with the count recorded.",
-        "description": "Ids are content-addressed from `(org_id, idempotency_key)`, so callers can derive them without the\npayload.",
+        "summary": "`POST /v1/events/batch` — bulk ingest. Returns `202 Accepted` with the count recorded; ids are",
+        "description": "content-addressed from `(org_id, idempotency_key)`, so callers can derive them without the payload.",
         "operationId": "record_batch",
         "requestBody": {
           "content": {
@@ -817,8 +817,8 @@
         "tags": [
           "analytics"
         ],
-        "summary": "`GET /v1/orgs/{id}/usage-by-model` — usage aggregated by model, ordered by spend.",
-        "description": "Derived from the event store (`ClickHouse`); reflects amends and voids; highest spend first.",
+        "summary": "`GET /v1/orgs/{id}/usage-by-model` — usage aggregated by model, derived from the event store",
+        "description": "(`ClickHouse`). Reflects amends and voids; ordered by spend, highest first.",
         "operationId": "usage_by_model",
         "parameters": [
           {
@@ -1056,8 +1056,8 @@
         "tags": [
           "events"
         ],
-        "summary": "`POST /v1/runs/{id}/void` — kill a whole run: void its events and reverse its ledger impact.",
-        "description": "Voids the run's events (append-only: each is marked voided) and reverses its ledger impact (release\nopen holds, refund settled charges). Both halves are idempotent, so retrying a void is safe.",
+        "summary": "`POST /v1/runs/{id}/void` — kill a whole run. Voids the run's events (append-only: each is marked",
+        "description": "voided) and reverses its ledger impact (release open holds, refund settled charges). Both halves\nare idempotent, so retrying a void is safe.",
         "operationId": "void_run",
         "parameters": [
           {
@@ -1141,8 +1141,8 @@
         "tags": [
           "usage"
         ],
-        "summary": "`POST /v1/usage/reservations/{id}/settle` — price the actual usage and settle the reservation.",
-        "description": "Prices the actuals against a catalog model and closes the reservation. Idempotent on the\nreservation id.",
+        "summary": "`POST /v1/usage/reservations/{id}/settle` — price the actual usage against a catalog model and",
+        "description": "settle the reservation. Idempotent on the reservation id.",
         "operationId": "settle_usage",
         "parameters": [
           {

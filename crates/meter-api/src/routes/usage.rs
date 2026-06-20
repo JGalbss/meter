@@ -149,8 +149,10 @@ pub async fn reserve_usage(
     }))
 }
 
-/// `POST /v1/usage/reservations/{id}/settle` — price the actual usage against a catalog model and
-/// settle the reservation. Idempotent on the reservation id.
+/// `POST /v1/usage/reservations/{id}/settle` — price the actual usage and settle the reservation.
+///
+/// Prices the actuals against a catalog model and closes the reservation. Idempotent on the
+/// reservation id.
 #[utoipa::path(
     post,
     path = "/v1/usage/reservations/{id}/settle",

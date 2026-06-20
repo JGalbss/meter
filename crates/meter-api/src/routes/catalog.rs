@@ -16,8 +16,10 @@ pub struct CatalogResponse {
     pub models: Vec<ModelCatalogEntry>,
 }
 
-/// `GET /v1/catalog` — the curated provider rate-card catalog. Prices are best-effort as of `as_of`
-/// (no billing-accuracy SLA); verify against the provider before billing.
+/// `GET /v1/catalog` — the curated provider rate-card catalog.
+///
+/// Prices are best-effort as of `as_of` (no billing-accuracy SLA); verify against the provider before
+/// billing.
 #[utoipa::path(
     get,
     path = "/v1/catalog",
@@ -31,8 +33,9 @@ pub async fn list() -> Json<CatalogResponse> {
     })
 }
 
-/// `GET /v1/catalog/{model_id}` — the provider-cost rate card for a catalogued model, ready to price
-/// usage against. `404` if the model is not in the catalog.
+/// `GET /v1/catalog/{model_id}` — the provider-cost rate card for a catalogued model.
+///
+/// Ready to price usage against. `404` if the model is not in the catalog.
 #[utoipa::path(
     get,
     path = "/v1/catalog/{model_id}",

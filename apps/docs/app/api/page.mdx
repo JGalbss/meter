@@ -145,6 +145,11 @@ GET /v1/orgs/{id}/usage-by-day       # daily event + credit totals
 GET /v1/orgs/{id}/event-count        # { "count": <live recorded events> }
 ```
 
+The full engine surface — every path, parameter, request body, response, and schema — is also
+published as a **[generated reference](/api/engine)** rendered directly from the engine's committed
+OpenAPI document (`crates/meter-api/openapi.json`, served at `GET /openapi.json` and the source of
+truth for engine SDK codegen), so it always matches the live contract.
+
 ---
 
 ## Control plane

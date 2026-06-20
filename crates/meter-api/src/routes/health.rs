@@ -7,8 +7,10 @@ use serde_json::{json, Value};
 
 use crate::AppState;
 
-/// `GET /health` — liveness. Static: the process is up and serving. Deliberately independent of the
-/// stores, so a transient database blip never trips a liveness probe into a restart loop.
+/// `GET /health` — liveness; static "the process is up and serving".
+///
+/// Deliberately independent of the stores, so a transient database blip never trips a liveness probe
+/// into a restart loop.
 #[utoipa::path(
     get,
     path = "/health",
@@ -19,9 +21,10 @@ pub async fn health() -> Json<Value> {
     Json(json!({ "status": "ok" }))
 }
 
-/// `GET /health/ready` — readiness. Pings the money store (Postgres) and the event store (ClickHouse);
-/// `200` only when both answer, otherwise `503` reporting which dependency is down. This is the probe a
-/// load balancer / k8s should gate traffic on.
+/// `GET /health/ready` — readiness; pings both stores and reports which is down.
+///
+/// `200` only when the money store (Postgres) and the event store (ClickHouse) both answer, otherwise
+/// `503`. This is the probe a load balancer / k8s should gate traffic on.
 #[utoipa::path(
     get,
     path = "/health/ready",

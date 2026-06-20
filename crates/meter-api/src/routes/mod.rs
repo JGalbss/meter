@@ -37,6 +37,7 @@ pub fn router(state: AppState) -> Router {
         .route("/leases", post(leases::open_lease))
         .route("/leases/:id/close", post(leases::close_lease))
         .route("/events", post(events::record))
+        .route("/events/batch", post(events::record_batch))
         .route("/events/:id", get(events::get))
         .route("/events/:id/amend", post(events::amend))
         .route("/runs/:id/void", post(events::void_run))

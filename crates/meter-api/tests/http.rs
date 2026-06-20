@@ -309,6 +309,69 @@ async fn event_flow_over_http() {
 }
 
 #[tokio::test]
+async fn event_batch_over_http() {
+    let (_container, app) = app().await;
+    let org = "11111111-1111-1111-1111-111111111111";
+    let account = "66666666-6666-6666-6666-666666666666";
+
+    // Bulk ingest: many events in one round-trip → 202 Accepted with the count.
+    let (status, accepted) = call(
+        &app,
+        "POST",
+        "/v1/events/batch",
+        &json!({
+            "events": [
+                { "org_id": org, "idempotency_key": "b-1", "meter": "tokens", "account": account,
+                  "properties": { "model": "claude-opus-4-8", "credits": "1" } },
+                { "org_id": org, "idempotency_key": "b-2", "meter": "tokens", "account": account,
+                  "properties": { "model": "gpt-5", "credits": "2" } },
+                { "org_id": org, "idempotency_key": "b-3", "meter": "tokens", "account": account,
+                  "properties": { "model": "gemini-2.5-pro", "credits": "3" } }
+            ]
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED);
+    assert_eq!(accepted["accepted"], json!(3));
+
+    // All three are live; re-sending an overlapping key is idempotent (still three).
+    let (_status, list) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{account}/events"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(list.as_array().expect("array").len(), 3);
+
+    let (status, accepted) = call(
+        &app,
+        "POST",
+        "/v1/events/batch",
+        &json!({
+            "events": [
+                { "org_id": org, "idempotency_key": "b-3", "meter": "tokens", "account": account,
+                  "properties": { "model": "gemini-2.5-pro", "credits": "3" } },
+                { "org_id": org, "idempotency_key": "b-4", "meter": "tokens", "account": account,
+                  "properties": { "model": "gpt-5", "credits": "4" } }
+            ]
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED);
+    assert_eq!(accepted["accepted"], json!(2));
+
+    let (_status, list) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{account}/events"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(list.as_array().expect("array").len(), 4);
+}
+
+#[tokio::test]
 async fn usage_metering_over_http() {
     let (_container, app) = app().await;
 

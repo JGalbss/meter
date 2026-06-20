@@ -1,6 +1,7 @@
 //! Request bodies. Responses reuse the domain types directly (they already derive serde).
 
 use meter_core::{AccountId, Credit, OrgId, RunId};
+use meter_event::RecordEvent;
 use meter_ledger::{AccountScope, CreditSource, LimitClass, ReservationId};
 use serde::Deserialize;
 use serde_json::Value;
@@ -61,6 +62,29 @@ pub struct RecordEventBody {
     pub run_id: Option<RunId>,
     #[serde(default)]
     pub properties: Value,
+}
+
+impl RecordEventBody {
+    /// Convert an API body into a store request, defaulting `event_time` to now.
+    #[must_use]
+    pub fn into_request(self) -> RecordEvent {
+        RecordEvent {
+            org_id: self.org_id,
+            idempotency_key: self.idempotency_key,
+            event_time: self.event_time.unwrap_or_else(OffsetDateTime::now_utc),
+            meter: self.meter,
+            account_id: self.account,
+            run_id: self.run_id,
+            properties: self.properties,
+        }
+    }
+}
+
+/// `POST /v1/events/batch` — the firehose ingest path: many events in one round-trip, written in a
+/// single bulk insert. Idempotent per event on `(org_id, idempotency_key)`, exactly like `record`.
+#[derive(Debug, Deserialize)]
+pub struct RecordBatchBody {
+    pub events: Vec<RecordEventBody>,
 }
 
 /// `POST /v1/events/{id}/amend`

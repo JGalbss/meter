@@ -1,15 +1,15 @@
 //! Event endpoints: record, get, list, amend, void a run.
 
 use axum::extract::{Path, State};
+use axum::http::StatusCode;
 use axum::Json;
 use serde_json::{json, Value};
-use time::OffsetDateTime;
 use uuid::Uuid;
 
 use meter_core::{AccountId, EventId, RunId};
-use meter_event::{AmendEvent, Event, EventStore, RecordEvent};
+use meter_event::{AmendEvent, Event, EventStore};
 
-use crate::dto::{AmendBody, RecordEventBody};
+use crate::dto::{AmendBody, RecordBatchBody, RecordEventBody};
 use crate::error::ApiError;
 use crate::AppState;
 
@@ -18,19 +18,26 @@ pub async fn record(
     State(state): State<AppState>,
     Json(body): Json<RecordEventBody>,
 ) -> Result<Json<Event>, ApiError> {
-    let event = state
-        .events
-        .record(RecordEvent {
-            org_id: body.org_id,
-            idempotency_key: body.idempotency_key,
-            event_time: body.event_time.unwrap_or_else(OffsetDateTime::now_utc),
-            meter: body.meter,
-            account_id: body.account,
-            run_id: body.run_id,
-            properties: body.properties,
-        })
-        .await?;
+    let event = state.events.record(body.into_request()).await?;
     Ok(Json(event))
+}
+
+/// `POST /v1/events/batch` — bulk ingest. Returns `202 Accepted` with the count recorded; ids are
+/// content-addressed from `(org_id, idempotency_key)`, so callers can derive them without the payload.
+pub async fn record_batch(
+    State(state): State<AppState>,
+    Json(body): Json<RecordBatchBody>,
+) -> Result<(StatusCode, Json<Value>), ApiError> {
+    let reqs = body
+        .events
+        .into_iter()
+        .map(RecordEventBody::into_request)
+        .collect();
+    let recorded = state.events.record_batch(reqs).await?;
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(json!({ "accepted": recorded.len() })),
+    ))
 }
 
 /// `GET /v1/events/{id}`

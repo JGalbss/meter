@@ -19,6 +19,9 @@ store.insert_events(&rows).await?;      // batch ingest (idempotent on org_id + 
 let by_model = store.usage_by_model(org).await?;  // rollup, highest spend first
 let by_day = store.usage_by_day(org).await?;      // daily credit/event time series (for charts)
 let n = store.event_count(org).await?;            // distinct events (deduped)
+
+store.record_dead_letter(&failed).await?;         // events that failed validation/ingest
+let dead = store.list_dead_letter(org).await?;    // inspect / replay
 ```
 
 Verified by an integration test against a real ClickHouse container (`testcontainers-modules`):

@@ -25,3 +25,18 @@ CREATE TABLE IF NOT EXISTS events_raw (
 ENGINE = ReplacingMergeTree(version)
 PARTITION BY toYYYYMM(ts)
 ORDER BY (org_id, event_id)";
+
+/// `CREATE TABLE events_dead_letter` — events that failed validation/ingest, kept for inspection and
+/// replay (the raw payload plus the error).
+pub const EVENTS_DEAD_LETTER: &str = "\
+CREATE TABLE IF NOT EXISTS events_dead_letter (
+    id          UUID,
+    org_id      UUID,
+    source      LowCardinality(String),
+    payload     String,
+    error       String,
+    received_at DateTime64(3, 'UTC')
+)
+ENGINE = MergeTree
+PARTITION BY toYYYYMM(received_at)
+ORDER BY (org_id, received_at)";

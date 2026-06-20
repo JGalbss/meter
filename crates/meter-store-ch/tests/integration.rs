@@ -1,6 +1,6 @@
 //! Integration test for the ClickHouse analytics store against a real ClickHouse container.
 
-use meter_store_ch::{ChStore, EventRow};
+use meter_store_ch::{ChStore, DeadLetter, EventRow};
 use time::macros::datetime;
 use uuid::Uuid;
 
@@ -108,4 +108,23 @@ async fn ingests_dedups_and_aggregates_by_model() {
     assert_eq!(days[0].day, "2026-06-20");
     assert_eq!(days[0].events, 3);
     assert_eq!(days[0].credits, 90.0);
+
+    // Dead-letter: a malformed event is captured for inspection/replay.
+    assert_eq!(store.dead_letter_count(org).await.expect("dl count"), 0);
+    store
+        .record_dead_letter(&[DeadLetter {
+            id: Uuid::parse_str("dddddddd-dddd-dddd-dddd-dddddddddddd").unwrap(),
+            org_id: org,
+            source: "ingest".to_owned(),
+            payload: r#"{"meter":"tokens","bad":true}"#.to_owned(),
+            error: "missing account".to_owned(),
+            received_at: ts,
+        }])
+        .await
+        .expect("record dead letter");
+    assert_eq!(store.dead_letter_count(org).await.expect("dl count"), 1);
+    let dead = store.list_dead_letter(org).await.expect("list dead letter");
+    assert_eq!(dead.len(), 1);
+    assert_eq!(dead[0].source, "ingest");
+    assert_eq!(dead[0].error, "missing account");
 }

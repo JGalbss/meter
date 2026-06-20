@@ -61,6 +61,20 @@ pub struct DayUsage {
     pub credits: f64,
 }
 
+/// An event that failed validation/ingest, kept for inspection and replay.
+#[derive(clickhouse::Row, Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct DeadLetter {
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub id: Uuid,
+    #[serde(with = "clickhouse::serde::uuid")]
+    pub org_id: Uuid,
+    pub source: String,
+    pub payload: String,
+    pub error: String,
+    #[serde(with = "clickhouse::serde::time::datetime64::millis")]
+    pub received_at: OffsetDateTime,
+}
+
 #[derive(clickhouse::Row, Deserialize)]
 struct CountRow {
     n: u64,
@@ -83,6 +97,10 @@ impl ChStore {
     /// Apply the analytics schema (idempotent).
     pub async fn migrate(&self) -> Result<(), ChError> {
         self.client.query(schema::EVENTS_RAW).execute().await?;
+        self.client
+            .query(schema::EVENTS_DEAD_LETTER)
+            .execute()
+            .await?;
         Ok(())
     }
 
@@ -130,6 +148,41 @@ impl ChStore {
         let row = self
             .client
             .query("SELECT count() AS n FROM events_raw FINAL WHERE org_id = ?")
+            .bind(org_id)
+            .fetch_one::<CountRow>()
+            .await?;
+        Ok(row.n)
+    }
+
+    /// Record events that failed validation/ingest into the dead-letter table.
+    pub async fn record_dead_letter(&self, rows: &[DeadLetter]) -> Result<(), ChError> {
+        let mut insert = self.client.insert("events_dead_letter")?;
+        for row in rows {
+            insert.write(row).await?;
+        }
+        insert.end().await?;
+        Ok(())
+    }
+
+    /// List an organization's dead-lettered events, newest first.
+    pub async fn list_dead_letter(&self, org_id: Uuid) -> Result<Vec<DeadLetter>, ChError> {
+        let rows = self
+            .client
+            .query(
+                "SELECT id, org_id, source, payload, error, received_at \
+                 FROM events_dead_letter WHERE org_id = ? ORDER BY received_at DESC",
+            )
+            .bind(org_id)
+            .fetch_all::<DeadLetter>()
+            .await?;
+        Ok(rows)
+    }
+
+    /// Count an organization's dead-lettered events.
+    pub async fn dead_letter_count(&self, org_id: Uuid) -> Result<u64, ChError> {
+        let row = self
+            .client
+            .query("SELECT count() AS n FROM events_dead_letter WHERE org_id = ?")
             .bind(org_id)
             .fetch_one::<CountRow>()
             .await?;

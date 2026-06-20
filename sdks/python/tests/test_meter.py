@@ -15,6 +15,7 @@ from meter import (
     gemini_usage,
     langchain_usage,
     meter_model_usage,
+    metered_call,
     openai_usage,
     record_model_usage,
     with_run,
@@ -86,6 +87,23 @@ class ClientTests(unittest.TestCase):
             client.balance("missing")
         self.assertEqual(ctx.exception.status, 404)
         self.assertEqual(ctx.exception.code, "not_found")
+
+    def test_entries_lists_ledger_postings(self) -> None:
+        transport, calls = make_transport(
+            lambda _m, _u: (
+                200,
+                [
+                    {"id": "le-1", "kind": "grant", "amount": "1000"},
+                    {"id": "le-2", "kind": "debit", "amount": "-25"},
+                ],
+            )
+        )
+        client = MeterClient("http://engine", transport)
+        entries = client.entries("acc-1")
+        self.assertEqual([entry["id"] for entry in entries], ["le-1", "le-2"])
+        method, url, _body = calls[0]
+        self.assertEqual(method, "GET")
+        self.assertTrue(url.endswith("/v1/accounts/acc-1/entries"))
 
 
 class AdapterTests(unittest.TestCase):
@@ -204,6 +222,31 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(body["run_id"], "run-1")
         self.assertEqual(body["properties"]["model"], "claude-opus-4-8")
         self.assertEqual(body["properties"]["input_uncached"], 1000)
+
+    def test_metered_call_records_usage_and_returns_response(self) -> None:
+        transport, calls = make_transport(
+            lambda _m, _u: (200, {"id": "evt-1", "status": "recorded"})
+        )
+        client = MeterClient("http://engine", transport)
+        response = {"usage": {"input_tokens": 1000, "output_tokens": 500}}
+
+        returned = metered_call(
+            client,
+            org_id="org-1",
+            account="acc-1",
+            model="claude-opus-4-8",
+            idempotency_key="u1",
+            extract_usage=lambda r: anthropic_usage(r["usage"]),
+            call=lambda: response,
+        )
+
+        # The provider response passes through unchanged.
+        self.assertIs(returned, response)
+        _method, url, body = calls[0]
+        self.assertTrue(url.endswith("/v1/events"))
+        self.assertEqual(body["properties"]["model"], "claude-opus-4-8")
+        self.assertEqual(body["properties"]["input_uncached"], 1000)
+        self.assertEqual(body["properties"]["output"], 500)
 
 
 class RunTests(unittest.TestCase):

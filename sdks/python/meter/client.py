@@ -63,6 +63,10 @@ class MeterClient:
             {"amount": amount, "source": source, "idempotency_key": idempotency_key},
         )
 
+    def entries(self, account: str) -> list[dict[str, Any]]:
+        """List the account's ledger entries (the immutable double-entry postings)."""
+        return self._get(f"/v1/accounts/{account}/entries")
+
     def reserve(
         self, *, account: str, reservation_id: str, amount: str, limit: str
     ) -> dict[str, Any]:

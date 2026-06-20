@@ -6,10 +6,13 @@ SDK versions.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypeVar
 
 from .client import MeterClient
+
+R = TypeVar("R")
 
 
 @dataclass(frozen=True)
@@ -151,3 +154,35 @@ def record_model_usage(
         run_id=run_id,
         properties=properties,
     )
+
+
+def metered_call(
+    client: MeterClient,
+    *,
+    org_id: str,
+    account: str,
+    model: str,
+    idempotency_key: str,
+    extract_usage: Callable[[R], TokenUsage],
+    call: Callable[[], R],
+    meter: str = "tokens",
+    run_id: str | None = None,
+    extra: dict[str, Any] | None = None,
+) -> R:
+    """Wrap a provider call: run it, extract its usage, and record a meter event.
+
+    The provider's response is returned unchanged, so this drops into existing call sites.
+    """
+    response = call()
+    record_model_usage(
+        client,
+        org_id=org_id,
+        account=account,
+        model=model,
+        usage=extract_usage(response),
+        idempotency_key=idempotency_key,
+        meter=meter,
+        run_id=run_id,
+        extra=extra,
+    )
+    return response

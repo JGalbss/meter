@@ -9,6 +9,7 @@ from .adapters import (
     gemini_usage,
     langchain_usage,
     meter_model_usage,
+    metered_call,
     openai_usage,
     record_model_usage,
 )
@@ -26,6 +27,7 @@ __all__ = [
     "gemini_usage",
     "langchain_usage",
     "meter_model_usage",
+    "metered_call",
     "openai_usage",
     "record_model_usage",
     "with_run",

@@ -65,6 +65,26 @@ curl -s localhost:8080/v1/accounts/$ACC/grants -d '{"amount":"100","source":"pai
 curl -s localhost:8080/v1/accounts/$ACC/balance
 ```
 
+## Status — what works today
+
+The Rust engine is functional and tested end-to-end against real Postgres:
+
+- **Ledger** — double-entry, append-only; grant / reserve / settle / void; balances derived; no
+  overdraft under concurrency (property- and conformance-tested; in-memory reference + Postgres backend).
+- **Pricing** — multi-dimensional rate cards; token→credit translation with margin (`meter-pricing`).
+- **Enforcement** — reserve→settle priced via rate cards (`meter-enforcement`).
+- **Events** — editable, custom-field usage events: record (idempotent), amend (append-only version),
+  `void_run`; latest-non-voided reads.
+- **Invoicing** — deterministic invoice summed from the ledger (`enforced == billed`).
+- **Catalog** — curated model rate-card snapshot (`meter-ratecards`).
+- **Engine** — the `meter` binary serving HTTP; `meterctl` admin CLI; Docker image + compose.
+
+Engine HTTP endpoints under `/v1`: `accounts` (open · balance · grants · entries · events · invoice),
+`reservations` (reserve · settle · void), `events` (record · get · amend), `runs/{id}/void`.
+
+In progress (see [tickets](tickets/README.md)): TypeScript control plane (Effect + Drizzle), SDKs,
+dashboard, ClickHouse analytics, budgets/grants, notifications & alerts, audit log, rate-card scraper.
+
 ## Self-hosting
 
 Minimal footprint: the **engine** + **control plane** **+ PostgreSQL**. Add ClickHouse for high-volume

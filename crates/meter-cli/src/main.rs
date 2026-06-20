@@ -8,7 +8,9 @@
 use anyhow::Context;
 use clap::{Parser, Subcommand};
 use meter_core::{AccountId, Credit, Currency, Money, OrgId};
-use meter_ledger::{AccountScope, CreditSource, GrantRequest, LedgerBackend, NewAccount};
+use meter_ledger::{
+    AccountScope, CreditSource, GrantRequest, LedgerBackend, NewAccount, ReservationId,
+};
 use meter_pricing::{price_usage, ContextTier, Modality, PricingDimension, Usage};
 use meter_ratecards::rate_card_for;
 use meter_store_pg::PgLedger;
@@ -85,6 +87,15 @@ enum Command {
         #[arg(long, env = "METER_DATABASE_URL")]
         database_url: String,
     },
+    /// Release a specific open reservation (e.g. a stuck hold from a crashed run).
+    Void {
+        /// Postgres connection string (defaults to $`METER_DATABASE_URL`).
+        #[arg(long, env = "METER_DATABASE_URL")]
+        database_url: String,
+        /// The reservation id (UUID).
+        #[arg(long)]
+        reservation: Uuid,
+    },
 }
 
 #[tokio::main]
@@ -120,6 +131,10 @@ async fn main() -> anyhow::Result<()> {
             credit_value_usd,
         ),
         Command::Sweep { database_url } => sweep(&database_url).await,
+        Command::Void {
+            database_url,
+            reservation,
+        } => void(&database_url, ReservationId::from_uuid(reservation)).await,
     }
 }
 
@@ -130,6 +145,16 @@ async fn sweep(database_url: &str) -> anyhow::Result<()> {
         .await
         .map_err(|error| anyhow::anyhow!("sweeping expired holds: {error}"))?;
     println!("released {released} expired holds");
+    Ok(())
+}
+
+async fn void(database_url: &str, reservation: ReservationId) -> anyhow::Result<()> {
+    connect(database_url)
+        .await?
+        .void(reservation)
+        .await
+        .map_err(|error| anyhow::anyhow!("voiding reservation: {error}"))?;
+    println!("voided reservation {reservation}");
     Ok(())
 }
 

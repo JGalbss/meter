@@ -1,5 +1,7 @@
 //! Budget / alert status: usage in a period against a limit, with threshold classification.
 
+use std::str::FromStr;
+
 use axum::extract::{Path, Query, State};
 use axum::Json;
 use rust_decimal::Decimal;
@@ -9,19 +11,21 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use meter_core::AccountId;
+use meter_store_pg::PgConfig;
 
 use crate::error::ApiError;
 use crate::AppState;
 
-/// `?start=<rfc3339>&end=<rfc3339>&limit=<credits>`
+/// `?start=<rfc3339>&end=<rfc3339>[&limit=<credits>]`
 #[derive(Debug, Deserialize)]
 pub struct BudgetQuery {
     #[serde(with = "time::serde::rfc3339")]
     pub start: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
     pub end: OffsetDateTime,
-    #[serde(with = "rust_decimal::serde::str")]
-    pub limit: Decimal,
+    /// Optional override; when absent the account's configured budget is used.
+    #[serde(default)]
+    pub limit: Option<String>,
 }
 
 const WARNING_RATIO: (i64, u32) = (8, 1); // 0.8
@@ -49,16 +53,29 @@ pub async fn budget_status(
     Query(query): Query<BudgetQuery>,
 ) -> Result<Json<Value>, ApiError> {
     let account = AccountId::from_uuid(id);
+    // Use the explicit limit if given, else the account's configured budget.
+    let limit = match query.limit {
+        Some(value) => {
+            Decimal::from_str(&value).map_err(|_| ApiError::unprocessable("invalid limit"))?
+        }
+        None => PgConfig::new(state.ledger.pool().clone())
+            .budget(id)
+            .await?
+            .map(|budget| budget.limit_credits)
+            .ok_or_else(|| {
+                ApiError::unprocessable("limit required: no budget configured for this account")
+            })?,
+    };
     let usage = state
         .ledger
         .period_usage(account, query.start, query.end)
         .await?;
     let used = usage.total_credits.value();
-    let (ratio, status) = classify(used, query.limit);
-    let remaining = query.limit - used;
+    let (ratio, status) = classify(used, limit);
+    let remaining = limit - used;
     Ok(Json(json!({
         "used_credits": used.normalize().to_string(),
-        "limit_credits": query.limit.normalize().to_string(),
+        "limit_credits": limit.normalize().to_string(),
         "remaining_credits": remaining.normalize().to_string(),
         "ratio": ratio.normalize().to_string(),
         "status": status,

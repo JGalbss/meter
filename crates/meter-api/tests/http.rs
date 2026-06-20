@@ -9,7 +9,7 @@ use http_body_util::BodyExt;
 use meter_api::{router, AppState};
 use meter_core::{Currency, Money};
 use meter_store_ch::ChStore;
-use meter_store_pg::PgLedger;
+use meter_store_pg::{BudgetRecord, PgConfig, PgLedger};
 use rust_decimal::Decimal;
 use serde_json::{json, Value};
 use sqlx::postgres::PgPoolOptions;
@@ -33,6 +33,12 @@ struct TestApp {
 }
 
 async fn app() -> (TestApp, Router) {
+    let (guard, router, _ledger, _events) = app_with_stores().await;
+    (guard, router)
+}
+
+/// Like [`app`], but also hands back the stores so a test can seed config / inspect state directly.
+async fn app_with_stores() -> (TestApp, Router, PgLedger, ChStore) {
     let permit = CONTAINER_LIMIT
         .clone()
         .acquire_owned()
@@ -71,10 +77,13 @@ async fn app() -> (TestApp, Router) {
         _postgres: postgres,
         _clickhouse: clickhouse,
     };
-    (
-        guard,
-        router(AppState::new(ledger, events.clone(), events, credit_value)),
-    )
+    let app = router(AppState::new(
+        ledger.clone(),
+        events.clone(),
+        events.clone(),
+        credit_value,
+    ));
+    (guard, app, ledger, events)
 }
 
 async fn call(app: &Router, method: &str, uri: &str, body: &Value) -> (StatusCode, Value) {
@@ -887,4 +896,72 @@ async fn readiness_reports_stores_up() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["ledger"], json!(true));
     assert_eq!(body["events"], json!(true));
+}
+
+#[tokio::test]
+async fn budget_uses_configured_limit() {
+    let (_container, app, ledger, _events) = app_with_stores().await;
+    let org = "11111111-1111-1111-1111-111111111111";
+    let period = "start=2000-01-01T00:00:00Z&end=2100-01-01T00:00:00Z";
+
+    let (_status, account) = call(
+        &app,
+        "POST",
+        "/v1/accounts",
+        &json!({ "org_id": org, "scope": "org", "no_overdraft": true }),
+    )
+    .await;
+    let account_id = account["id"].as_str().expect("account id").to_owned();
+    call(
+        &app,
+        "POST",
+        &format!("/v1/accounts/{account_id}/grants"),
+        &json!({ "amount": "1000000", "source": "paid" }),
+    )
+    .await;
+    // 52,500 credits of usage (1000 input + 500 output on Opus).
+    call(
+        &app,
+        "POST",
+        "/v1/usage",
+        &json!({
+            "org_id": org,
+            "account": account_id,
+            "model": "claude-opus-4-8",
+            "idempotency_key": "budget-cfg-run",
+            "usage": { "input_uncached": 1000, "output": 500 }
+        }),
+    )
+    .await;
+
+    // No limit param and no configured budget -> 422.
+    let (status, _) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{account_id}/budget?{period}"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    // Configure a 60k budget; the endpoint now uses it without a limit param.
+    PgConfig::new(ledger.pool().clone())
+        .set_budget(&BudgetRecord {
+            account_id: account_id.parse().expect("account uuid"),
+            limit_credits: Decimal::from(60_000),
+            period: "monthly".to_owned(),
+        })
+        .await
+        .expect("set budget");
+    let (status, body) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{account_id}/budget?{period}"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["limit_credits"], "60000");
+    assert_eq!(body["used_credits"], "52500");
+    assert_eq!(body["status"], "warning"); // 52500 / 60000 = 0.875 >= 0.8
 }

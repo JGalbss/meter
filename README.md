@@ -125,8 +125,9 @@ Beyond the engine:
 - **Audit log** — engine middleware records every mutating request; `GET /v1/audit`.
 - **SDKs** (`sdks/typescript`, `sdks/python`) — drop-in client + run governance (`withRun`) + usage
   adapters for Anthropic, OpenAI, Vercel AI SDK, Gemini/Vertex, Bedrock, and LangChain/LangGraph.
-- **Dashboard** (`apps/dashboard`, Next.js + shadcn preset) — overview, organizations, notifications,
-  alert rules, and webhooks, wired to the control plane.
+- **Dashboard** (`apps/dashboard`, Next.js + shadcn preset) — overview, organizations, products,
+  API keys, notifications, alert rules, and webhooks (wired to the control plane), plus usage analytics
+  read from the engine: per-org usage-by-model and per-account daily credit burn.
 - **Docs site** (`apps/docs`, Next.js + MDX) — concepts, full API reference (engine + control plane),
   SDK guides with provider adapters, and self-host instructions. Built and typechecked in CI.
 

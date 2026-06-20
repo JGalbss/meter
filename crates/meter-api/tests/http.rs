@@ -54,7 +54,10 @@ async fn app() -> (TestApp, Router) {
     ledger.migrate().await.expect("migrate");
     let audit = PgAuditLog::new(pool);
 
-    let clickhouse = ClickHouse::default().start().await.expect("start clickhouse");
+    let clickhouse = ClickHouse::default()
+        .start()
+        .await
+        .expect("start clickhouse");
     let ch_port = clickhouse
         .get_host_port_ipv4(8123)
         .await

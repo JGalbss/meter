@@ -107,7 +107,8 @@ use crate::dto::{
         Currency,
         DayUsage,
         EventDayUsage,
-        ModelUsage
+        ModelUsage,
+        super::invoices::InvoiceResponse
     )),
     tags(
         (name = "health", description = "Liveness and readiness probes"),

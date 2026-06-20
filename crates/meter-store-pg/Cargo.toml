@@ -30,3 +30,8 @@ tokio = { workspace = true }
 meter-ledger = { workspace = true, features = ["conformance"] }
 meter-event = { workspace = true, features = ["conformance"] }
 testcontainers-modules = { version = "0.12", features = ["postgres"] }
+criterion = { version = "0.5", features = ["async_tokio"] }
+
+[[bench]]
+name = "ledger_pg"
+harness = false

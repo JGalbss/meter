@@ -1,0 +1,76 @@
+//! Wire types for the meter engine API.
+//
+// Hand-written for now; these will be generated from the engine's OpenAPI once it is emitted.
+// Credit/money amounts are exact decimal strings (never JS numbers) to avoid float drift.
+
+/** A UUID string. */
+export type Uuid = string;
+
+/** Provenance of granted credits. */
+export type CreditSource = "paid" | "promo" | "grant";
+
+/** Whether a limit blocks hard (never overdraft) or soft (best-effort). */
+export type LimitClass = "hard" | "soft";
+
+export interface Account {
+  readonly id: Uuid;
+  readonly org_id: Uuid;
+  readonly scope: string;
+  readonly no_overdraft: boolean;
+  readonly parent_id: Uuid | null;
+}
+
+export interface Balance {
+  /** Settled credits (decimal string). */
+  readonly settled: string;
+  /** Credits held by open reservations (decimal string). */
+  readonly held: string;
+}
+
+export interface LedgerEntry {
+  readonly id: Uuid;
+  readonly account_id: Uuid;
+  readonly paired_account_id: Uuid;
+  readonly entry_type: string;
+  readonly delta_credits: string;
+  readonly balance_after: string;
+  readonly created_at: string;
+}
+
+export type ReserveOutcome =
+  | { readonly outcome: "allowed"; readonly reservation: Uuid }
+  | { readonly outcome: "denied"; readonly available: string; readonly requested: string };
+
+/** Whether a reservation was allowed (type guard, avoids bare `===` at call sites). */
+export function isAllowed(
+  outcome: ReserveOutcome,
+): outcome is Extract<ReserveOutcome, { outcome: "allowed" }> {
+  return outcome.outcome === "allowed";
+}
+
+/** Whether a reservation was denied. */
+export function isDenied(
+  outcome: ReserveOutcome,
+): outcome is Extract<ReserveOutcome, { outcome: "denied" }> {
+  return outcome.outcome === "denied";
+}
+
+export interface UsageEvent {
+  readonly id: Uuid;
+  readonly org_id: Uuid;
+  readonly idempotency_key: string;
+  readonly event_time: string;
+  readonly meter: string;
+  readonly account_id: Uuid;
+  readonly run_id: Uuid | null;
+  readonly properties: Record<string, unknown>;
+  readonly status: string;
+  readonly supersedes: Uuid | null;
+  readonly created_at: string;
+}
+
+export interface Invoice {
+  readonly account_id: Uuid;
+  readonly total_credits: string;
+  readonly settle_count: number;
+}

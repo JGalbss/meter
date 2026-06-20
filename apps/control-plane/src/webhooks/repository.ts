@@ -2,20 +2,22 @@
 //! queries with typed error channels.
 
 import { desc, eq } from "drizzle-orm";
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 import type { Db } from "../db/client";
 import { webhookDeliveries, webhooks } from "../db/schema";
 import { NotFound, RepoError } from "../repository/errors";
 
-export interface Webhook {
-  readonly id: string;
-  readonly orgId: string;
-  readonly url: string;
-  readonly eventTypes: readonly string[];
-  readonly enabled: boolean;
-  readonly createdAt: string;
-}
+// The response Schema is the single source of truth for the `Webhook` type + the OpenAPI contract.
+export const Webhook = Schema.Struct({
+  id: Schema.String,
+  orgId: Schema.String,
+  url: Schema.String,
+  eventTypes: Schema.Array(Schema.String),
+  enabled: Schema.Boolean,
+  createdAt: Schema.String,
+});
+export type Webhook = typeof Webhook.Type;
 
 export interface NewWebhook {
   readonly orgId: string;
@@ -24,18 +26,20 @@ export interface NewWebhook {
   readonly eventTypes?: readonly string[] | undefined;
 }
 
-export interface WebhookDelivery {
-  readonly id: string;
-  readonly webhookId: string;
-  readonly notificationId: string | null;
-  readonly event: string;
-  readonly payload: unknown;
-  readonly status: string;
-  readonly responseStatus: number | null;
-  readonly error: string | null;
-  readonly attempts: number;
-  readonly createdAt: string;
-}
+// The response Schema is the single source of truth for `WebhookDelivery` + the OpenAPI contract.
+export const WebhookDelivery = Schema.Struct({
+  id: Schema.String,
+  webhookId: Schema.String,
+  notificationId: Schema.NullOr(Schema.String),
+  event: Schema.String,
+  payload: Schema.Unknown,
+  status: Schema.String,
+  responseStatus: Schema.NullOr(Schema.Number),
+  error: Schema.NullOr(Schema.String),
+  attempts: Schema.Number,
+  createdAt: Schema.String,
+});
+export type WebhookDelivery = typeof WebhookDelivery.Type;
 
 export interface RecordDelivery {
   readonly webhookId: string;

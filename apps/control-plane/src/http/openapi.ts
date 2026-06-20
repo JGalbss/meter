@@ -8,9 +8,12 @@
 
 import { JSONSchema, type Schema } from "effect";
 
+import { AlertRule } from "../alerts/repository";
 import { ApiKey, CreatedApiKey } from "../api-keys/repository";
+import { Notification } from "../notifications/repository";
 import { Organization } from "../organizations/repository";
 import { Product } from "../products/repository";
+import { Webhook, WebhookDelivery } from "../webhooks/repository";
 import { NewAlertRuleBody } from "./routes/alerts";
 import { NewApiKeyBody } from "./routes/api-keys";
 import { NewNotificationBody } from "./routes/notifications";
@@ -28,8 +31,10 @@ interface Operation {
   readonly body?: Schema.Schema.AnyNoContext;
   readonly query?: ReadonlyArray<{ name: string; required: boolean }>;
   readonly pathParams?: ReadonlyArray<string>;
-  // 200 response body, derived from the same repository Schema. `array` for list endpoints.
+  // Success response body, derived from the same repository Schema. `array` for list endpoints.
   readonly response?: { readonly schema: Schema.Schema.AnyNoContext; readonly array?: boolean };
+  // Create endpoints answer 201 Created rather than 200.
+  readonly created?: boolean;
 }
 
 const ORG_QUERY = [{ name: "orgId", required: true }] as const;
@@ -51,6 +56,7 @@ const OPERATIONS: ReadonlyArray<Operation> = [
     summary: "Create an organization",
     body: NewOrganizationBody,
     response: { schema: Organization },
+    created: true,
   },
 
   {
@@ -68,6 +74,7 @@ const OPERATIONS: ReadonlyArray<Operation> = [
     summary: "Create a product",
     body: NewProductBody,
     response: { schema: Product },
+    created: true,
   },
 
   {
@@ -85,6 +92,7 @@ const OPERATIONS: ReadonlyArray<Operation> = [
     summary: "Mint an API key (token shown once)",
     body: NewApiKeyBody,
     response: { schema: CreatedApiKey },
+    created: true,
   },
   {
     method: "post",
@@ -101,6 +109,7 @@ const OPERATIONS: ReadonlyArray<Operation> = [
     tag: "Alert rules",
     summary: "List alert rules",
     query: ORG_QUERY,
+    response: { schema: AlertRule, array: true },
   },
   {
     method: "post",
@@ -108,6 +117,8 @@ const OPERATIONS: ReadonlyArray<Operation> = [
     tag: "Alert rules",
     summary: "Create an alert rule",
     body: NewAlertRuleBody,
+    response: { schema: AlertRule },
+    created: true,
   },
   {
     method: "post",
@@ -123,6 +134,7 @@ const OPERATIONS: ReadonlyArray<Operation> = [
     summary: "Enable/disable a rule",
     pathParams: ["id"],
     body: EnabledBody,
+    response: { schema: AlertRule },
   },
 
   {
@@ -134,6 +146,7 @@ const OPERATIONS: ReadonlyArray<Operation> = [
       { name: "orgId", required: true },
       { name: "status", required: false },
     ],
+    response: { schema: Notification, array: true },
   },
   {
     method: "post",
@@ -141,6 +154,8 @@ const OPERATIONS: ReadonlyArray<Operation> = [
     tag: "Notifications",
     summary: "Raise a notification",
     body: NewNotificationBody,
+    response: { schema: Notification },
+    created: true,
   },
   {
     method: "post",
@@ -148,6 +163,7 @@ const OPERATIONS: ReadonlyArray<Operation> = [
     tag: "Notifications",
     summary: "Mark read",
     pathParams: ["id"],
+    response: { schema: Notification },
   },
   {
     method: "post",
@@ -155,6 +171,7 @@ const OPERATIONS: ReadonlyArray<Operation> = [
     tag: "Notifications",
     summary: "Acknowledge",
     pathParams: ["id"],
+    response: { schema: Notification },
   },
 
   {
@@ -163,6 +180,7 @@ const OPERATIONS: ReadonlyArray<Operation> = [
     tag: "Webhooks",
     summary: "List webhooks",
     query: ORG_QUERY,
+    response: { schema: Webhook, array: true },
   },
   {
     method: "post",
@@ -170,6 +188,8 @@ const OPERATIONS: ReadonlyArray<Operation> = [
     tag: "Webhooks",
     summary: "Register a webhook",
     body: NewWebhookBody,
+    response: { schema: Webhook },
+    created: true,
   },
   {
     method: "post",
@@ -178,6 +198,7 @@ const OPERATIONS: ReadonlyArray<Operation> = [
     summary: "Enable/disable a webhook",
     pathParams: ["id"],
     body: EnabledBody,
+    response: { schema: Webhook },
   },
   {
     method: "get",
@@ -185,6 +206,7 @@ const OPERATIONS: ReadonlyArray<Operation> = [
     tag: "Webhooks",
     summary: "List webhook deliveries",
     query: ORG_QUERY,
+    response: { schema: WebhookDelivery, array: true },
   },
 ];
 
@@ -221,13 +243,14 @@ function operationObject(op: Operation): Record<string, unknown> {
     }
     return item;
   })();
+  const successStatus = op.created === true ? "201" : "200";
   const operation: Record<string, unknown> = {
     tags: [op.tag],
     summary: op.summary,
     operationId: `${op.method}:${op.path}`,
     responses: {
-      "200": {
-        description: "Success",
+      [successStatus]: {
+        description: op.created === true ? "Created" : "Success",
         content: { "application/json": { schema: okSchema } },
       },
       "400": { description: "Invalid request" },

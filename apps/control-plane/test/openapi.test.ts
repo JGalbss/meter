@@ -22,9 +22,10 @@ interface OpenApiDoc {
             };
           };
         };
-        readonly responses?: {
-          readonly "200": {
-            readonly content: {
+        readonly responses?: Record<
+          string,
+          {
+            readonly content?: {
               readonly "application/json": {
                 readonly schema: {
                   readonly type?: string;
@@ -33,8 +34,8 @@ interface OpenApiDoc {
                 };
               };
             };
-          };
-        };
+          }
+        >;
       }
     >
   >;
@@ -78,14 +79,21 @@ describe("openapi", () => {
 
     // List responses are typed arrays of the resource Schema (Organization → id/slug/name/...).
     const orgList =
-      doc.paths["/v1/organizations"]?.get?.responses?.["200"].content["application/json"].schema;
+      doc.paths["/v1/organizations"]?.get?.responses?.["200"]?.content?.["application/json"].schema;
     expect(orgList?.type).toBe("array");
     expect(orgList?.items?.properties?.defaultCurrency).toBeDefined();
 
-    // Minting a key responds with CreatedApiKey, which carries the one-time token.
+    // Create endpoints answer 201 Created; minting a key returns CreatedApiKey with the one-time token.
     const created =
-      doc.paths["/v1/api-keys"]?.post?.responses?.["200"].content["application/json"].schema;
+      doc.paths["/v1/api-keys"]?.post?.responses?.["201"]?.content?.["application/json"].schema;
     expect(created?.properties?.token).toBeDefined();
     expect(created?.properties?.role).toBeDefined();
+
+    // The remaining resources are typed too (webhook deliveries → array of the delivery Schema).
+    const deliveries =
+      doc.paths["/v1/webhook-deliveries"]?.get?.responses?.["200"]?.content?.["application/json"]
+        .schema;
+    expect(deliveries?.type).toBe("array");
+    expect(deliveries?.items?.properties?.attempts).toBeDefined();
   });
 });

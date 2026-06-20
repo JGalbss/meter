@@ -2,27 +2,29 @@
 //! Effect-wrapped Drizzle queries with typed error channels.
 
 import { and, desc, eq } from "drizzle-orm";
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 import type { Db } from "../db/client";
 import { alertRules } from "../db/schema";
 import { NotFound, RepoError } from "../repository/errors";
 
-export interface AlertRule {
-  readonly id: string;
-  readonly orgId: string;
-  readonly name: string;
-  readonly scope: string;
-  readonly metric: string;
-  readonly threshold: string;
-  readonly action: string;
-  readonly enabled: boolean;
-  readonly accountId: string | null;
-  readonly creditLimit: string | null;
-  readonly windowDays: number;
-  readonly lastStatus: string | null;
-  readonly createdAt: string;
-}
+// The response Schema is the single source of truth for the `AlertRule` type + the OpenAPI contract.
+export const AlertRule = Schema.Struct({
+  id: Schema.String,
+  orgId: Schema.String,
+  name: Schema.String,
+  scope: Schema.String,
+  metric: Schema.String,
+  threshold: Schema.String,
+  action: Schema.String,
+  enabled: Schema.Boolean,
+  accountId: Schema.NullOr(Schema.String),
+  creditLimit: Schema.NullOr(Schema.String),
+  windowDays: Schema.Number,
+  lastStatus: Schema.NullOr(Schema.String),
+  createdAt: Schema.String,
+});
+export type AlertRule = typeof AlertRule.Type;
 
 export interface NewAlertRule {
   readonly orgId: string;

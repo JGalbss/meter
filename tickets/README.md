@@ -24,10 +24,11 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 - [ ] Codegen: `prost`/`tonic` (Rust `meter-proto`) + `ts-proto`/connect (control plane)
 - [~] Control-plane **OpenAPI emission** done: `GET /openapi.json` serves an OpenAPI 3.1 doc whose
   request bodies are generated from the routes' own Effect `Schema`s (`JSONSchema.make` — no
-  hand-mirroring, no drift from validation); served + tested. **Typed responses**: organizations,
-  products, and API keys are now Schema-first (the repo response type derives from the `Schema`), so the
-  doc describes their 200 bodies (arrays for lists; `CreatedApiKey` with the one-time token). Remaining
-  resources (alerts/notifications/webhooks) + typed client codegen pending.
+  hand-mirroring, no drift from validation); served + tested. **Typed responses, all resources**: every
+  control-plane repo response type is now Schema-first (organizations, products, API keys, alert rules,
+  notifications, webhooks, webhook-deliveries), so the doc fully describes 200/201 bodies — typed arrays
+  for lists, `201 Created` for creates, `CreatedApiKey` with the one-time token. Typed **client codegen**
+  off the spec + the protobuf engine⇄control-plane contract remain.
 - [ ] Wire-protocol versioning policy
 
 ## EPIC 02 — Engine schemas & migrations (Postgres, sqlx)

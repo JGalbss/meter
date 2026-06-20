@@ -2,25 +2,27 @@
 //! and acknowledges them. Effect-wrapped Drizzle queries with typed error channels.
 
 import { type SQL, and, desc, eq } from "drizzle-orm";
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 import type { Db } from "../db/client";
 import { notifications } from "../db/schema";
 import { NotFound, RepoError } from "../repository/errors";
 
-export interface Notification {
-  readonly id: string;
-  readonly orgId: string;
-  readonly type: string;
-  readonly severity: string;
-  readonly title: string;
-  readonly body: string;
-  readonly data: unknown;
-  readonly status: string;
-  readonly createdAt: string;
-  readonly readAt: string | null;
-  readonly ackedAt: string | null;
-}
+// The response Schema is the single source of truth for the `Notification` type + the OpenAPI contract.
+export const Notification = Schema.Struct({
+  id: Schema.String,
+  orgId: Schema.String,
+  type: Schema.String,
+  severity: Schema.String,
+  title: Schema.String,
+  body: Schema.String,
+  data: Schema.Unknown,
+  status: Schema.String,
+  createdAt: Schema.String,
+  readAt: Schema.NullOr(Schema.String),
+  ackedAt: Schema.NullOr(Schema.String),
+});
+export type Notification = typeof Notification.Type;
 
 export interface NewNotification {
   readonly orgId: string;

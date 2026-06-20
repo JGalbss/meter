@@ -9,3 +9,4 @@ section of `ARCHITECTURE.md`; it says so explicitly at the top.
 |---|---|---|
 | [0001](0001-engine-controlplane-split.md) | Engine / control-plane split and the protobuf seam | Accepted |
 | [0002](0002-editable-events-and-run-voiding.md) | Editable events, custom fields, and one-call run voiding | Accepted |
+| [0003](0003-events-in-clickhouse.md) | Events live in ClickHouse, not Postgres | Accepted |

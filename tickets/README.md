@@ -54,6 +54,10 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 - [ ] Latency SLO instrumentation (per SLO.md); circuit breaker; fail-closed (HARD) / fail-open (SOFT) wiring at the engine API
 
 ## EPIC 06 — Ingest & event model
+> **ADR 0003: events live in ClickHouse, not Postgres.** `EventStore` gains a ClickHouse backend
+> (`meter-store-ch`) that passes the shared event conformance suite and becomes the default; the engine
+> ingest + `/v1/usage`/`/v1/events` write events to ClickHouse while the ledger stays on Postgres;
+> `PgEventStore` is retired. ClickHouse becomes a required component. **(next focused effort)**
 - [x] `meter-event`: EventStore trait + in-memory reference + conformance — custom-field events, idempotency on (org,key), amend-as-new-version, void_run, latest-non-voided reads
 - [x] Postgres EventStore backend (events table, JSONB props, run_id, status, supersedes) + conformance against real PG
 - [~] Event API on the engine (record/get/list/amend/void_run) done; 202-fast batch + per-meter schema validation pending

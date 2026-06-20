@@ -38,8 +38,8 @@ meter splits along a hard data-plane / control-plane seam:
 |---|---|---|
 | **Engine** | Rust | The data plane and **sole owner of money-truth**: event ingestion, the double-entry credit ledger, real-time reserve/settle enforcement, pricing. Exposes gRPC. |
 | **Control plane** | TypeScript · Effect + Drizzle | The management API the dashboard hits: orgs/teams/users/roles, products, rate cards, budgets, grants, invoices, webhooks. Computes no money — it calls the engine over gRPC. |
-| **System of record** | PostgreSQL | Money & config. The engine owns the ledger/event schema; the control plane owns the config schema. |
-| **Usage & analytics** | ClickHouse | High-volume usage firehose + rollups. Optional add-on. |
+| **System of record** | PostgreSQL | **Money & config only** — the engine owns the ledger schema; the control plane owns the config schema. Events live in ClickHouse (ADR 0003). |
+| **Events & analytics** | ClickHouse | The usage **event firehose** (system of record for events) + rollups. Required (ADR 0003). |
 | **Dashboard** | Next.js / React | Dropbox-quality console on the shadcn design system. |
 | **SDKs** | TypeScript, Python | Drop-in instrumentation; the hot path (ingest / reserve / settle) talks to the engine directly. |
 

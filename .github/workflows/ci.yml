@@ -44,6 +44,8 @@ jobs:
           cache: pnpm
       - name: install
         run: pnpm install --frozen-lockfile
+      - name: audit
+        run: pnpm audit --audit-level high
       - name: biome
         run: pnpm exec biome check sdks apps
       - name: typecheck

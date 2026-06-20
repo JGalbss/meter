@@ -1,3 +1,5 @@
 packages:
   - "sdks/typescript"
   - "apps/*"
+  # The dashboard is bun-managed (shadcn preset toolchain), not part of the pnpm workspace.
+  - "!apps/dashboard"

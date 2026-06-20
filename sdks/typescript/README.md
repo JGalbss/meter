@@ -1,0 +1,64 @@
+# meter — TypeScript SDK
+
+A thin, drop-in client for the meter engine, plus adapters that normalize usage from the major AI
+providers (Anthropic / Claude, OpenAI, Google Gemini, AWS Bedrock, LangChain, the Vercel AI SDK) and
+helpers that govern a run (reserve → settle → auto-void).
+
+```bash
+npm install @meter/sdk   # or: pnpm add @meter/sdk
+```
+
+```ts
+import { MeterClient, anthropicUsage, meterModelUsage, withRun } from "@meter/sdk"
+
+const meter = new MeterClient({ baseUrl: "http://localhost:8080" })
+
+// The core loop: price provider usage into credits, record the event, and charge — one idempotent call.
+const result = await meterModelUsage(meter, {
+  orgId,
+  account,
+  model: "claude-opus-4-8",
+  idempotencyKey: requestId,
+  usage: anthropicUsage(response.usage), // normalize the provider's token counts
+})
+```
+
+## Govern a run (reserve → settle / void)
+
+`withRun` reserves a worst-case estimate before the work runs; if the reservation is denied the work
+never starts. Settle the actual usage via the handle — if `work` throws or never settles, the hold is
+voided so a failed run leaves no lingering reservation.
+
+```ts
+await withRun(meter, { account, estimate: "40" }, async (run) => {
+  const completion = await callTheModel()
+  const { credits } = await meterModelUsage(meter, {
+    orgId,
+    account,
+    model: "claude-opus-4-8",
+    idempotencyKey: completion.id,
+    usage: anthropicUsage(completion.usage),
+  })
+  await run.settle(credits)
+})
+```
+
+## Provider adapters
+
+Each maps a provider's usage object to meter's normalized token dimensions:
+`anthropicUsage`, `openaiUsage`, `geminiUsage`, `bedrockUsage`, `langchainUsage`, `vercelAiUsage` —
+plus `meterModelUsage` (price + charge) and `recordModelUsage` (emit a usage event only).
+
+## `MeterClient`
+
+`openAccount`, `balance`, `grant`, `entries`, `reserve`, `settle`, `voidReservation`, `openLease`,
+`closeLease`, `recordEvent`, `amendEvent`, `listEvents`, `voidRun`, `invoice`, `meterUsage`.
+
+Per-session **leasing** (`openLease` / `closeLease`) funds a child account from a parent once and spends
+locally, avoiding a ledger round-trip per call — see `docs/adr/0005-provider-scale-throughput.md`.
+
+## Notes
+
+The hand-written client will be replaced by a **Stainless-generated** client from the engine OpenAPI
+spec once it is emitted (see `docs/SDKS.md`); the adapters and run governance carry over. Tests:
+`pnpm --filter @meter/sdk run test`.

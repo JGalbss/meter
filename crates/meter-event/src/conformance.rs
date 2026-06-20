@@ -4,6 +4,7 @@ use meter_core::{AccountId, OrgId, RunId};
 use serde_json::json;
 use time::OffsetDateTime;
 
+use crate::error::EventError;
 use crate::event::EventStatus;
 use crate::request::{AmendEvent, RecordEvent};
 use crate::store::EventStore;
@@ -128,11 +129,32 @@ pub async fn void_run_voids_events<S: EventStore>(store: &S) {
         .is_empty());
 }
 
+/// A voided event cannot be amended: editing a reversed fact is refused, not silently resurrected.
+pub async fn amend_after_void_is_refused<S: EventStore>(store: &S) {
+    let (org, account, run) = (OrgId::new(), AccountId::new(), RunId::new());
+    let event = store
+        .record(record_req(org, account, "void-then-amend", Some(run)))
+        .await
+        .expect("record");
+    assert_eq!(store.void_run(run).await.expect("void_run"), 1);
+    let result = store
+        .amend(AmendEvent {
+            event_id: event.id,
+            properties: json!({ "input": 9999 }),
+        })
+        .await;
+    assert!(
+        matches!(result, Err(EventError::Voided(id)) if id == event.id),
+        "amending a voided event must be refused"
+    );
+}
+
 /// Run every scenario against a backend.
 pub async fn run_all_scenarios<S: EventStore>(store: &S) {
     record_and_get(store).await;
     record_is_idempotent(store).await;
     record_batch_is_idempotent_and_ordered(store).await;
     amend_supersedes(store).await;
+    amend_after_void_is_refused(store).await;
     void_run_voids_events(store).await;
 }

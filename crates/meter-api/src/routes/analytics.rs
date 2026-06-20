@@ -8,7 +8,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use meter_core::AccountId;
-use meter_store_ch::{DayUsage as EventDayUsage, ModelUsage};
+use meter_store_ch::{DayUsage as EventDayUsage, FieldUsage, ModelUsage};
 use meter_store_pg::DayUsage;
 
 use crate::error::ApiError;
@@ -21,6 +21,12 @@ pub struct PeriodQuery {
     pub start: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
     pub end: OffsetDateTime,
+}
+
+/// `?field=<name>` — the factor to break credit burndown down by (a custom event field or `model`).
+#[derive(Debug, Deserialize)]
+pub struct FieldQuery {
+    pub field: String,
 }
 
 /// `GET /v1/accounts/{id}/usage-by-day?start&end` — daily credit usage time series.
@@ -65,6 +71,30 @@ pub async fn usage_by_model(
     let usage = state
         .events
         .usage_by_model(id)
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?;
+    Ok(Json(usage))
+}
+
+/// `GET /v1/orgs/{id}/usage-by-field?field=<name>` — flexible credit burndown grouped by any factor.
+#[utoipa::path(
+    get,
+    path = "/v1/orgs/{id}/usage-by-field",
+    params(
+        ("id" = String, Path, description = "Org id (UUID)"),
+        ("field" = String, Query, description = "Factor to group by: a custom event field (e.g. team, feature, customer) or a built-in like model")
+    ),
+    responses((status = 200, description = "Credit burndown per value of the factor, highest spend first", body = Vec<FieldUsage>)),
+    tag = "analytics"
+)]
+pub async fn usage_by_field(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Query(query): Query<FieldQuery>,
+) -> Result<Json<Vec<FieldUsage>>, ApiError> {
+    let usage = state
+        .events
+        .usage_by_field(id, &query.field)
         .await
         .map_err(|error| ApiError::internal(error.to_string()))?;
     Ok(Json(usage))

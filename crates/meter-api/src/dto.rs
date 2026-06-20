@@ -205,6 +205,12 @@ pub struct MeterUsageBody {
     /// Optional synced rate-card id to price against; defaults to the catalog card for `model`.
     #[serde(default)]
     pub rate_card_id: Option<String>,
+    /// Optional custom fields recorded on the event for flexible credit burndown (e.g.
+    /// `{"team":"alpha","feature":"chat"}`). Reserved keys (model, the token dimensions, credits, …)
+    /// can't be overridden. Slice spend by any of these via `GET /v1/orgs/{id}/usage-by-field`.
+    #[serde(default)]
+    #[schema(value_type = Object)]
+    pub tags: Value,
 }
 
 /// `POST /v1/simulate` — re-rate a stream of usage events from one catalog model onto another to

@@ -38,6 +38,7 @@ pub fn router(state: AppState) -> Router {
         .route("/accounts/:id/budget", get(budgets::budget_status))
         .route("/accounts/:id/usage-by-day", get(analytics::usage_by_day))
         .route("/orgs/:id/usage-by-model", get(analytics::usage_by_model))
+        .route("/orgs/:id/usage-by-field", get(analytics::usage_by_field))
         .route("/orgs/:id/usage-by-day", get(analytics::org_usage_by_day))
         .route("/orgs/:id/event-count", get(analytics::event_count))
         .route("/reservations", post(reservations::reserve))

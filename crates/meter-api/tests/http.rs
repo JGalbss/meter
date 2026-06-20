@@ -1000,6 +1000,105 @@ async fn budget_uses_configured_limit() {
 }
 
 #[tokio::test]
+async fn credit_burndown_by_custom_field_and_model() {
+    let (_container, app, ledger, _events) = app_with_stores().await;
+    let org = "11111111-1111-1111-1111-111111111111";
+
+    let (_status, account) = call(
+        &app,
+        "POST",
+        "/v1/accounts",
+        &json!({ "org_id": org, "scope": "org", "no_overdraft": true }),
+    )
+    .await;
+    let account_id = account["id"].as_str().expect("account id").to_owned();
+    call(
+        &app,
+        "POST",
+        &format!("/v1/accounts/{account_id}/grants"),
+        &json!({ "amount": "1000000", "source": "paid" }),
+    )
+    .await;
+
+    // Synced card: output @ $0.0001/token -> 1000 output = $0.10 = 100000 credits (1 micro-USD/credit).
+    let card_id = uuid::Uuid::now_v7();
+    PgConfig::new(ledger.pool().clone())
+        .put_rate_card(&RateCardRecord {
+            id: card_id,
+            version: 1,
+            kind: "provider_cost".to_owned(),
+            currency: "USD".to_owned(),
+            margin: Decimal::from(1),
+            components: json!([{
+                "dimension": "output", "modality": "text", "context_tier": "standard",
+                "unit": "token", "charge_model": "standard",
+                "unit_price": { "amount": "0.0001", "currency": "USD" }
+            }]),
+        })
+        .await
+        .expect("put card");
+
+    // Burnable usage tagged by team: alpha twice, beta once (each 100000 credits).
+    for (key, team) in [("u1", "alpha"), ("u2", "beta"), ("u3", "alpha")] {
+        call(
+            &app,
+            "POST",
+            "/v1/usage",
+            &json!({
+                "org_id": org, "account": account_id, "model": "custom-x",
+                "idempotency_key": key, "usage": { "output": 1000 },
+                "rate_card_id": card_id.to_string(), "tags": { "team": team }
+            }),
+        )
+        .await;
+    }
+    // A non-burnable raw event tagged alpha (recorded, but no credits).
+    call(
+        &app,
+        "POST",
+        "/v1/events",
+        &json!({
+            "org_id": org, "idempotency_key": "raw-1", "meter": "tokens",
+            "account": account_id, "properties": { "team": "alpha" }
+        }),
+    )
+    .await;
+
+    // Flexible credit burndown by the custom field `team`, highest spend first.
+    let (status, rows) = call(
+        &app,
+        "GET",
+        &format!("/v1/orgs/{org}/usage-by-field?field=team"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let rows = rows.as_array().expect("array");
+    assert_eq!(rows.len(), 2);
+    // alpha: 2 burnable + 1 non-burnable = 3 events, 200000 credits.
+    assert_eq!(rows[0]["dimension"], "alpha");
+    assert_eq!(rows[0]["events"], json!(3));
+    assert_eq!(rows[0]["credits"], json!(200000.0));
+    // beta: 1 burnable event, 100000 credits.
+    assert_eq!(rows[1]["dimension"], "beta");
+    assert_eq!(rows[1]["events"], json!(1));
+    assert_eq!(rows[1]["credits"], json!(100000.0));
+
+    // The same flexible burndown works by `model`; the raw event has no model so it drops out.
+    let (_status, by_model) = call(
+        &app,
+        "GET",
+        &format!("/v1/orgs/{org}/usage-by-field?field=model"),
+        &Value::Null,
+    )
+    .await;
+    let by_model = by_model.as_array().expect("array");
+    assert_eq!(by_model[0]["dimension"], "custom-x");
+    assert_eq!(by_model[0]["events"], json!(3));
+    assert_eq!(by_model[0]["credits"], json!(300000.0));
+}
+
+#[tokio::test]
 async fn usage_prices_with_a_synced_rate_card() {
     let (_container, app, ledger, _events) = app_with_stores().await;
     let org = "11111111-1111-1111-1111-111111111111";

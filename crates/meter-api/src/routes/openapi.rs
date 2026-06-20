@@ -15,7 +15,7 @@ use meter_pricing::{
     ChargeModel, ContextTier, Margin, Modality, PriceComponent, PriceTier, PricingDimension,
     RateCard, RateCardKind, Unit,
 };
-use meter_store_ch::{DayUsage as EventDayUsage, ModelUsage};
+use meter_store_ch::{DayUsage as EventDayUsage, FieldUsage, ModelUsage};
 use meter_store_pg::DayUsage;
 
 use crate::dto::{
@@ -62,6 +62,7 @@ use crate::dto::{
         super::rate_cards::get,
         super::analytics::usage_by_day,
         super::analytics::usage_by_model,
+        super::analytics::usage_by_field,
         super::analytics::org_usage_by_day,
         super::analytics::event_count,
         super::budgets::budget_status,
@@ -108,6 +109,7 @@ use crate::dto::{
         DayUsage,
         EventDayUsage,
         ModelUsage,
+        FieldUsage,
         super::invoices::InvoiceResponse,
         super::budgets::BudgetStatusResponse,
         super::usage::MeterUsageResult,

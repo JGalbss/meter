@@ -36,6 +36,17 @@ pub struct ModelUsage {
     pub credits: f64,
 }
 
+/// Credit burndown for one value of an arbitrary grouping factor — a custom event field (e.g.
+/// `team`, `feature`, `customer`) or a built-in like `model`. `dimension` is the field's value;
+/// `credits` is the burnable spend attributed to it (events that recorded no credits contribute 0,
+/// so non-burnable usage shows up as `events > 0` with `credits = 0`).
+#[derive(clickhouse::Row, Serialize, Deserialize, Debug, Clone, PartialEq, utoipa::ToSchema)]
+pub struct FieldUsage {
+    pub dimension: String,
+    pub events: u64,
+    pub credits: f64,
+}
+
 /// Daily usage totals for an organization (a time series for charts). `day` is `YYYY-MM-DD`.
 #[derive(clickhouse::Row, Serialize, Deserialize, Debug, Clone, PartialEq, utoipa::ToSchema)]
 // Distinct OpenAPI name: the Postgres per-account view is also `DayUsage`.
@@ -287,6 +298,38 @@ impl ChStore {
             )
             .bind(org_id)
             .fetch_all::<ModelUsage>()
+            .await?;
+        Ok(rows)
+    }
+
+    /// Flexible credit burndown: group an org's live usage by **any** factor and sum the burnable
+    /// credits per value. `field` is a custom event-property name (e.g. `team`, `feature`, `customer`)
+    /// or a built-in like `model` — the system is agnostic to what you slice by. Reads the events
+    /// system of record (`FINAL` + `status = 'recorded'`, so amends/voids are reflected); events that
+    /// recorded no `credits` contribute zero, so non-burnable usage surfaces as `credits = 0`.
+    ///
+    /// This is the flexible path (any field, no pre-aggregation); for the fixed `model`/day factors the
+    /// pre-aggregated [`Self::usage_by_model`] / [`Self::usage_by_day`] rollup reads are faster.
+    pub async fn usage_by_field(
+        &self,
+        org_id: Uuid,
+        field: &str,
+    ) -> Result<Vec<FieldUsage>, ChError> {
+        let rows = self
+            .client
+            .query(
+                "SELECT JSONExtractString(properties, ?) AS dimension, \
+                 toUInt64(count()) AS events, \
+                 sum(toFloat64OrZero(JSONExtractString(properties, 'credits'))) AS credits \
+                 FROM events FINAL \
+                 WHERE org_id = ? AND status = 'recorded' \
+                 GROUP BY dimension \
+                 HAVING dimension != '' \
+                 ORDER BY credits DESC, events DESC",
+            )
+            .bind(field)
+            .bind(org_id)
+            .fetch_all::<FieldUsage>()
             .await?;
         Ok(rows)
     }

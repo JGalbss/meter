@@ -27,6 +27,20 @@ fn pricing_source(rate_card_id: Option<&str>) -> &'static str {
     }
 }
 
+/// Merge caller-supplied custom fields (`tags`) into an event's reserved properties. Reserved keys
+/// (model, token dimensions, credits, pricing provenance) win, so a caller can never spoof the priced
+/// amount by passing a `credits` tag. Non-object `tags` are ignored.
+fn merge_tags(mut base: serde_json::Value, tags: serde_json::Value) -> serde_json::Value {
+    if let (serde_json::Value::Object(base_map), serde_json::Value::Object(tag_map)) =
+        (&mut base, tags)
+    {
+        for (key, value) in tag_map {
+            base_map.entry(key).or_insert(value);
+        }
+    }
+    base
+}
+
 /// `POST /v1/usage` result: the priced amounts, the recorded event id, and the resulting balance.
 /// Credit/USD amounts are exact decimal strings.
 #[derive(Debug, Serialize, ToSchema)]
@@ -85,21 +99,24 @@ pub async fn meter_usage(
             meter: "tokens".to_owned(),
             account_id: body.account,
             run_id: body.run_id,
-            properties: json!({
-                "model": body.model,
-                "input_uncached": body.usage.input_uncached,
-                "cache_read": body.usage.cache_read,
-                "cache_write": body.usage.cache_write,
-                "output": body.usage.output,
-                "reasoning": body.usage.reasoning,
-                "cogs_usd": priced.cogs.amount().normalize().to_string(),
-                "credits": priced.credits.value().normalize().to_string(),
-                // Pricing provenance, so a charge can always be re-derived/reconciled: which synced
-                // rate card (null = the hosted catalog) and which version priced this event.
-                "rate_card_id": body.rate_card_id,
-                "rate_card_version": card.version,
-                "priced_via": pricing_source(body.rate_card_id.as_deref()),
-            }),
+            properties: merge_tags(
+                json!({
+                    "model": body.model,
+                    "input_uncached": body.usage.input_uncached,
+                    "cache_read": body.usage.cache_read,
+                    "cache_write": body.usage.cache_write,
+                    "output": body.usage.output,
+                    "reasoning": body.usage.reasoning,
+                    "cogs_usd": priced.cogs.amount().normalize().to_string(),
+                    "credits": priced.credits.value().normalize().to_string(),
+                    // Pricing provenance, so a charge can always be re-derived/reconciled: which synced
+                    // rate card (null = the hosted catalog) and which version priced this event.
+                    "rate_card_id": body.rate_card_id,
+                    "rate_card_version": card.version,
+                    "priced_via": pricing_source(body.rate_card_id.as_deref()),
+                }),
+                body.tags,
+            ),
         })
         .await?;
 
@@ -194,4 +211,42 @@ pub async fn settle_usage(
         credits_charged: priced.credits.value().normalize().to_string(),
         balance_after: entry.balance_after.value().normalize().to_string(),
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::merge_tags;
+    use serde_json::json;
+
+    #[test]
+    fn merge_tags_adds_custom_fields_for_burndown() {
+        let merged = merge_tags(
+            json!({ "model": "claude-opus-4-8", "credits": "5" }),
+            json!({ "team": "alpha", "feature": "chat" }),
+        );
+        assert_eq!(merged["team"], "alpha");
+        assert_eq!(merged["feature"], "chat");
+        assert_eq!(merged["model"], "claude-opus-4-8");
+        assert_eq!(merged["credits"], "5");
+    }
+
+    #[test]
+    fn merge_tags_cannot_override_reserved_keys() {
+        // A caller must not be able to spoof the priced credits or model via tags.
+        let merged = merge_tags(
+            json!({ "model": "real", "credits": "5" }),
+            json!({ "model": "spoofed", "credits": "0", "team": "alpha" }),
+        );
+        assert_eq!(merged["model"], "real");
+        assert_eq!(merged["credits"], "5");
+        assert_eq!(merged["team"], "alpha");
+    }
+
+    #[test]
+    fn merge_tags_ignores_non_object_tags() {
+        let base = json!({ "model": "x" });
+        assert_eq!(merge_tags(base.clone(), json!(null)), base);
+        assert_eq!(merge_tags(base.clone(), json!("not-an-object")), base);
+        assert_eq!(merge_tags(base.clone(), json!(42)), base);
+    }
 }

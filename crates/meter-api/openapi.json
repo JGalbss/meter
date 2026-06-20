@@ -812,6 +812,51 @@
         }
       }
     },
+    "/v1/orgs/{id}/usage-by-field": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "`GET /v1/orgs/{id}/usage-by-field?field=<name>` — flexible credit burndown grouped by any factor.",
+        "operationId": "usage_by_field",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Org id (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "field",
+            "in": "query",
+            "description": "Factor to group by: a custom event field (e.g. team, feature, customer) or a built-in like model",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Credit burndown per value of the factor, highest spend first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FieldUsage"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/orgs/{id}/usage-by-model": {
       "get": {
         "tags": [
@@ -1536,6 +1581,29 @@
           }
         }
       },
+      "FieldUsage": {
+        "type": "object",
+        "description": "Credit burndown for one value of an arbitrary grouping factor — a custom event field (e.g.\n`team`, `feature`, `customer`) or a built-in like `model`. `dimension` is the field's value;\n`credits` is the burnable spend attributed to it (events that recorded no credits contribute 0,\nso non-burnable usage shows up as `events > 0` with `credits = 0`).",
+        "required": [
+          "dimension",
+          "events",
+          "credits"
+        ],
+        "properties": {
+          "credits": {
+            "type": "number",
+            "format": "double"
+          },
+          "dimension": {
+            "type": "string"
+          },
+          "events": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "GrantBody": {
         "type": "object",
         "description": "`POST /v1/accounts/{id}/grants`",
@@ -1727,6 +1795,10 @@
             "type": "string",
             "format": "uuid",
             "nullable": true
+          },
+          "tags": {
+            "type": "object",
+            "description": "Optional custom fields recorded on the event for flexible credit burndown (e.g.\n`{\"team\":\"alpha\",\"feature\":\"chat\"}`). Reserved keys (model, the token dimensions, credits, …)\ncan't be overridden. Slice spend by any of these via `GET /v1/orgs/{id}/usage-by-field`."
           },
           "usage": {
             "$ref": "#/components/schemas/UsageDimensions"

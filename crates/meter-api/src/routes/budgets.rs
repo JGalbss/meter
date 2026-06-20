@@ -5,9 +5,9 @@ use std::str::FromStr;
 use axum::extract::{Path, Query, State};
 use axum::Json;
 use rust_decimal::Decimal;
-use serde::Deserialize;
-use serde_json::{json, Value};
+use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use meter_core::AccountId;
@@ -26,6 +26,19 @@ pub struct BudgetQuery {
     /// Optional override; when absent the account's configured budget is used.
     #[serde(default)]
     pub limit: Option<String>,
+}
+
+/// Usage in a period against a limit, with threshold classification. Credit amounts are exact decimal
+/// strings.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct BudgetStatusResponse {
+    pub used_credits: String,
+    pub limit_credits: String,
+    pub remaining_credits: String,
+    /// Used / limit, rounded to 4 dp.
+    pub ratio: String,
+    /// `ok` | `warning` (>=80%) | `exceeded` (>=100%).
+    pub status: String,
 }
 
 const WARNING_RATIO: (i64, u32) = (8, 1); // 0.8
@@ -56,14 +69,14 @@ fn classify(used: Decimal, limit: Decimal) -> (Decimal, &'static str) {
         ("end" = String, Query, description = "Period end (RFC3339)"),
         ("limit" = Option<String>, Query, description = "Credit limit override (decimal string)")
     ),
-    responses((status = 200, description = "Usage vs limit with threshold status")),
+    responses((status = 200, description = "Usage vs limit with threshold status", body = BudgetStatusResponse)),
     tag = "analytics"
 )]
 pub async fn budget_status(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
     Query(query): Query<BudgetQuery>,
-) -> Result<Json<Value>, ApiError> {
+) -> Result<Json<BudgetStatusResponse>, ApiError> {
     let account = AccountId::from_uuid(id);
     // Use the explicit limit if given, else the account's configured budget.
     let limit = match query.limit {
@@ -85,11 +98,11 @@ pub async fn budget_status(
     let used = usage.total_credits.value();
     let (ratio, status) = classify(used, limit);
     let remaining = limit - used;
-    Ok(Json(json!({
-        "used_credits": used.normalize().to_string(),
-        "limit_credits": limit.normalize().to_string(),
-        "remaining_credits": remaining.normalize().to_string(),
-        "ratio": ratio.normalize().to_string(),
-        "status": status,
-    })))
+    Ok(Json(BudgetStatusResponse {
+        used_credits: used.normalize().to_string(),
+        limit_credits: limit.normalize().to_string(),
+        remaining_credits: remaining.normalize().to_string(),
+        ratio: ratio.normalize().to_string(),
+        status: status.to_owned(),
+    }))
 }

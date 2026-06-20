@@ -22,6 +22,25 @@ message UsageByModelResponse {
   repeated ModelUsage models = 1;
 }
 
+message UsageByFieldRequest {
+  string org_id = 1;
+  // Custom event property to group credit burndown by, e.g. "team" or "feature".
+  string field = 2;
+}
+
+// Credit burndown for one value of a custom event field.
+message FieldUsage {
+  // The custom field's value (the group), e.g. "alpha".
+  string dimension = 1;
+  uint64 events = 2;
+  // Decimal string.
+  string credits = 3;
+}
+
+message UsageByFieldResponse {
+  repeated FieldUsage groups = 1;
+}
+
 message UsageByDayRequest {
   string org_id = 1;
 }
@@ -62,6 +81,7 @@ message InvoiceResponse {
 // Read-side analytics and billing queries, derived from the engine's authoritative stores.
 service QueryService {
   rpc UsageByModel(UsageByModelRequest) returns (UsageByModelResponse);
+  rpc UsageByField(UsageByFieldRequest) returns (UsageByFieldResponse);
   rpc UsageByDay(UsageByDayRequest) returns (UsageByDayResponse);
   rpc EventCount(EventCountRequest) returns (EventCountResponse);
   rpc Invoice(InvoiceRequest) returns (InvoiceResponse);

@@ -125,6 +125,22 @@ async fn query_grpc_analytics_and_invoice() {
     assert_eq!(models[0].model, "gpt-5");
     assert_eq!(models[0].events, 2);
 
+    // usage_by_field: flexible burndown grouped by an arbitrary custom field (here `model`),
+    // summing the burned credits (5 + 7).
+    let groups = service
+        .usage_by_field(Request::new(v1::UsageByFieldRequest {
+            org_id: ORG.to_owned(),
+            field: "model".to_owned(),
+        }))
+        .await
+        .expect("usage_by_field")
+        .into_inner()
+        .groups;
+    assert_eq!(groups.len(), 1);
+    assert_eq!(groups[0].dimension, "gpt-5");
+    assert_eq!(groups[0].events, 2);
+    assert_eq!(groups[0].credits, "12");
+
     // invoice over a wide window totals the settled 30 credits.
     let invoice = service
         .invoice(Request::new(v1::InvoiceRequest {

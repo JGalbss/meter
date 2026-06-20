@@ -51,6 +51,28 @@ impl v1::query_service_server::QueryService for QueryGrpc {
         Ok(Response::new(v1::UsageByModelResponse { models }))
     }
 
+    async fn usage_by_field(
+        &self,
+        request: Request<v1::UsageByFieldRequest>,
+    ) -> Result<Response<v1::UsageByFieldResponse>, Status> {
+        let req = request.into_inner();
+        let org = parse_uuid(&req.org_id, "org_id")?;
+        let rows = self
+            .events
+            .usage_by_field(org, &req.field)
+            .await
+            .map_err(|error| status_from_ch(&error))?;
+        let groups = rows
+            .into_iter()
+            .map(|row| v1::FieldUsage {
+                dimension: row.dimension,
+                events: row.events,
+                credits: row.credits.to_string(),
+            })
+            .collect();
+        Ok(Response::new(v1::UsageByFieldResponse { groups }))
+    }
+
     async fn usage_by_day(
         &self,
         request: Request<v1::UsageByDayRequest>,

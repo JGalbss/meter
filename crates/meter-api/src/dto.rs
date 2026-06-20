@@ -8,33 +8,45 @@ use rust_decimal::Decimal;
 use serde::Deserialize;
 use serde_json::Value;
 use time::OffsetDateTime;
+use utoipa::ToSchema;
 
 /// `POST /v1/accounts`
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct OpenAccountBody {
+    #[schema(value_type = String, format = "uuid")]
     pub org_id: OrgId,
+    /// Account scope: `org` | `team` | `user` | `product` | `session` | `promo` | `paid`.
+    #[schema(value_type = String)]
     pub scope: AccountScope,
     #[serde(default)]
     pub no_overdraft: bool,
     #[serde(default)]
+    #[schema(value_type = Option<String>, format = "uuid")]
     pub parent_id: Option<AccountId>,
 }
 
 /// `POST /v1/accounts/{id}/grants`
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct GrantBody {
+    /// Credit amount as an exact decimal string.
+    #[schema(value_type = String)]
     pub amount: Credit,
+    /// Credit source: `paid` | `promo` | `grant`.
+    #[schema(value_type = String)]
     pub source: CreditSource,
     #[serde(default)]
     pub idempotency_key: Option<String>,
 }
 
 /// `POST /v1/accounts/{id}/credit-notes` — credit an account back (a refund / correction).
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct RefundBody {
+    /// Credit amount as an exact decimal string.
+    #[schema(value_type = String)]
     pub amount: Credit,
     /// The original ledger entry being reversed (UUID), if known.
     #[serde(default)]
+    #[schema(value_type = Option<String>, format = "uuid")]
     pub reverses_entry_id: Option<EntryId>,
     #[serde(default)]
     pub idempotency_key: Option<String>,

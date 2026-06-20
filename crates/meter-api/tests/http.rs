@@ -1070,6 +1070,28 @@ async fn usage_prices_with_a_synced_rate_card() {
 }
 
 #[tokio::test]
+async fn openapi_document_is_served() {
+    let (_container, app) = app().await;
+    let (status, doc) = call(&app, "GET", "/openapi.json", &Value::Null).await;
+    assert_eq!(status, StatusCode::OK);
+
+    // A real OpenAPI envelope.
+    assert!(doc["openapi"]
+        .as_str()
+        .expect("openapi version")
+        .starts_with("3."));
+    assert_eq!(doc["info"]["title"], "meter engine API");
+
+    // The accounts + health group is documented with paths and a typed request body.
+    assert!(doc["paths"]["/v1/accounts"]["post"].is_object());
+    assert!(doc["paths"]["/v1/accounts/{id}/balance"]["get"].is_object());
+    assert!(doc["paths"]["/v1/accounts/{id}/credit-notes"]["post"].is_object());
+    assert!(doc["paths"]["/health"]["get"].is_object());
+    assert!(doc["components"]["schemas"]["OpenAccountBody"].is_object());
+    assert!(doc["components"]["schemas"]["GrantBody"].is_object());
+}
+
+#[tokio::test]
 async fn usage_prices_with_a_package_charge_model() {
     let (_container, app, ledger, _events) = app_with_stores().await;
     let org = "11111111-1111-1111-1111-111111111111";

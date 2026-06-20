@@ -55,6 +55,9 @@ sqlx = { version = "0.8", default-features = false, features = [
 # cli
 clap = { version = "4", features = ["derive", "env"] }
 
+# openapi (engine HTTP contract -> SDK codegen, EPIC 08/11)
+utoipa = { version = "4", features = ["axum_extras", "uuid", "decimal", "time"] }
+
 # testing
 proptest = "1"
 

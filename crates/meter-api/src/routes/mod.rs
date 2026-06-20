@@ -9,6 +9,7 @@ mod events;
 mod health;
 mod invoices;
 mod leases;
+mod openapi;
 mod rate_cards;
 mod request_id;
 mod reservations;
@@ -60,6 +61,7 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health::health))
         .route("/health/ready", get(health::ready))
+        .route("/openapi.json", get(openapi::openapi_json))
         .nest("/v1", v1)
         .layer(middleware::from_fn_with_state(
             state.clone(),

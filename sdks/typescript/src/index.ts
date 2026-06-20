@@ -9,6 +9,8 @@ export type {
   OpenLeaseInput,
   RecordEventInput,
   ReserveInput,
+  ReserveUsageInput,
+  SettleUsageInput,
 } from "./client";
 export { MeterError } from "./errors";
 export { withRun } from "./run";
@@ -24,7 +26,9 @@ export {
   type LimitClass,
   type ReserveOutcome,
   type UsageEvent,
+  type UsageReserveOutcome,
   type UsageResult,
+  type UsageSettlement,
   type UsageTokens,
   type Uuid,
 } from "./types";

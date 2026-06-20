@@ -171,6 +171,44 @@ class MeterClient:
             },
         )
 
+    def reserve_usage(
+        self,
+        *,
+        account: str,
+        reservation_id: str,
+        model: str,
+        estimate: dict[str, int],
+        limit: str,
+        rate_card_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Reserve a hold sized to a worst-case token estimate priced against a model (the engine
+        prices it). Settle the actuals with ``settle_usage``."""
+        return self._post(
+            "/v1/usage/reserve",
+            {
+                "account": account,
+                "reservation_id": reservation_id,
+                "model": model,
+                "estimate": estimate,
+                "limit": limit,
+                "rate_card_id": rate_card_id,
+            },
+        )
+
+    def settle_usage(
+        self,
+        reservation_id: str,
+        *,
+        model: str,
+        actual: dict[str, int],
+        rate_card_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Settle a usage-priced reservation against actual usage (the engine reprices)."""
+        return self._post(
+            f"/v1/usage/reservations/{reservation_id}/settle",
+            {"model": model, "actual": actual, "rate_card_id": rate_card_id},
+        )
+
     def _get(self, path: str) -> Any:
         return self._send("GET", path, None)
 

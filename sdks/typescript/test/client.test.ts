@@ -184,4 +184,55 @@ describe("withRun", () => {
     expect(calls[0]?.url).toBe("http://engine/v1/reservations/res-1/extend");
     expect(calls[0]?.body).toEqual({ expires_at: "2026-01-01T00:00:00Z" });
   });
+
+  it("reserves and settles a usage-priced reservation", async () => {
+    const calls: Array<{ url: string; body: unknown }> = [];
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push({
+        url,
+        body: init?.body === undefined ? undefined : JSON.parse(init.body as string),
+      });
+      if (url.endsWith("/usage/reserve")) {
+        return jsonResponse(200, {
+          outcome: "allowed",
+          reservation: "res-1",
+          reserved_credits: "52500",
+        });
+      }
+      return jsonResponse(200, { credits_charged: "50000", balance_after: "950000" });
+    });
+    const client = new MeterClient({
+      baseUrl: "http://engine",
+      fetch: fetchMock as unknown as typeof fetch,
+    });
+
+    const outcome = await client.reserveUsage({
+      account: "acc-1",
+      reservationId: "res-1",
+      model: "claude-opus-4-8",
+      estimate: { input_uncached: 1000, output: 500 },
+      limit: "hard",
+    });
+    expect(outcome).toMatchObject({ outcome: "allowed", reserved_credits: "52500" });
+
+    const settlement = await client.settleUsage("res-1", {
+      model: "claude-opus-4-8",
+      actual: { input_uncached: 900, output: 480 },
+    });
+    expect(settlement.credits_charged).toBe("50000");
+
+    expect(calls[0]?.url).toBe("http://engine/v1/usage/reserve");
+    expect(calls[0]?.body).toMatchObject({
+      account: "acc-1",
+      reservation_id: "res-1",
+      model: "claude-opus-4-8",
+      estimate: { input_uncached: 1000, output: 500 },
+      limit: "hard",
+    });
+    expect(calls[1]?.url).toBe("http://engine/v1/usage/reservations/res-1/settle");
+    expect(calls[1]?.body).toMatchObject({
+      model: "claude-opus-4-8",
+      actual: { input_uncached: 900, output: 480 },
+    });
+  });
 });

@@ -73,10 +73,14 @@ response = metered_call(
 
 `open_account`, `balance`, `grant`, `entries`, `reserve`, `settle`, `extend_reservation`,
 `void_reservation`, `open_lease`, `close_lease`, `record_event`, `amend_event`, `list_events`,
-`void_run`, `invoice`, `meter_usage`.
+`void_run`, `invoice`, `meter_usage`, `reserve_usage`, `settle_usage`.
 
 `reserve` accepts an optional `expires_at` (RFC3339) hold timeout; `extend_reservation` pushes it out — a
 heartbeat so a long-running reservation isn't swept.
+
+`reserve_usage` / `settle_usage` are the **token-priced** two-phase flow: reserve a hold sized to an
+estimated token usage for a model (the engine prices it), then settle with the actuals — enforcement in
+token terms rather than raw credits.
 
 Per-session **leasing** (`open_lease` / `close_lease`) funds a child account from a parent once and
 spends locally, avoiding a ledger round-trip per call — see

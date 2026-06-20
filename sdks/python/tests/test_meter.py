@@ -114,6 +114,42 @@ class ClientTests(unittest.TestCase):
         self.assertTrue(url.endswith("/v1/reservations/res-1/extend"))
         self.assertEqual(body, {"expires_at": "2026-01-01T00:00:00Z"})
 
+    def test_reserve_and_settle_usage(self) -> None:
+        def handler(_method: str, url: str):
+            if url.endswith("/usage/reserve"):
+                return 200, {
+                    "outcome": "allowed",
+                    "reservation": "res-1",
+                    "reserved_credits": "52500",
+                }
+            return 200, {"credits_charged": "50000", "balance_after": "950000"}
+
+        transport, calls = make_transport(handler)
+        client = MeterClient("http://engine", transport)
+
+        outcome = client.reserve_usage(
+            account="acc-1",
+            reservation_id="res-1",
+            model="claude-opus-4-8",
+            estimate={"input_uncached": 1000, "output": 500},
+            limit="hard",
+        )
+        self.assertEqual(outcome["reserved_credits"], "52500")
+
+        settlement = client.settle_usage(
+            "res-1",
+            model="claude-opus-4-8",
+            actual={"input_uncached": 900, "output": 480},
+        )
+        self.assertEqual(settlement["credits_charged"], "50000")
+
+        _m0, url0, body0 = calls[0]
+        self.assertTrue(url0.endswith("/v1/usage/reserve"))
+        self.assertEqual(body0["estimate"], {"input_uncached": 1000, "output": 500})
+        _m1, url1, body1 = calls[1]
+        self.assertTrue(url1.endswith("/v1/usage/reservations/res-1/settle"))
+        self.assertEqual(body1["actual"], {"input_uncached": 900, "output": 480})
+
 
 class AdapterTests(unittest.TestCase):
     def test_anthropic_usage(self) -> None:

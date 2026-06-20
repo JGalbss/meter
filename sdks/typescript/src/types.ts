@@ -94,3 +94,12 @@ export interface UsageResult {
   readonly settled: string;
   readonly available: string;
 }
+
+/** A usage-priced reservation outcome: the reserve outcome plus the credits the estimate priced to. */
+export type UsageReserveOutcome = ReserveOutcome & { readonly reserved_credits: string };
+
+/** The result of settling a usage-priced reservation against actual usage. */
+export interface UsageSettlement {
+  readonly credits_charged: string;
+  readonly balance_after: string;
+}

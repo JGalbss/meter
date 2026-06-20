@@ -10,7 +10,9 @@ import type {
   LimitClass,
   ReserveOutcome,
   UsageEvent,
+  UsageReserveOutcome,
   UsageResult,
+  UsageSettlement,
   UsageTokens,
   Uuid,
 } from "./types";
@@ -68,6 +70,24 @@ export interface MeterUsageInput {
   readonly idempotencyKey: string;
   readonly runId?: Uuid;
   readonly usage: UsageTokens;
+}
+
+export interface ReserveUsageInput {
+  readonly account: Uuid;
+  readonly reservationId: Uuid;
+  readonly model: string;
+  /** Worst-case token estimate; the engine prices it against the model to size the hold. */
+  readonly estimate: UsageTokens;
+  readonly limit: LimitClass;
+  /** Optional synced rate-card id; defaults to the catalog card for `model`. */
+  readonly rateCardId?: string;
+}
+
+export interface SettleUsageInput {
+  readonly model: string;
+  /** Actual token usage; the engine reprices it and settles the hold. */
+  readonly actual: UsageTokens;
+  readonly rateCardId?: string;
 }
 
 interface EngineErrorBody {
@@ -185,6 +205,28 @@ export class MeterClient {
       idempotency_key: input.idempotencyKey,
       run_id: input.runId ?? null,
       usage: input.usage,
+    });
+  }
+
+  /** Reserve a hold sized to a worst-case token estimate priced against a model (two-phase enforcement
+   * in token terms — the engine prices it; settle with the actuals via `settleUsage`). */
+  reserveUsage(input: ReserveUsageInput): Promise<UsageReserveOutcome> {
+    return this.#post<UsageReserveOutcome>("/v1/usage/reserve", {
+      account: input.account,
+      reservation_id: input.reservationId,
+      model: input.model,
+      estimate: input.estimate,
+      limit: input.limit,
+      rate_card_id: input.rateCardId ?? null,
+    });
+  }
+
+  /** Settle a usage-priced reservation against the actual token usage; the engine reprices and charges. */
+  settleUsage(reservationId: Uuid, input: SettleUsageInput): Promise<UsageSettlement> {
+    return this.#post<UsageSettlement>(`/v1/usage/reservations/${reservationId}/settle`, {
+      model: input.model,
+      actual: input.actual,
+      rate_card_id: input.rateCardId ?? null,
     });
   }
 

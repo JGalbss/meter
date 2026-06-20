@@ -487,6 +487,87 @@ async fn lease_flow_over_http() {
 }
 
 #[tokio::test]
+async fn org_usage_analytics_over_http() {
+    let (_container, app) = app().await;
+    let org = "11111111-1111-1111-1111-111111111111";
+
+    let (_status, account) = call(
+        &app,
+        "POST",
+        "/v1/accounts",
+        &json!({ "org_id": org, "scope": "org", "no_overdraft": true }),
+    )
+    .await;
+    let account_id = account["id"].as_str().expect("account id").to_owned();
+    call(
+        &app,
+        "POST",
+        &format!("/v1/accounts/{account_id}/grants"),
+        &json!({ "amount": "1000000", "source": "paid" }),
+    )
+    .await;
+
+    // Meter two Opus usage events (1000 input + 500 output each → 52,500 credits each).
+    for key in ["run-a", "run-b"] {
+        call(
+            &app,
+            "POST",
+            "/v1/usage",
+            &json!({
+                "org_id": org,
+                "account": account_id,
+                "model": "claude-opus-4-8",
+                "idempotency_key": key,
+                "usage": { "input_uncached": 1000, "output": 500 }
+            }),
+        )
+        .await;
+    }
+
+    // Usage-by-model (from ClickHouse): one model, two events, summed tokens + credits.
+    let (status, by_model) = call(
+        &app,
+        "GET",
+        &format!("/v1/orgs/{org}/usage-by-model"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let models = by_model.as_array().expect("model array");
+    assert_eq!(models.len(), 1);
+    assert_eq!(models[0]["model"], "claude-opus-4-8");
+    assert_eq!(models[0]["events"], json!(2));
+    assert_eq!(models[0]["input_tokens"], json!(2000));
+    assert_eq!(models[0]["output_tokens"], json!(1000));
+    assert_eq!(models[0]["credits"], json!(105000.0));
+
+    // Event count (live, recorded events for the org).
+    let (status, count) = call(
+        &app,
+        "GET",
+        &format!("/v1/orgs/{org}/event-count"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(count["count"], json!(2));
+
+    // Daily event + credit totals: a single day with both events.
+    let (status, by_day) = call(
+        &app,
+        "GET",
+        &format!("/v1/orgs/{org}/usage-by-day"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let days = by_day.as_array().expect("day array");
+    assert_eq!(days.len(), 1);
+    assert_eq!(days[0]["events"], json!(2));
+    assert_eq!(days[0]["credits"], json!(105000.0));
+}
+
+#[tokio::test]
 async fn budget_status_over_http() {
     let (_container, app) = app().await;
     let org = "11111111-1111-1111-1111-111111111111";

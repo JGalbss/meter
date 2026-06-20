@@ -1,9 +1,10 @@
 //! ClickHouse store for meter events + usage analytics.
 //!
-//! Per ADR 0003 this is the **system of record for events** (the firehose), not just analytics:
-//! the editable event model (`EventStore`) lives here in `events`, alongside the `events_raw` usage
-//! rollup source and the `events_dead_letter` queue. Money-truth stays in the Postgres ledger
-//! (ADR 0001). Status changes are versioned rows in a `ReplacingMergeTree`; reads use `FINAL`.
+//! Per ADR 0003 this is the **system of record for events**: the editable event model (`EventStore`)
+//! lives here in `events`, alongside the `events_dead_letter` queue. Usage analytics are derived
+//! directly from `events` (`FINAL` + `status = 'recorded'`), so amends and voids are reflected
+//! without a second source to keep in sync. Money-truth stays in the Postgres ledger (ADR 0001).
+//! Status changes are versioned rows in a `ReplacingMergeTree`; reads use `FINAL`.
 
 #![forbid(unsafe_code)]
 
@@ -23,29 +24,6 @@ use uuid::Uuid;
 pub enum ChError {
     #[error("clickhouse: {0}")]
     Client(#[from] clickhouse::error::Error),
-}
-
-/// One usage event in the firehose. `version` orders duplicates for the `ReplacingMergeTree`
-/// (highest wins); use the ingest time in milliseconds.
-#[derive(clickhouse::Row, Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct EventRow {
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub org_id: Uuid,
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub event_id: Uuid,
-    #[serde(with = "clickhouse::serde::uuid")]
-    pub account_id: Uuid,
-    pub meter: String,
-    pub model: String,
-    pub input_tokens: u64,
-    pub output_tokens: u64,
-    pub cache_read: u64,
-    pub cache_write: u64,
-    pub reasoning: u64,
-    pub credits: f64,
-    #[serde(with = "clickhouse::serde::time::datetime64::millis")]
-    pub ts: OffsetDateTime,
-    pub version: u64,
 }
 
 /// Usage aggregated by model for one organization.
@@ -110,10 +88,9 @@ impl ChStore {
         self.version_seq.fetch_add(1, Ordering::SeqCst)
     }
 
-    /// Apply the schema (idempotent): events, the usage rollup source, and the dead-letter queue.
+    /// Apply the schema (idempotent): the events system of record and the dead-letter queue.
     pub async fn migrate(&self) -> Result<(), ChError> {
         self.client.query(schema::EVENTS).execute().await?;
-        self.client.query(schema::EVENTS_RAW).execute().await?;
         self.client
             .query(schema::EVENTS_DEAD_LETTER)
             .execute()
@@ -122,23 +99,27 @@ impl ChStore {
     }
 
     /// Ingest a batch of usage events. Idempotent on `(org_id, event_id)`.
-    pub async fn insert_events(&self, rows: &[EventRow]) -> Result<(), ChError> {
-        let mut insert = self.client.insert("events_raw")?;
-        for row in rows {
-            insert.write(row).await?;
-        }
-        insert.end().await?;
-        Ok(())
-    }
-
-    /// Usage aggregated by model for an organization (deduped via `FINAL`), highest spend first.
+    /// Usage aggregated by model for an organization, highest spend first.
+    ///
+    /// Derived from the live event set (`FINAL` + `status = 'recorded'`): amended events count once
+    /// (as their corrected version) and voided runs are excluded. Token and credit figures are read
+    /// from the usage event's JSON `properties` (the shape the metering path records); events without
+    /// a `model` (arbitrary custom meters) are not part of model usage.
     pub async fn usage_by_model(&self, org_id: Uuid) -> Result<Vec<ModelUsage>, ChError> {
         let rows = self
             .client
             .query(
-                "SELECT model, count() AS events, sum(input_tokens) AS input_tokens, \
-                 sum(output_tokens) AS output_tokens, sum(credits) AS credits \
-                 FROM events_raw FINAL WHERE org_id = ? GROUP BY model ORDER BY credits DESC",
+                "SELECT JSONExtractString(properties, 'model') AS model, \
+                 count() AS events, \
+                 sum(JSONExtractUInt(properties, 'input_uncached') \
+                     + JSONExtractUInt(properties, 'cache_read') \
+                     + JSONExtractUInt(properties, 'cache_write')) AS input_tokens, \
+                 sum(JSONExtractUInt(properties, 'output') \
+                     + JSONExtractUInt(properties, 'reasoning')) AS output_tokens, \
+                 sum(toFloat64OrZero(JSONExtractString(properties, 'credits'))) AS credits \
+                 FROM events FINAL \
+                 WHERE org_id = ? AND status = 'recorded' AND JSONHas(properties, 'model') \
+                 GROUP BY model ORDER BY credits DESC",
             )
             .bind(org_id)
             .fetch_all::<ModelUsage>()
@@ -146,13 +127,20 @@ impl ChStore {
         Ok(rows)
     }
 
-    /// Daily credit + event totals for an organization (deduped via `FINAL`), oldest day first.
+    /// Daily credit + event totals for an organization, oldest day first.
+    ///
+    /// Like [`Self::usage_by_model`], derived from the live event set so amends and voids are
+    /// reflected. `events` counts every recorded event that day; `credits` sums the usage events'
+    /// recorded credit cost.
     pub async fn usage_by_day(&self, org_id: Uuid) -> Result<Vec<DayUsage>, ChError> {
         let rows = self
             .client
             .query(
-                "SELECT toString(toDate(ts)) AS day, count() AS events, sum(credits) AS credits \
-                 FROM events_raw FINAL WHERE org_id = ? GROUP BY day ORDER BY day",
+                "SELECT toString(toDate(event_time)) AS day, count() AS events, \
+                 sum(toFloat64OrZero(JSONExtractString(properties, 'credits'))) AS credits \
+                 FROM events FINAL \
+                 WHERE org_id = ? AND status = 'recorded' \
+                 GROUP BY day ORDER BY day",
             )
             .bind(org_id)
             .fetch_all::<DayUsage>()
@@ -160,11 +148,11 @@ impl ChStore {
         Ok(rows)
     }
 
-    /// Distinct event count for an organization (deduped via `FINAL`).
+    /// Count of an organization's live events (`FINAL` + `status = 'recorded'`).
     pub async fn event_count(&self, org_id: Uuid) -> Result<u64, ChError> {
         let row = self
             .client
-            .query("SELECT count() AS n FROM events_raw FINAL WHERE org_id = ?")
+            .query("SELECT count() AS n FROM events FINAL WHERE org_id = ? AND status = 'recorded'")
             .bind(org_id)
             .fetch_one::<CountRow>()
             .await?;

@@ -68,10 +68,21 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 - [ ] `meter-ingest`: `IngestSource` trait; Postgres-outbox default source; effectively-once consumer; dead-letter
 - [ ] Reconciliation job (aggregates vs raw; ledger vs invoice)
 
-## EPIC 07 — Analytics store (ClickHouse, optional add-on)
-- [~] `meter-store-ch`: events_raw (`ReplacingMergeTree(version)`, partitioned by month) + batch ingest + `usage_by_model`/`usage_by_day` rollups + `event_count` + **`events_dead_letter`** (record/list/count); **integration-tested against a real ClickHouse container** (`clickhouse` 0.13). minute/day AggregatingMergeTree MVs (perf) pending
-- [x] Idempotent ingest — ReplacingMergeTree dedup on `(org_id, event_id)` with `FINAL` (proven in the test). Deterministic re-rating (INSERT…SELECT partition-by-partition) pending
-- [~] Rollup queries (`usage_by_model`, `usage_by_day` time series) done; surfacing them over the control plane + workload isolation pending
+## EPIC 07 — Analytics store (ClickHouse)
+- [x] `meter-store-ch`: usage analytics (`usage_by_model`, `usage_by_day`, `event_count`) derived
+  **directly from the `events` system of record** (`FINAL` + `status = 'recorded'`) — so amends count
+  once at the corrected version and voided runs drop out, with no second source to keep in sync. The
+  disconnected, never-written `events_raw` firehose was **removed** (no dead code). Plus
+  **`events_dead_letter`** (record/list/count). Integration-tested against a real ClickHouse container
+  driving the real ingest path (record/amend/void).
+- [x] Idempotent ingest — `events` ReplacingMergeTree dedup on `(org_id, id)` with `FINAL`; the event
+  store's `record` is idempotent on the idempotency key (proven in the integration test).
+- [x] Rollup queries surfaced over the engine HTTP API: `GET /v1/orgs/:id/usage-by-model`,
+  `/usage-by-day`, `/event-count`; e2e-tested (Postgres + ClickHouse) via `org_usage_analytics_over_http`.
+- [ ] **Perf (deferred, not a shortcut):** a typed AggregatingMergeTree rollup MV to avoid JSON
+  extraction + `FINAL` scans at read time. Deferred because a naive MV over the editable
+  ReplacingMergeTree double-counts amends/voids; needs a void/amend-propagation design first. Today's
+  queries are correctness-first over the SoR.
 
 ## EPIC 08 — Engine binary & CLI
 - [x] `meter-api` HTTP surface: accounts (open/balance/grant/entries), reservations (reserve/settle/void), health; typed error→HTTP mapping

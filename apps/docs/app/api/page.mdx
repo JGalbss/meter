@@ -130,10 +130,19 @@ GET  /v1/accounts/{id}/events   # list events for an account
 ### Analytics, budgets, invoices, audit
 
 ```
-GET /v1/accounts/{id}/usage-by-day   # daily usage rollup
+GET /v1/accounts/{id}/usage-by-day   # daily credit usage from the ledger (Postgres)
 GET /v1/accounts/{id}/budget         # budget status
 GET /v1/accounts/{id}/invoice        # deterministic invoice summed from the ledger
 GET /v1/audit                        # the admin audit log
+```
+
+Organization-level usage analytics are derived from the event store (ClickHouse). They reflect amends
+and voids — an amended event counts once at its corrected version, and a voided run drops out:
+
+```
+GET /v1/orgs/{id}/usage-by-model     # per-model events, tokens, and credits (highest spend first)
+GET /v1/orgs/{id}/usage-by-day       # daily event + credit totals
+GET /v1/orgs/{id}/event-count        # { "count": <live recorded events> }
 ```
 
 ---

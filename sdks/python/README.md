@@ -1,28 +1,85 @@
 # meter — Python SDK
 
-Standard-library-only client for the meter engine, plus adapters that auto-instrument the major AI
-clients (Anthropic / Claude + Agent SDK, OpenAI) to emit usage.
+A standard-library-only client for the meter engine, plus adapters that normalize usage from the major
+AI providers (Anthropic / Claude, OpenAI, Google Gemini, AWS Bedrock, LangChain) and helpers that
+govern a run (reserve → settle → auto-void). No third-party dependencies.
+
+```bash
+pip install meter-sdk
+```
 
 ```python
-from meter import MeterClient, anthropic_usage, record_model_usage, with_run
+from meter import MeterClient, anthropic_usage, meter_model_usage
 
 meter = MeterClient("http://localhost:8080")
 
-# Emit usage from a provider response (OpenTelemetry-style):
-record_model_usage(
+# The core loop: price provider usage into credits, record the event, and charge — one idempotent call.
+result = meter_model_usage(
     meter,
-    org_id=org, account=account, model="claude-opus-4-8", idempotency_key=request_id, run_id=run,
-    usage=anthropic_usage(response.usage),
+    org_id=org_id,
+    account=account,
+    model="claude-opus-4-8",
+    idempotency_key=request_id,
+    usage=anthropic_usage(response.usage),  # normalize the provider's token counts
 )
+```
 
-# Govern a run: reserve up front, settle actuals, auto-void on failure:
+## Govern a run (reserve → settle / void)
+
+`with_run` reserves a worst-case estimate before the work runs; if the reservation is denied the work
+never starts. Settle the actual usage via the `settle` callback — if `work` raises or never settles,
+the hold is voided so a failed run leaves no lingering reservation.
+
+```python
 def work(settle):
-    result = call_the_model()
-    settle("30")  # actual credits
-    return result
+    completion = call_the_model()
+    result = meter_model_usage(
+        meter,
+        org_id=org_id,
+        account=account,
+        model="claude-opus-4-8",
+        idempotency_key=completion.id,
+        usage=anthropic_usage(completion.usage),
+    )
+    settle(result["credits"])  # actual credits charged
+    return completion
 
 with_run(meter, account=account, estimate="40", work=work)
 ```
 
-The base client will be replaced by a **Stainless-generated** client from the engine OpenAPI spec
-(see `docs/SDKS.md`); the adapters and run governance carry over. Tests: `PYTHONPATH=. python3 -m unittest`.
+## Provider adapters
+
+Each maps a provider's usage object to meter's normalized token dimensions:
+`anthropic_usage`, `openai_usage`, `gemini_usage`, `bedrock_usage`, `langchain_usage` — plus
+`meter_model_usage` (price + charge), `record_model_usage` (emit a usage event only), and
+`metered_call` (run a provider call, record its usage, and return the response unchanged).
+
+```python
+from meter import anthropic_usage, metered_call
+
+# Wrap an existing call site; the provider response passes through unchanged.
+response = metered_call(
+    meter,
+    org_id=org_id,
+    account=account,
+    model="claude-opus-4-8",
+    idempotency_key=request_id,
+    extract_usage=lambda r: anthropic_usage(r.usage),
+    call=lambda: client.messages.create(...),
+)
+```
+
+## `MeterClient`
+
+`open_account`, `balance`, `grant`, `entries`, `reserve`, `settle`, `void_reservation`, `open_lease`,
+`close_lease`, `record_event`, `amend_event`, `list_events`, `void_run`, `invoice`, `meter_usage`.
+
+Per-session **leasing** (`open_lease` / `close_lease`) funds a child account from a parent once and
+spends locally, avoiding a ledger round-trip per call — see
+`docs/adr/0005-provider-scale-throughput.md`.
+
+## Notes
+
+The base client will be replaced by a **Stainless-generated** client from the engine OpenAPI spec once
+it is emitted (see `docs/SDKS.md`); the adapters and run governance carry over. The HTTP transport is
+injectable, so tests run without the network: `PYTHONPATH=. python3 -m unittest`.

@@ -21,7 +21,7 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 ## EPIC 01 — Contracts (proto + OpenAPI)
 - [x] `proto/` Buf module (buf v2, STANDARD lint, FILE breaking) — **lint + breaking-change gate in CI**
   (the `proto` job runs `buf lint` and `buf breaking --against` main on every PR)
-- [ ] Engine gRPC service defs: Ledger (grant/reserve/settle/void/balance), Ingest (event/amend/void_run), Query, Config-sync (rate cards/grants/budgets)
+- [x] Engine gRPC service defs: Ledger (grant/reserve/settle/void/balance), Ingest (event/amend/void_run), Query (usage-by-model/field/day, event-count, invoice), Config-sync (PutRateCard/SetBudget; grants via LedgerService) — all four services defined in `proto/meter/v1`, tonic codegen in `meter-proto`, served from `meter-api`'s `grpc`; buf lint + breaking-change gate green
 - [ ] Codegen: `prost`/`tonic` (Rust `meter-proto`) + `ts-proto`/connect (control plane)
 - [~] Control-plane **OpenAPI emission** done: `GET /openapi.json` serves an OpenAPI 3.1 doc whose
   request bodies are generated from the routes' own Effect `Schema`s (`JSONSchema.make` — no
@@ -101,6 +101,19 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
   scans and stay O(rollup groups) (single-digit ms at 1M; flat as events grow). The amend/void
   double-count problem is solved by sign-weighting (+1 recorded, −1 amended/voided; the reversal copies
   the prior row, so it cancels exactly); exactly-once ingest (`IngestMode`) stops duplicate `+1`s.
+- [~] **Flexible credit burndown** — group credit consumption by any custom event field (`team`,
+  `feature`, …) as well as `model`: `usage_by_field` over the `events` SoR, surfaced as
+  `GET /v1/orgs/:id/usage-by-field?field=<name>` and the `QueryService.UsageByField` gRPC RPC (buf
+  breaking-change check passes). Implemented + unit/contract-verified (compile, clippy, fmt, OpenAPI
+  drift gate, buf lint/breaking); the two e2e tests (`credit_burndown_by_custom_field_and_model`,
+  `non_burnable_usage_records_cost_but_never_charges`) are written and compile but **await a Docker run**.
+- [~] **Burnable vs non-burnable usage** — `burnable` flag (default true) on `POST /v1/usage`:
+  non-burnable usage is priced and recorded for cost visibility but never debits the ledger, so its
+  burned `credits` are zero (burndown stays truthful) while the would-be charge is kept in
+  `priced_credits`. Unit-tested (`burned_credits`, reserved-key spoof guard); e2e awaits a Docker run.
+- [ ] **Even faster:** promoted-field rollups — declare which custom fields to pre-aggregate into a
+  `SummingMergeTree` so `usage_by_field` over hot fields avoids the `events FINAL` + per-row JSON scan,
+  mirroring the existing `usage_rollup`. ClickHouse schema/MV work, **blocked on Docker** to verify.
   Correctness gate: the integration test asserts the rollup reflects idempotency, amends, and voids.
 
 ## EPIC 08 — Engine binary & CLI

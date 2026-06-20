@@ -7,6 +7,7 @@
 
 pub mod ingest;
 pub mod ledger;
+pub mod query;
 
 use std::str::FromStr;
 
@@ -18,6 +19,7 @@ use meter_core::Credit;
 use meter_event::EventError;
 use meter_ledger::LedgerError;
 use meter_proto::v1;
+use meter_store_ch::ChError;
 
 /// Parse a UUID-bearing string field, mapping a bad value to `invalid_argument`.
 fn parse_uuid(value: &str, field: &str) -> Result<Uuid, Status> {
@@ -62,4 +64,15 @@ fn status_from_event(error: &EventError) -> Status {
         EventError::Voided(_) => Status::failed_precondition(error.to_string()),
         EventError::Backend(_) => Status::internal(error.to_string()),
     }
+}
+
+/// Map a ClickHouse [`ChError`] to a gRPC status (all are infrastructure failures).
+fn status_from_ch(error: &ChError) -> Status {
+    Status::internal(error.to_string())
+}
+
+/// Parse a required RFC3339 timestamp field.
+fn parse_time(value: &str, field: &str) -> Result<time::OffsetDateTime, Status> {
+    time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339)
+        .map_err(|_| Status::invalid_argument(format!("invalid {field}: {value}")))
 }

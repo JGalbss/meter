@@ -89,3 +89,26 @@ Both return `{ "status": "ok" }` once migrations have applied and the service is
 - Back up Postgres as your money-truth of record; ClickHouse can be rebuilt from raw event ingest.
 - Run the engine behind your own auth/ingress; the control plane issues and verifies API keys.
 - Migrations are forward-only and applied on boot — deploy the engine before pointing traffic at it.
+
+## Private / air-gapped deployment
+
+meter runs entirely inside a private VPC with no public exposure and no runtime egress:
+
+- **Keep the APIs internal.** Leave `ingress.controlPlaneHost` / `ingress.engineHost` unset to keep the
+  engine and control plane reachable only in-cluster, or set them with an **internal** ingress class
+  (an internal load balancer) so SDKs reach them over private DNS. The dashboard can stay internal the
+  same way.
+- **Bring your own data stores.** Point at managed Postgres and ClickHouse in your account with
+  `postgres.enabled=false` / `clickhouse.enabled=false` and `engine.databaseUrl` /
+  `engine.clickhouseUrl` — nothing leaves the VPC.
+- **Mirror the images.** The `meter-engine` / `meter-control-plane` / `meter-dashboard` images publish
+  to GHCR; mirror them into your private registry and set each `*.image.repository`. No pull from the
+  public internet is needed at runtime.
+- **No outbound for pricing.** The hosted rate-card catalog is a **compiled-in dated snapshot**
+  (`CATALOG_AS_OF`) — pricing resolves in-process with no network calls. (The optional scheduled
+  scraper is the only component that would reach out, and it is off by default.)
+- **Secrets.** Database credentials and the dashboard session secret come from a Kubernetes Secret (or
+  your external secret manager via the chart's existing references), never baked into an image.
+
+The result is a closed deployment: money-truth in your Postgres, events in your ClickHouse, images from
+your registry, and no runtime dependency on anything outside the VPC.

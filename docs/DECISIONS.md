@@ -45,3 +45,18 @@ The founder delegated these ("figure out the rest"). Recommended defaults adopte
 7. **Hosted catalog:** best-effort + versioned immutable snapshots + diff-and-alert + manual override; no accuracy SLA in v1.
 8. **AGPL vs enterprise line:** all core metering/ledger/enforcement/invoicing is AGPL; only org-management & ops-scale features are enterprise.
 9. **CLA vs DCO:** DCO sign-off for v1; a narrow automated CLA only if a closed enterprise build later needs it.
+
+## Amendments (full records in `docs/adr/`)
+
+- **[ADR 0001](adr/0001-engine-controlplane-split.md) — Engine / control-plane split (amends Decisions #1, #4).**
+  The backend is now **two** services: a Rust **engine** (data plane, the sole owner of money-truth) and
+  a TypeScript **control plane** (Effect + Drizzle on Postgres) that the frontend hits, with
+  **protobuf/gRPC** between them. The control plane computes no money — it calls the engine for every
+  money/usage op — so there is still exactly one ledger and no drift. TypeScript = control plane +
+  dashboard + SDK; the SDK hot path talks to the engine directly.
+- **[ADR 0002](adr/0002-editable-events-and-run-voiding.md) — Editable events & run voiding (extends §4/§6.4).**
+  Events carry arbitrary, schema-validated custom fields. `amend_event` and `void_run` are first-class,
+  append-only corrections (never in-place mutation) — Metronome-beating UX with a perfect audit trail.
+  `run_id` is a core dimension across ingest, ledger leases, analytics, and invoicing.
+- **Code organization (standing principle).** Atomic, one-concept-per-file modules; no cramming. The
+  codebase will be large — keep it navigable. Enforced in review; detailed in `CLAUDE.md`.

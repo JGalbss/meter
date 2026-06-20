@@ -16,7 +16,7 @@ mod report;
 
 pub use audit::{AuditEntry, PgAuditLog};
 pub use event::PgEventStore;
-pub use report::PeriodUsage;
+pub use report::{DayUsage, PeriodUsage};
 
 use meter_ledger::LedgerError;
 use sqlx::postgres::PgPool;

@@ -70,6 +70,7 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 - [x] `meter-api` HTTP surface: accounts (open/balance/grant/entries), reservations (reserve/settle/void), health; typed error→HTTP mapping
 - [x] `meter-engine` binary: serves HTTP over Postgres, runs migrations on boot, env config (METER_DATABASE_URL/METER_LISTEN_ADDR), tracing
 - [x] e2e HTTP test (open→grant→balance→reserve→settle→deny) green against real Postgres
+- [x] Analytics query API on the authoritative Postgres data: `GET /v1/accounts/:id/usage-by-day?start&end` (daily credit time series, UTC-bucketed); e2e-tested
 - [ ] gRPC surface (proto) for control-plane RPC; role-selectable services
 - [ ] OpenAPI emission + typed client codegen
 - [~] `meter-cli` (`meterctl`): `migrate` command done (idempotent, env-configurable via METER_DATABASE_URL); seed + more admin ops pending

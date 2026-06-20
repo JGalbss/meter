@@ -1,6 +1,7 @@
 //! Route assembly.
 
 mod accounts;
+mod analytics;
 mod audit;
 mod budgets;
 mod events;
@@ -25,6 +26,7 @@ pub fn router(state: AppState) -> Router {
         .route("/accounts/:id/events", get(events::list_for_account))
         .route("/accounts/:id/invoice", get(invoices::invoice))
         .route("/accounts/:id/budget", get(budgets::budget_status))
+        .route("/accounts/:id/usage-by-day", get(analytics::usage_by_day))
         .route("/reservations", post(reservations::reserve))
         .route("/reservations/:id/settle", post(reservations::settle))
         .route("/reservations/:id/void", post(reservations::void))

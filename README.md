@@ -101,8 +101,8 @@ The Rust engine is functional and tested end-to-end against real Postgres:
   status (`ok` / `warning` ≥80% / `exceeded` ≥100%).
 
 Engine HTTP endpoints under `/v1`: `usage` (meter), `accounts` (open · balance · grants · entries ·
-events · invoice · budget), `reservations` (reserve · settle · void), `events` (record · get · amend),
-`runs/{id}/void`.
+events · invoice · budget · usage-by-day), `reservations` (reserve · settle · void), `events`
+(record · get · amend), `runs/{id}/void`, `audit`.
 
 Beyond the engine:
 

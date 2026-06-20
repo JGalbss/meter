@@ -180,6 +180,22 @@ async fn full_ledger_flow_over_http() {
     assert_eq!(invoice["total_credits"], "30");
     assert_eq!(invoice["entries"], json!(1));
 
+    // Usage-by-day analytics: one day with the 30 credits settled.
+    let (status, usage) = call(
+        &app,
+        "GET",
+        &format!(
+            "/v1/accounts/{account_id}/usage-by-day?start=2000-01-01T00:00:00Z&end=2100-01-01T00:00:00Z"
+        ),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let days = usage.as_array().expect("usage array");
+    assert_eq!(days.len(), 1);
+    assert_eq!(days[0]["total_credits"], "30");
+    assert_eq!(days[0]["entry_count"], json!(1));
+
     // Over-reserving is denied.
     let (status, outcome) = call(
         &app,

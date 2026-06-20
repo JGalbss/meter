@@ -66,6 +66,8 @@ async fn matches_the_model_over_a_sequence() {
             reserve: 200,
             actual: 0,
         }, // denied: insufficient
+        Op::Void { reserve: 20 },  // reserve then release: settled unchanged
+        Op::Void { reserve: 500 }, // denied reservation, void is a no-op
     ];
     conformance::check_against_model(&ledger, &ops).await;
 }

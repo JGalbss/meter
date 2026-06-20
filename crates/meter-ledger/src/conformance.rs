@@ -546,7 +546,14 @@ pub async fn run_all_scenarios<L: LedgerBackend>(ledger: &L) {
 #[derive(Debug, Clone)]
 pub enum Op {
     Grant(u32),
-    Spend { reserve: u32, actual: u32 },
+    Spend {
+        reserve: u32,
+        actual: u32,
+    },
+    /// Reserve then void: a released hold must never change the settled balance.
+    Void {
+        reserve: u32,
+    },
 }
 
 /// Apply a sequence of ops to a fresh no-overdraft account, asserting after each step that the
@@ -603,6 +610,21 @@ pub async fn check_against_model<L: LedgerBackend>(ledger: &L, ops: &[Op]) {
                         "expected deny with {expected_settled} available for reserve {reserve}"
                     );
                 }
+            }
+            Op::Void { reserve } => {
+                let reserve = i64::from(reserve);
+                let reservation = Default::default();
+                ledger
+                    .reserve(ReserveRequest {
+                        account,
+                        reservation_id: reservation,
+                        amount: credits(reserve),
+                        limit: LimitClass::Hard,
+                    })
+                    .await
+                    .expect("reserve");
+                // Voiding releases the hold (or no-ops a denied reservation): settled never moves.
+                ledger.void(reservation).await.expect("void");
             }
         }
         let balance = ledger.balance(account).await.expect("balance");

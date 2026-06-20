@@ -17,6 +17,7 @@ fn op_strategy() -> impl Strategy<Value = Op> {
     prop_oneof![
         (1u32..1000).prop_map(Op::Grant),
         (1u32..500, 0u32..500).prop_map(|(reserve, actual)| Op::Spend { reserve, actual }),
+        (1u32..500).prop_map(|reserve| Op::Void { reserve }),
     ]
 }
 

@@ -155,7 +155,7 @@ async fn full_ledger_flow_over_http() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(invoice["total_credits"], "30");
-    assert_eq!(invoice["settle_count"], json!(1));
+    assert_eq!(invoice["entries"], json!(1));
 
     // Over-reserving is denied.
     let (status, outcome) = call(
@@ -312,4 +312,75 @@ async fn usage_metering_over_http() {
     )
     .await;
     assert_eq!(events_after.as_array().expect("array").len(), 1);
+}
+
+#[tokio::test]
+async fn budget_status_over_http() {
+    let (_container, app) = app().await;
+    let org = "11111111-1111-1111-1111-111111111111";
+    let period = "start=2000-01-01T00:00:00Z&end=2100-01-01T00:00:00Z";
+
+    let (_status, account) = call(
+        &app,
+        "POST",
+        "/v1/accounts",
+        &json!({ "org_id": org, "scope": "org", "no_overdraft": true }),
+    )
+    .await;
+    let account_id = account["id"].as_str().expect("account id").to_owned();
+    call(
+        &app,
+        "POST",
+        &format!("/v1/accounts/{account_id}/grants"),
+        &json!({ "amount": "1000000", "source": "paid" }),
+    )
+    .await;
+
+    // Charge 52,500 credits of usage (1000 input + 500 output on Opus).
+    call(
+        &app,
+        "POST",
+        "/v1/usage",
+        &json!({
+            "org_id": org,
+            "account": account_id,
+            "model": "claude-opus-4-8",
+            "idempotency_key": "budget-run",
+            "usage": { "input_uncached": 1000, "output": 500 }
+        }),
+    )
+    .await;
+
+    // Under 80% of a 100k limit -> ok.
+    let (status, ok) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{account_id}/budget?{period}&limit=100000"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(ok["status"], "ok");
+    assert_eq!(ok["used_credits"], "52500");
+    assert_eq!(ok["remaining_credits"], "47500");
+
+    // >= 80% of a 60k limit -> warning.
+    let (_status, warning) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{account_id}/budget?{period}&limit=60000"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(warning["status"], "warning");
+
+    // Over a 40k limit -> exceeded.
+    let (_status, exceeded) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{account_id}/budget?{period}&limit=40000"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(exceeded["status"], "exceeded");
 }

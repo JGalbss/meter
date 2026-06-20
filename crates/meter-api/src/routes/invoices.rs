@@ -35,6 +35,6 @@ pub async fn invoice(
     Ok(Json(json!({
         "account_id": account,
         "total_credits": usage.total_credits,
-        "settle_count": usage.settle_count,
+        "entries": usage.entry_count,
     })))
 }

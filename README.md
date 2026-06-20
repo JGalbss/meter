@@ -81,9 +81,11 @@ The Rust engine is functional and tested end-to-end against real Postgres:
 
 - **Usage metering** — `POST /v1/usage` prices token usage via the catalog (`model` + token counts),
   records the event, and charges credits in one idempotent call (the core loop, end-to-end tested).
+- **Budgets & alerts** — `GET /v1/accounts/{id}/budget?…&limit` returns usage vs limit with a threshold
+  status (`ok` / `warning` ≥80% / `exceeded` ≥100%).
 
 Engine HTTP endpoints under `/v1`: `usage` (meter), `accounts` (open · balance · grants · entries ·
-events · invoice), `reservations` (reserve · settle · void), `events` (record · get · amend),
+events · invoice · budget), `reservations` (reserve · settle · void), `events` (record · get · amend),
 `runs/{id}/void`.
 
 In progress (see [tickets](tickets/README.md)): TypeScript control plane (Effect + Drizzle), SDKs,

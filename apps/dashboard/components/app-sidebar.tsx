@@ -13,6 +13,7 @@ import {
   Plugs,
   Receipt,
   ShieldWarning,
+  Tag,
   Wallet,
 } from "@phosphor-icons/react"
 import Link from "next/link"
@@ -43,6 +44,7 @@ const NAV: readonly NavItem[] = [
   { href: "/events", label: "Events", icon: ListBullets },
   { href: "/accounts", label: "Accounts", icon: Wallet },
   { href: "/invoices", label: "Invoices", icon: Receipt },
+  { href: "/rate-cards", label: "Rate cards", icon: Tag },
   { href: "/organizations", label: "Organizations", icon: Buildings },
   { href: "/products", label: "Products", icon: Package },
   { href: "/notifications", label: "Notifications", icon: Bell },

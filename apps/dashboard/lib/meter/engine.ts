@@ -5,6 +5,7 @@ import type { Result } from "./client"
 import type {
   AuditEntry,
   Balance,
+  Catalog,
   DayUsage,
   Invoice,
   LedgerEntry,
@@ -211,6 +212,25 @@ export async function voidRun(runId: string): Promise<Result<number>> {
     }
     const body = (await response.json()) as { voided: number }
     return { ok: true, data: body.voided }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "engine unreachable",
+    }
+  }
+}
+
+// The hosted model rate-card catalog (read-only): a dated snapshot of provider-cost prices.
+export async function fetchCatalog(): Promise<Result<Catalog>> {
+  try {
+    const response = await fetch(`${ENGINE_URL}/v1/catalog`, {
+      cache: "no-store",
+      headers: authHeaders(),
+    })
+    if (!response.ok) {
+      return { ok: false, error: `engine responded ${response.status}` }
+    }
+    return { ok: true, data: (await response.json()) as Catalog }
   } catch (error) {
     return {
       ok: false,

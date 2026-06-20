@@ -99,3 +99,19 @@ export interface LedgerEntry {
   readonly idempotency_key: string | null
   readonly created_at: string
 }
+
+/** One model's provider-cost prices from the engine's hosted catalog. Decimals are exact strings. */
+export interface RateCardEntry {
+  readonly provider: string
+  readonly model_id: string
+  readonly input_per_token: string
+  readonly cache_read_per_token: string
+  readonly cache_write_per_token: string
+  readonly output_per_token: string
+}
+
+/** The engine's `GET /v1/catalog` response: a dated snapshot of model rate cards. */
+export interface Catalog {
+  readonly as_of: string
+  readonly models: readonly RateCardEntry[]
+}

@@ -12,14 +12,14 @@ import {
 } from "../../webhooks/repository";
 import { handle } from "../errors";
 
-const NewWebhookBody = Schema.Struct({
+export const NewWebhookBody = Schema.Struct({
   orgId: Schema.String,
   url: Schema.String,
   secret: Schema.String,
   eventTypes: Schema.optional(Schema.Array(Schema.String)),
 });
 
-const EnabledBody = Schema.Struct({ enabled: Schema.Boolean });
+export const EnabledBody = Schema.Struct({ enabled: Schema.Boolean });
 const OrgQuery = Schema.Struct({ orgId: Schema.String });
 const IdParam = Schema.Struct({ id: Schema.String });
 

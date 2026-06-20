@@ -16,7 +16,7 @@ import { handle } from "../errors";
 const Severity = Schema.Literal("info", "warning", "critical");
 const NotificationType = Schema.Literal("budget", "credit", "invoice", "run_failure", "system");
 
-const NewNotificationBody = Schema.Struct({
+export const NewNotificationBody = Schema.Struct({
   orgId: Schema.String,
   type: NotificationType,
   severity: Severity,

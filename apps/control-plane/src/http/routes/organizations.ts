@@ -7,7 +7,7 @@ import { Database } from "../../db/service";
 import { createOrganization, listOrganizations } from "../../organizations/repository";
 import { handle } from "../errors";
 
-const NewOrganizationBody = Schema.Struct({
+export const NewOrganizationBody = Schema.Struct({
   slug: Schema.String,
   name: Schema.String,
 });

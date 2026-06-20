@@ -6,6 +6,7 @@ import { HttpRouter, HttpServerResponse } from "@effect/platform";
 import { Effect } from "effect";
 
 import type { Database } from "../db/service";
+import { openApiDocument } from "./openapi";
 import { alertRoutes } from "./routes/alerts";
 import { apiKeyRoutes } from "./routes/api-keys";
 import { notificationRoutes } from "./routes/notifications";
@@ -15,6 +16,7 @@ import { webhookRoutes } from "./routes/webhooks";
 
 export const router: HttpRouter.HttpRouter<never, Database> = HttpRouter.empty.pipe(
   HttpRouter.get("/health", Effect.succeed(HttpServerResponse.unsafeJson({ status: "ok" }))),
+  HttpRouter.get("/openapi.json", Effect.succeed(HttpServerResponse.unsafeJson(openApiDocument))),
   organizationRoutes,
   productRoutes,
   notificationRoutes,

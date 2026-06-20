@@ -22,7 +22,10 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 - [ ] `proto/` Buf module; lint + breaking-change in CI
 - [ ] Engine gRPC service defs: Ledger (grant/reserve/settle/void/balance), Ingest (event/amend/void_run), Query, Config-sync (rate cards/grants/budgets)
 - [ ] Codegen: `prost`/`tonic` (Rust `meter-proto`) + `ts-proto`/connect (control plane)
-- [ ] Control-plane OpenAPI emission + typed client codegen for dashboard
+- [~] Control-plane **OpenAPI emission** done: `GET /openapi.json` serves an OpenAPI 3.1 doc whose
+  request bodies are generated from the routes' own Effect `Schema`s (`JSONSchema.make` — no
+  hand-mirroring, no drift from validation); served + tested. Typed **response** schemas (move repo
+  interfaces to `Schema` as their single source) + typed client codegen pending.
 - [ ] Wire-protocol versioning policy
 
 ## EPIC 02 — Engine schemas & migrations (Postgres, sqlx)

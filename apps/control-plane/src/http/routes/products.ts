@@ -7,7 +7,7 @@ import { Database } from "../../db/service";
 import { createProduct, listProducts } from "../../products/repository";
 import { handle } from "../errors";
 
-const NewProductBody = Schema.Struct({
+export const NewProductBody = Schema.Struct({
   orgId: Schema.String,
   key: Schema.String,
   name: Schema.String,

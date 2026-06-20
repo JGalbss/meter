@@ -214,7 +214,7 @@ POST /v1/notifications/{id}/ack
 
 ---
 
-> **Contracts (roadmap).** The control-plane ⇄ client contract will be an OpenAPI document with
-> generated typed clients, and the engine ⇄ control-plane contract will be defined in protobuf — so wire
-> types are generated, never hand-mirrored. Both are tracked in the project tickets; until then the
-> engine API above is the stable surface.
+> **Contracts.** The control plane emits an **OpenAPI 3.1** document at `GET /openapi.json` — its
+> request bodies are generated from the same Effect `Schema`s the routes validate with, so the contract
+> can't drift from validation and nothing is hand-mirrored. Typed response schemas and generated
+> clients, plus a protobuf engine ⇄ control-plane contract, are tracked next in the project tickets.

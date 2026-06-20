@@ -12,7 +12,7 @@ const Scope = Schema.Literal("org", "team", "user", "product");
 const Metric = Schema.Literal("budget", "credit", "spend");
 const Action = Schema.Literal("notify", "webhook", "enforce");
 
-const NewAlertRuleBody = Schema.Struct({
+export const NewAlertRuleBody = Schema.Struct({
   orgId: Schema.String,
   name: Schema.String,
   scope: Scope,

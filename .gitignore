@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+.yarn/
+
+# Builds / outputs
+dist/
+build/
+out/
+.next/
+target/
+*.tsbuildinfo
+
+# Rust
+**/target/
+Cargo.lock.orig
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local data stores
+/data/
+*.db
+*.sqlite
+clickhouse-data/
+postgres-data/
+tigerbeetle-data/
+*.tigerbeetle
+
+# Logs
+*.log
+logs/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.shared.json
+
+# Test / coverage
+coverage/
+.nyc_output/
+*.lcov
+
+# Turbo / build caches
+.turbo/
+.cache/

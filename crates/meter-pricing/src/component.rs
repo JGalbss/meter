@@ -42,15 +42,23 @@ impl PriceTier {
 /// - [`Graduated`](ChargeModel::Graduated): each tier's price applies only to the units that fall in
 ///   that tier's band (like marginal tax brackets).
 /// - [`Volume`](ChargeModel::Volume): the single tier the *total* quantity lands in prices every unit.
+/// - [`Package`](ChargeModel::Package): units are sold in fixed-size bundles — the quantity is rounded
+///   *up* to a whole number of packages, each charged at the component's `unit_price` (e.g. "$0.01 per
+///   1000 tokens, any partial 1000 rounds up").
 ///
 /// Tiered schedules must be ascending by `up_to` and end with an unbounded [`PriceTier::rest`] tier;
-/// otherwise pricing returns [`PricingError::InvalidTierSchedule`].
+/// otherwise pricing returns [`PricingError::InvalidTierSchedule`]. A `Package` size must be positive
+/// or pricing returns [`PricingError::InvalidPackageSize`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ChargeModel {
     Standard,
     Graduated(Vec<PriceTier>),
     Volume(Vec<PriceTier>),
+    /// Bundled pricing: charge `unit_price` per `size`-unit package, rounding the quantity up.
+    Package {
+        size: Decimal,
+    },
 }
 
 /// One priced cell: a (dimension, modality, context-tier) charged at `unit_price` per `unit`.
@@ -81,22 +89,37 @@ impl PriceComponent {
     /// The charge for `quantity` units under this component's [`ChargeModel`].
     ///
     /// `Standard` is flat (`unit_price × quantity`); `Graduated`/`Volume` price against the tier
-    /// schedule. Negative quantities are treated as zero (a usage quantity is never negative).
+    /// schedule; `Package` rounds the quantity up to whole bundles. Negative quantities are treated as
+    /// zero (a usage quantity is never negative).
     pub fn charge(&self, quantity: Decimal) -> Result<Money, PricingError> {
         let quantity = quantity.max(Decimal::ZERO);
         match &self.charge_model {
             ChargeModel::Standard => Ok(self.unit_price.scale_by(quantity)),
             ChargeModel::Graduated(tiers) => graduated_charge(tiers, quantity),
             ChargeModel::Volume(tiers) => volume_charge(tiers, quantity),
+            ChargeModel::Package { size } => self.package_charge(*size, quantity),
         }
     }
 
+    /// Bundled pricing: round `quantity` up to a whole number of `size`-unit packages, each charged at
+    /// the component's `unit_price`. A zero/negative `size` is invalid.
+    fn package_charge(&self, size: Decimal, quantity: Decimal) -> Result<Money, PricingError> {
+        if size <= Decimal::ZERO {
+            return Err(PricingError::InvalidPackageSize);
+        }
+        let packages = (quantity / size).ceil();
+        Ok(self.unit_price.scale_by(packages))
+    }
+
     /// Validate the charge model's tier schedule (for `Graduated`/`Volume`): non-empty, strictly
-    /// ascending bounds, and an unbounded final tier. `Standard` is always valid.
+    /// ascending bounds, and an unbounded final tier. `Package` requires a positive size. `Standard`
+    /// is always valid.
     pub fn validate(&self) -> Result<(), PricingError> {
         match &self.charge_model {
             ChargeModel::Standard => Ok(()),
             ChargeModel::Graduated(tiers) | ChargeModel::Volume(tiers) => validate_tiers(tiers),
+            ChargeModel::Package { size } if *size > Decimal::ZERO => Ok(()),
+            ChargeModel::Package { .. } => Err(PricingError::InvalidPackageSize),
         }
     }
 }
@@ -227,6 +250,33 @@ mod tests {
         assert_eq!(c.charge(dec!(150)).unwrap().amount(), dec!(75));
         // 80 lands in the first tier (<=100): 80 * 1 = 80
         assert_eq!(c.charge(dec!(80)).unwrap().amount(), dec!(80));
+    }
+
+    #[test]
+    fn package_rounds_up_to_whole_bundles() {
+        // $2 per 1000-unit package.
+        let c = component(ChargeModel::Package { size: dec!(1000) });
+        assert_eq!(c.charge(dec!(0)).unwrap().amount(), dec!(0)); // 0 packages
+        assert_eq!(c.charge(dec!(1)).unwrap().amount(), dec!(2)); // rounds up to 1
+        assert_eq!(c.charge(dec!(1000)).unwrap().amount(), dec!(2)); // exactly 1
+        assert_eq!(c.charge(dec!(1001)).unwrap().amount(), dec!(4)); // spills into a 2nd
+        assert_eq!(c.charge(dec!(2500)).unwrap().amount(), dec!(6)); // ceil(2.5) = 3
+    }
+
+    #[test]
+    fn package_with_a_non_positive_size_is_invalid() {
+        assert_eq!(
+            component(ChargeModel::Package { size: dec!(0) }).charge(dec!(10)),
+            Err(PricingError::InvalidPackageSize)
+        );
+        assert_eq!(
+            component(ChargeModel::Package { size: dec!(-5) }).validate(),
+            Err(PricingError::InvalidPackageSize)
+        );
+        assert_eq!(
+            component(ChargeModel::Package { size: dec!(1000) }).validate(),
+            Ok(())
+        );
     }
 
     #[test]

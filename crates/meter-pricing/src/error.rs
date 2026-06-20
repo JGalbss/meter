@@ -19,6 +19,9 @@ pub enum PricingError {
     /// A tiered charge model's schedule is empty, not ascending, or lacks an unbounded final tier.
     #[error("invalid tier schedule: must be ascending and end with an unbounded tier")]
     InvalidTierSchedule,
+    /// A package charge model's package size was zero or negative.
+    #[error("invalid package size: must be positive")]
+    InvalidPackageSize,
     /// A unit price was negative.
     #[error("negative unit price for dimension {0:?}")]
     NegativePrice(PricingDimension),

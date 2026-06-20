@@ -5,6 +5,7 @@
 //! so `result_large_err` is unavoidable here and allowed at the module boundary.
 #![allow(clippy::result_large_err)]
 
+pub mod config;
 pub mod ingest;
 pub mod ledger;
 pub mod query;
@@ -19,10 +20,12 @@ use meter_core::Credit;
 use meter_event::EventError;
 use meter_ledger::LedgerError;
 use meter_proto::v1;
+use meter_proto::v1::config_service_server::ConfigServiceServer;
 use meter_proto::v1::ingest_service_server::IngestServiceServer;
 use meter_proto::v1::ledger_service_server::LedgerServiceServer;
 use meter_proto::v1::query_service_server::QueryServiceServer;
 use meter_store_ch::ChError;
+use meter_store_pg::PgConfig;
 use tonic::transport::server::Router;
 
 use crate::AppState;
@@ -41,6 +44,9 @@ pub fn router(state: AppState) -> Router {
         .add_service(QueryServiceServer::new(query::QueryGrpc::new(
             state.events.clone(),
             state.ledger.clone(),
+        )))
+        .add_service(ConfigServiceServer::new(config::ConfigGrpc::new(
+            PgConfig::new(state.ledger.pool().clone()),
         )))
 }
 

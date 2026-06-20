@@ -22,6 +22,19 @@ interface OpenApiDoc {
             };
           };
         };
+        readonly responses?: {
+          readonly "200": {
+            readonly content: {
+              readonly "application/json": {
+                readonly schema: {
+                  readonly type?: string;
+                  readonly items?: { readonly properties?: Record<string, unknown> };
+                  readonly properties?: Record<string, unknown>;
+                };
+              };
+            };
+          };
+        };
       }
     >
   >;
@@ -62,5 +75,17 @@ describe("openapi", () => {
       doc.paths["/v1/organizations"]?.post?.requestBody?.content["application/json"].schema;
     expect(orgBody?.properties?.slug).toBeDefined();
     expect(orgBody?.properties?.name).toBeDefined();
+
+    // List responses are typed arrays of the resource Schema (Organization → id/slug/name/...).
+    const orgList =
+      doc.paths["/v1/organizations"]?.get?.responses?.["200"].content["application/json"].schema;
+    expect(orgList?.type).toBe("array");
+    expect(orgList?.items?.properties?.defaultCurrency).toBeDefined();
+
+    // Minting a key responds with CreatedApiKey, which carries the one-time token.
+    const created =
+      doc.paths["/v1/api-keys"]?.post?.responses?.["200"].content["application/json"].schema;
+    expect(created?.properties?.token).toBeDefined();
+    expect(created?.properties?.role).toBeDefined();
   });
 });

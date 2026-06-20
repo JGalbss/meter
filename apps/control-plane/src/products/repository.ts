@@ -1,18 +1,20 @@
 //! Products repository — Effect-wrapped Drizzle queries with a typed error channel.
 
 import { eq } from "drizzle-orm";
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 import type { Db } from "../db/client";
 import { products } from "../db/schema";
 import { RepoError } from "../repository/errors";
 
-export interface Product {
-  readonly id: string;
-  readonly orgId: string;
-  readonly key: string;
-  readonly name: string;
-}
+// The response Schema is the single source of truth for the `Product` type + the OpenAPI contract.
+export const Product = Schema.Struct({
+  id: Schema.String,
+  orgId: Schema.String,
+  key: Schema.String,
+  name: Schema.String,
+});
+export type Product = typeof Product.Type;
 
 export interface NewProduct {
   readonly orgId: string;

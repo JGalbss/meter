@@ -8,6 +8,9 @@
 
 import { JSONSchema, type Schema } from "effect";
 
+import { ApiKey, CreatedApiKey } from "../api-keys/repository";
+import { Organization } from "../organizations/repository";
+import { Product } from "../products/repository";
 import { NewAlertRuleBody } from "./routes/alerts";
 import { NewApiKeyBody } from "./routes/api-keys";
 import { NewNotificationBody } from "./routes/notifications";
@@ -25,6 +28,8 @@ interface Operation {
   readonly body?: Schema.Schema.AnyNoContext;
   readonly query?: ReadonlyArray<{ name: string; required: boolean }>;
   readonly pathParams?: ReadonlyArray<string>;
+  // 200 response body, derived from the same repository Schema. `array` for list endpoints.
+  readonly response?: { readonly schema: Schema.Schema.AnyNoContext; readonly array?: boolean };
 }
 
 const ORG_QUERY = [{ name: "orgId", required: true }] as const;
@@ -32,13 +37,20 @@ const ORG_QUERY = [{ name: "orgId", required: true }] as const;
 const OPERATIONS: ReadonlyArray<Operation> = [
   { method: "get", path: "/health", tag: "Health", summary: "Liveness probe" },
 
-  { method: "get", path: "/v1/organizations", tag: "Organizations", summary: "List organizations" },
+  {
+    method: "get",
+    path: "/v1/organizations",
+    tag: "Organizations",
+    summary: "List organizations",
+    response: { schema: Organization, array: true },
+  },
   {
     method: "post",
     path: "/v1/organizations",
     tag: "Organizations",
     summary: "Create an organization",
     body: NewOrganizationBody,
+    response: { schema: Organization },
   },
 
   {
@@ -47,6 +59,7 @@ const OPERATIONS: ReadonlyArray<Operation> = [
     tag: "Products",
     summary: "List products",
     query: ORG_QUERY,
+    response: { schema: Product, array: true },
   },
   {
     method: "post",
@@ -54,6 +67,7 @@ const OPERATIONS: ReadonlyArray<Operation> = [
     tag: "Products",
     summary: "Create a product",
     body: NewProductBody,
+    response: { schema: Product },
   },
 
   {
@@ -62,6 +76,7 @@ const OPERATIONS: ReadonlyArray<Operation> = [
     tag: "API keys",
     summary: "List API keys",
     query: ORG_QUERY,
+    response: { schema: ApiKey, array: true },
   },
   {
     method: "post",
@@ -69,6 +84,7 @@ const OPERATIONS: ReadonlyArray<Operation> = [
     tag: "API keys",
     summary: "Mint an API key (token shown once)",
     body: NewApiKeyBody,
+    response: { schema: CreatedApiKey },
   },
   {
     method: "post",
@@ -76,6 +92,7 @@ const OPERATIONS: ReadonlyArray<Operation> = [
     tag: "API keys",
     summary: "Revoke an API key",
     pathParams: ["id"],
+    response: { schema: ApiKey },
   },
 
   {
@@ -194,6 +211,16 @@ function operationObject(op: Operation): Record<string, unknown> {
       schema: { type: "string" },
     })),
   ];
+  const okSchema = ((): Record<string, unknown> => {
+    if (op.response === undefined) {
+      return { type: "object" };
+    }
+    const item = bodySchema(op.response.schema);
+    if (op.response.array === true) {
+      return { type: "array", items: item };
+    }
+    return item;
+  })();
   const operation: Record<string, unknown> = {
     tags: [op.tag],
     summary: op.summary,
@@ -201,7 +228,7 @@ function operationObject(op: Operation): Record<string, unknown> {
     responses: {
       "200": {
         description: "Success",
-        content: { "application/json": { schema: { type: "object" } } },
+        content: { "application/json": { schema: okSchema } },
       },
       "400": { description: "Invalid request" },
       "401": { description: "Unauthorized" },

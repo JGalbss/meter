@@ -4,28 +4,29 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import { and, desc, eq, isNull } from "drizzle-orm";
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 import type { Db } from "../db/client";
 import { apiKeys } from "../db/schema";
 import { type Role, toRole } from "../http/rbac";
 import { NotFound, RepoError } from "../repository/errors";
 
-export interface ApiKey {
-  readonly id: string;
-  readonly orgId: string;
-  readonly name: string;
-  readonly role: Role;
-  readonly prefix: string;
-  readonly createdAt: string;
-  readonly lastUsedAt: string | null;
-  readonly revokedAt: string | null;
-}
+// The response Schema is the single source of truth for the `ApiKey` type + the OpenAPI contract.
+export const ApiKey = Schema.Struct({
+  id: Schema.String,
+  orgId: Schema.String,
+  name: Schema.String,
+  role: Schema.Literal("viewer", "member", "admin"),
+  prefix: Schema.String,
+  createdAt: Schema.String,
+  lastUsedAt: Schema.NullOr(Schema.String),
+  revokedAt: Schema.NullOr(Schema.String),
+});
+export type ApiKey = typeof ApiKey.Type;
 
 /** A freshly created key — the only time the plaintext token is available. */
-export interface CreatedApiKey extends ApiKey {
-  readonly token: string;
-}
+export const CreatedApiKey = Schema.extend(ApiKey, Schema.Struct({ token: Schema.String }));
+export type CreatedApiKey = typeof CreatedApiKey.Type;
 
 export interface NewApiKey {
   readonly orgId: string;

@@ -1,17 +1,19 @@
 //! Organizations repository — Effect-wrapped Drizzle queries with a typed error channel.
 
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 import type { Db } from "../db/client";
 import { organizations } from "../db/schema";
 import { RepoError } from "../repository/errors";
 
-export interface Organization {
-  readonly id: string;
-  readonly slug: string;
-  readonly name: string;
-  readonly defaultCurrency: string;
-}
+// The response Schema is the single source of truth for the `Organization` type + the OpenAPI contract.
+export const Organization = Schema.Struct({
+  id: Schema.String,
+  slug: Schema.String,
+  name: Schema.String,
+  defaultCurrency: Schema.String,
+});
+export type Organization = typeof Organization.Type;
 
 export interface NewOrganization {
   readonly slug: string;

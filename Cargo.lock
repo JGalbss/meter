@@ -1750,8 +1750,11 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "clap",
+ "meter-core",
+ "meter-ledger",
  "meter-store-pg",
  "sqlx",
+ "testcontainers-modules",
  "tokio",
 ]
 

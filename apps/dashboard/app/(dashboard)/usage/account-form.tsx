@@ -6,7 +6,7 @@ import type { FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-export function AccountForm({ initial }: { initial: string }) {
+export function AccountForm({ initial, org }: { initial: string; org?: string }) {
   const router = useRouter();
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -16,7 +16,11 @@ export function AccountForm({ initial }: { initial: string }) {
     if (account.length === 0) {
       return;
     }
-    router.push(`/usage?account=${encodeURIComponent(account)}`);
+    const params = new URLSearchParams({ account });
+    if (org !== undefined && org.length > 0) {
+      params.set("org", org);
+    }
+    router.push(`/usage?${params.toString()}`);
   };
 
   return (

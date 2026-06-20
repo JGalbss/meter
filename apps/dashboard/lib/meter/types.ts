@@ -59,6 +59,14 @@ export interface DayUsage {
   readonly entry_count: number;
 }
 
+export interface ModelUsage {
+  readonly model: string;
+  readonly events: number;
+  readonly input_tokens: number;
+  readonly output_tokens: number;
+  readonly credits: number;
+}
+
 export interface ApiKey {
   readonly id: string;
   readonly orgId: string;

@@ -16,6 +16,9 @@ const BudgetStatusSchema = Schema.Struct({
 
 export type BudgetStatus = Schema.Schema.Type<typeof BudgetStatusSchema>;
 
+// Building a codec compiles it; hoist it so each call reuses the same decoder.
+const decodeBudgetStatus = Schema.decodeUnknown(BudgetStatusSchema);
+
 export interface BudgetQuery {
   readonly accountId: string;
   readonly limit: string;
@@ -30,14 +33,15 @@ function engineUrl(): string {
 /** Classify an account's usage in a period against a credit limit (the engine owns this math). */
 export function fetchBudgetStatus(query: BudgetQuery): Effect.Effect<BudgetStatus, EngineError> {
   return Effect.tryPromise({
-    try: async () => {
+    // Effect hands `tryPromise` an AbortSignal; forward it so fiber interruption cancels the fetch.
+    try: async (signal) => {
       const params = new URLSearchParams({
         start: query.start,
         end: query.end,
         limit: query.limit,
       });
       const url = `${engineUrl()}/v1/accounts/${encodeURIComponent(query.accountId)}/budget?${params.toString()}`;
-      const response = await fetch(url);
+      const response = await fetch(url, { signal });
       if (!response.ok) {
         throw new Error(`engine responded ${response.status}`);
       }
@@ -46,9 +50,7 @@ export function fetchBudgetStatus(query: BudgetQuery): Effect.Effect<BudgetStatu
     catch: (cause) => new EngineError({ cause }),
   }).pipe(
     Effect.flatMap((body) =>
-      Schema.decodeUnknown(BudgetStatusSchema)(body).pipe(
-        Effect.mapError((cause) => new EngineError({ cause })),
-      ),
+      decodeBudgetStatus(body).pipe(Effect.mapError((cause) => new EngineError({ cause }))),
     ),
   );
 }

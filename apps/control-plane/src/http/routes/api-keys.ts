@@ -7,7 +7,11 @@ import { createApiKey, listApiKeys, revokeApiKey } from "../../api-keys/reposito
 import { Database } from "../../db/service";
 import { handle } from "../errors";
 
-const NewApiKeyBody = Schema.Struct({ orgId: Schema.String, name: Schema.String });
+const NewApiKeyBody = Schema.Struct({
+  orgId: Schema.String,
+  name: Schema.String,
+  role: Schema.optional(Schema.Literal("viewer", "member", "admin")),
+});
 const OrgQuery = Schema.Struct({ orgId: Schema.String });
 const IdParam = Schema.Struct({ id: Schema.String });
 

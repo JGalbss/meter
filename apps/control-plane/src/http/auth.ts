@@ -6,6 +6,7 @@ import { Effect } from "effect";
 
 import { verifyApiKey } from "../api-keys/repository";
 import type { Db } from "../db/client";
+import { requiredRole, roleSatisfies } from "./rbac";
 
 const BEARER = "bearer ";
 
@@ -29,6 +30,7 @@ function bearerToken(headers: Record<string, string | undefined>): string | null
 }
 
 const unauthorized = HttpServerResponse.unsafeJson({ error: "unauthorized" }, { status: 401 });
+const forbidden = HttpServerResponse.unsafeJson({ error: "forbidden" }, { status: 403 });
 
 /** Require a valid API key on every request except `/health`. When `enabled` is false, all requests
  * pass through (useful for local/dev and tests). */
@@ -46,11 +48,14 @@ export function requireApiKey(db: Db, enabled: boolean) {
       if (token === null) {
         return unauthorized;
       }
-      const orgId = yield* verifyApiKey(db, token).pipe(
+      const principal = yield* verifyApiKey(db, token).pipe(
         Effect.catchAll(() => Effect.succeed(null)),
       );
-      if (orgId === null) {
+      if (principal === null) {
         return unauthorized;
+      }
+      if (!roleSatisfies(principal.role, requiredRole(request.method, request.url))) {
+        return forbidden;
       }
       return yield* httpApp;
     }),

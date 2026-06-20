@@ -8,12 +8,14 @@ import { Effect } from "effect";
 
 import type { Db } from "../db/client";
 import { apiKeys } from "../db/schema";
+import { type Role, toRole } from "../http/rbac";
 import { NotFound, RepoError } from "../repository/errors";
 
 export interface ApiKey {
   readonly id: string;
   readonly orgId: string;
   readonly name: string;
+  readonly role: Role;
   readonly prefix: string;
   readonly createdAt: string;
   readonly lastUsedAt: string | null;
@@ -28,6 +30,13 @@ export interface CreatedApiKey extends ApiKey {
 export interface NewApiKey {
   readonly orgId: string;
   readonly name: string;
+  readonly role?: Role | undefined;
+}
+
+/** The authenticated caller behind a verified API key. */
+export interface Principal {
+  readonly orgId: string;
+  readonly role: Role;
 }
 
 function hashToken(token: string): string {
@@ -46,6 +55,7 @@ function toApiKey(row: typeof apiKeys.$inferSelect): ApiKey {
     id: row.id,
     orgId: row.orgId,
     name: row.name,
+    role: toRole(row.role),
     prefix: row.prefix,
     createdAt: row.createdAt.toISOString(),
     lastUsedAt: isoOrNull(row.lastUsedAt),
@@ -68,7 +78,13 @@ export function createApiKey(db: Db, input: NewApiKey): Effect.Effect<CreatedApi
       const prefix = token.slice(0, 11);
       const [row] = await db
         .insert(apiKeys)
-        .values({ orgId: input.orgId, name: input.name, prefix, tokenHash: hashToken(token) })
+        .values({
+          orgId: input.orgId,
+          name: input.name,
+          role: input.role ?? "admin",
+          prefix,
+          tokenHash: hashToken(token),
+        })
         .returning();
       if (row === undefined) {
         throw new Error("insert returned no row");
@@ -116,8 +132,9 @@ export function revokeApiKey(
   );
 }
 
-/** Resolve a presented token to its org, or null if unknown/revoked. Stamps `last_used_at`. */
-export function verifyApiKey(db: Db, token: string): Effect.Effect<string | null, RepoError> {
+/** Resolve a presented token to its principal (org + role), or null if unknown/revoked. Stamps
+ * `last_used_at`. */
+export function verifyApiKey(db: Db, token: string): Effect.Effect<Principal | null, RepoError> {
   return Effect.tryPromise({
     try: async () => {
       const [row] = await db
@@ -129,7 +146,7 @@ export function verifyApiKey(db: Db, token: string): Effect.Effect<string | null
         return null;
       }
       await db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, row.id));
-      return row.orgId;
+      return { orgId: row.orgId, role: toRole(row.role) };
     },
     catch: (cause) => new RepoError({ cause }),
   });

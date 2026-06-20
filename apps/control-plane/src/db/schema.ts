@@ -99,6 +99,9 @@ export const apiKeys = pgTable(
       .notNull()
       .references(() => organizations.id),
     name: text("name").notNull(),
+    // RBAC role: "viewer" (read-only), "member" (writes), or "admin" (manage keys/webhooks).
+    // Defaults to "admin" so pre-RBAC keys retain full access.
+    role: text("role").notNull().default("admin"),
     prefix: text("prefix").notNull(),
     tokenHash: text("token_hash").notNull().unique(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

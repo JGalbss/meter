@@ -109,3 +109,83 @@ describe("API-key enforcement", () => {
     expect(result.badKey).toBe(401);
   });
 });
+
+describe("RBAC", () => {
+  it("enforces the role hierarchy per method and resource", async () => {
+    const db = await freshDb();
+    const org = await Effect.runPromise(createOrganization(db, { slug: "rbac", name: "RBAC" }));
+    const viewer = await Effect.runPromise(
+      createApiKey(db, { orgId: org.id, name: "viewer", role: "viewer" }),
+    );
+    const member = await Effect.runPromise(
+      createApiKey(db, { orgId: org.id, name: "member", role: "member" }),
+    );
+    const admin = await Effect.runPromise(
+      createApiKey(db, { orgId: org.id, name: "admin", role: "admin" }),
+    );
+
+    const bearer = (token: string) =>
+      HttpClientRequest.setHeader("authorization", `Bearer ${token}`);
+
+    const result = await runAuthed(
+      db,
+      Effect.gen(function* () {
+        const client = yield* HttpClient.HttpClient;
+
+        // viewer: reads allowed, any write denied.
+        const viewerRead = yield* client.execute(
+          HttpClientRequest.get(`/v1/products?orgId=${org.id}`).pipe(bearer(viewer.token)),
+        );
+        const viewerWrite = yield* client.execute(
+          HttpClientRequest.post("/v1/products").pipe(
+            bearer(viewer.token),
+            HttpClientRequest.bodyUnsafeJson({ orgId: org.id, key: "p1", name: "P1" }),
+          ),
+        );
+
+        // member: ordinary writes allowed, credential management denied.
+        const memberWrite = yield* client.execute(
+          HttpClientRequest.post("/v1/products").pipe(
+            bearer(member.token),
+            HttpClientRequest.bodyUnsafeJson({ orgId: org.id, key: "p2", name: "P2" }),
+          ),
+        );
+        const memberKeyMgmt = yield* client.execute(
+          HttpClientRequest.post("/v1/api-keys").pipe(
+            bearer(member.token),
+            HttpClientRequest.bodyUnsafeJson({ orgId: org.id, name: "nope" }),
+          ),
+        );
+
+        // admin: credential management allowed.
+        const adminKeyMgmt = yield* client.execute(
+          HttpClientRequest.post("/v1/api-keys").pipe(
+            bearer(admin.token),
+            HttpClientRequest.bodyUnsafeJson({ orgId: org.id, name: "ok", role: "member" }),
+          ),
+        );
+
+        return {
+          viewerRead: viewerRead.status,
+          viewerWrite: viewerWrite.status,
+          memberWrite: memberWrite.status,
+          memberKeyMgmt: memberKeyMgmt.status,
+          adminKeyMgmt: adminKeyMgmt.status,
+        };
+      }),
+    );
+
+    expect(result.viewerRead).toBe(200);
+    expect(result.viewerWrite).toBe(403);
+    expect(result.memberWrite).toBe(201);
+    expect(result.memberKeyMgmt).toBe(403);
+    expect(result.adminKeyMgmt).toBe(201);
+  });
+
+  it("defaults keys minted without a role to admin (backward compatible)", async () => {
+    const db = await freshDb();
+    const org = await Effect.runPromise(createOrganization(db, { slug: "legacy", name: "Legacy" }));
+    const key = await Effect.runPromise(createApiKey(db, { orgId: org.id, name: "legacy" }));
+    expect(key.role).toBe("admin");
+  });
+});

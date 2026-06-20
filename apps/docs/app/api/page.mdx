@@ -152,6 +152,22 @@ GET /v1/orgs/{id}/event-count        # { "count": <live recorded events> }
 Base path `/v1`. Configuration only — the dashboard and customers talk to this surface for everything
 that is not a money movement.
 
+### Authentication & roles
+
+When auth is enabled, every request except `/health` must carry `Authorization: Bearer <api-key>`.
+API keys are role-scoped (RBAC), enforced by method and resource:
+
+| Role | Can do |
+| --- | --- |
+| `viewer` | Read-only — any `GET`. |
+| `member` | Reads plus ordinary writes (products, alert rules, notifications). |
+| `admin` | Everything, including credential management (`/v1/api-keys`, `/v1/webhooks`). |
+
+Roles are ranked (`viewer < member < admin`), so a higher role satisfies any lower requirement. A key
+minted without a role defaults to `admin`. Mint a scoped key with
+`POST /v1/api-keys { "orgId", "name", "role": "member" }`. Insufficient role → `403`; missing/invalid
+key → `401`.
+
 ### Organizations & products
 
 ```

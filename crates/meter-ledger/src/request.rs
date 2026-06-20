@@ -2,13 +2,14 @@
 //!
 //! These are the verbs (`grant`, `reserve`, `settle`, …) as data, kept separate from the model nouns.
 
-use meter_core::{AccountId, Credit};
+use meter_core::{AccountId, Credit, OrgId};
 
 use crate::model::{AccountScope, CreditSource, LimitClass, ReservationId};
 
 /// Open a new ledger account.
 #[derive(Debug, Clone)]
 pub struct NewAccount {
+    pub org_id: OrgId,
     pub scope: AccountScope,
     pub no_overdraft: bool,
     pub parent_id: Option<AccountId>,

@@ -14,7 +14,7 @@ use std::sync::{Mutex, MutexGuard};
 
 use meter_core::{AccountId, Credit};
 
-use crate::model::{AccountScope, LedgerAccount};
+use crate::model::{AccountScope, LedgerAccount, SYSTEM_ORG};
 
 use self::state::{AccountRow, State};
 
@@ -35,6 +35,7 @@ impl InMemoryLedger {
             system,
             AccountRow::new(LedgerAccount {
                 id: system,
+                org_id: SYSTEM_ORG,
                 scope: AccountScope::System,
                 no_overdraft: false,
                 parent_id: None,

@@ -1,7 +1,12 @@
 //! Ledger accounts.
 
-use meter_core::AccountId;
+use meter_core::{AccountId, OrgId};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+/// The well-known org that owns the system (mint + usage sink) account. Not a real tenant; it is the
+/// counter-party every grant and settle pairs against so the global ledger always sums to zero.
+pub const SYSTEM_ORG: OrgId = OrgId::from_uuid(Uuid::nil());
 
 /// What a ledger account represents within the org hierarchy and the credit machinery.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -27,6 +32,8 @@ pub enum AccountScope {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LedgerAccount {
     pub id: AccountId,
+    /// The tenant that owns this account ([`SYSTEM_ORG`] for the system account).
+    pub org_id: OrgId,
     pub scope: AccountScope,
     /// When true, a HARD reservation can never drive available credits negative.
     pub no_overdraft: bool,

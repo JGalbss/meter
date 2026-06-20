@@ -5,7 +5,7 @@
 //! identically. Backend test modules call [`run_all_scenarios`] and drive [`check_against_model`] with
 //! proptest. Enabled via the `conformance` feature (and always for this crate's own tests).
 
-use meter_core::{AccountId, Credit};
+use meter_core::{AccountId, Credit, OrgId};
 
 use crate::backend::LedgerBackend;
 use crate::model::{AccountScope, CreditSource, LimitClass};
@@ -19,6 +19,7 @@ fn credits(n: i64) -> Credit {
 async fn open_no_overdraft_org<L: LedgerBackend>(ledger: &L) -> AccountId {
     ledger
         .open_account(NewAccount {
+            org_id: OrgId::new(),
             scope: AccountScope::Org,
             no_overdraft: true,
             parent_id: None,

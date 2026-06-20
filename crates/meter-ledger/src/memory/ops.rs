@@ -19,6 +19,7 @@ impl LedgerBackend for InMemoryLedger {
         let id = AccountId::new();
         let account = LedgerAccount {
             id,
+            org_id: req.org_id,
             scope: req.scope,
             no_overdraft: req.no_overdraft,
             parent_id: req.parent_id,

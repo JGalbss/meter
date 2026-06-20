@@ -24,6 +24,6 @@ pub use error::LedgerError;
 pub use memory::InMemoryLedger;
 pub use model::{
     AccountScope, Balance, CreditSource, EntryType, LedgerAccount, LedgerEntry, LimitClass,
-    ReservationId,
+    ReservationId, SYSTEM_ORG,
 };
 pub use request::{GrantRequest, NewAccount, ReserveOutcome, ReserveRequest, SettleRequest};

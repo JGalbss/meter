@@ -1,0 +1,13 @@
+target/
+**/target/
+node_modules/
+**/node_modules/
+.git/
+.github/
+.next/
+dist/
+build/
+*.log
+.agents/
+.claude/
+apps/dashboard/.next/

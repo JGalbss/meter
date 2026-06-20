@@ -55,8 +55,8 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 
 ## EPIC 06 — Ingest & event model
 - [x] `meter-event`: EventStore trait + in-memory reference + conformance — custom-field events, idempotency on (org,key), amend-as-new-version, void_run, latest-non-voided reads
-- [ ] Postgres EventStore backend (events table, JSONB props, run_id, status, supersedes) + conformance against real PG
-- [ ] Event API on the engine: 202-fast, batch with per-event accept/reject, per-meter schema validation
+- [x] Postgres EventStore backend (events table, JSONB props, run_id, status, supersedes) + conformance against real PG
+- [~] Event API on the engine (record/get/list/amend/void_run) done; 202-fast batch + per-meter schema validation pending
 - [ ] Compose void_run with the ledger (reverse a run's holds/settles); event amend → delta posting
 - [ ] `meter-ingest`: `IngestSource` trait; Postgres-outbox default source; effectively-once consumer; dead-letter
 - [ ] Reconciliation job (aggregates vs raw; ledger vs invoice)
@@ -112,7 +112,7 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 - [ ] Generated control-plane client; react-doctor + Lighthouse budgets in CI
 
 ## EPIC 15 — Deployment & self-host
-- [ ] Docker images (engine, control-plane, dashboard); Docker Compose (Postgres + engine + control-plane [+ ClickHouse])
+- [~] Engine Docker image (multi-stage, rustls, slim runtime) + production docker-compose (Postgres + engine) — built & smoke-tested. control-plane/dashboard images + ClickHouse service pending
 - [ ] Helm chart (scale-out); private-VPC notes; config/secrets; `meter migrate` orchestration
 - [ ] Single-tenant & multi-tenant modes; opt-in scale-out backends behind traits
 

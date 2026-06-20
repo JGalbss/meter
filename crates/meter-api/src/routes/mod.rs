@@ -44,6 +44,7 @@ pub fn router(state: AppState) -> Router {
         .route("/runs/:id/void", post(events::void_run))
         .route("/usage", post(usage::meter_usage))
         .route("/catalog", get(catalog::list))
+        .route("/catalog/:model_id", get(catalog::get_card))
         .route("/audit", get(audit::list));
 
     Router::new()

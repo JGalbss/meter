@@ -1,10 +1,13 @@
 //! The hosted model rate-card catalog (read-only): the curated, best-effort provider prices the
 //! engine ships with, so clients can discover model pricing without maintaining it themselves.
 
+use axum::extract::Path;
+use axum::http::StatusCode;
 use axum::Json;
 use serde::Serialize;
 
-use meter_ratecards::{catalog, ModelCatalogEntry, CATALOG_AS_OF};
+use meter_pricing::RateCard;
+use meter_ratecards::{catalog, rate_card_for, ModelCatalogEntry, CATALOG_AS_OF};
 
 /// `GET /v1/catalog` response: the snapshot date plus every catalogued model's per-token prices.
 #[derive(Serialize)]
@@ -20,4 +23,12 @@ pub async fn list() -> Json<CatalogResponse> {
         as_of: CATALOG_AS_OF,
         models: catalog(),
     })
+}
+
+/// `GET /v1/catalog/{model_id}` — the provider-cost rate card for a catalogued model, ready to price
+/// usage against. `404` if the model is not in the catalog.
+pub async fn get_card(Path(model_id): Path<String>) -> Result<Json<RateCard>, StatusCode> {
+    rate_card_for(&model_id)
+        .map(Json)
+        .ok_or(StatusCode::NOT_FOUND)
 }

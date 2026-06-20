@@ -748,4 +748,14 @@ async fn catalog_over_http() {
         .expect("opus present");
     assert!(opus["input_per_token"].is_string());
     assert_eq!(opus["provider"], "anthropic");
+
+    // A specific model resolves to a ready-to-use provider-cost rate card.
+    let (status, card) = call(&app, "GET", "/v1/catalog/gpt-5", &Value::Null).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(card["kind"], "provider_cost");
+    assert_eq!(card["components"].as_array().expect("components").len(), 4);
+
+    // An unknown model is a 404.
+    let (status, _) = call(&app, "GET", "/v1/catalog/not-a-model", &Value::Null).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }

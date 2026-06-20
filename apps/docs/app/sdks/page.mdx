@@ -56,6 +56,23 @@ await withRun(meter, { account, estimate: "5000" }, async (run) => {
 });
 ```
 
+To govern in **token terms**, `withRunUsage` reserves a hold sized to an estimated token usage for a
+model (priced by the engine) and settles with the actual tokens — same auto-void-on-failure. `reserve`
+also takes an optional `expiresAt` hold timeout, and `extendReservation` heartbeats a long-running hold.
+
+```ts
+import { withRunUsage } from "@meter/sdk";
+
+await withRunUsage(
+  meter,
+  { account, model: "claude-opus-4-8", estimate: { input_uncached: 4000, output: 1000 } },
+  async (run) => {
+    const completion = await callModel();
+    await run.settle(anthropicUsage(completion.usage));
+  },
+);
+```
+
 ### Provider adapters
 
 Each adapter maps a provider's usage object to meter's normalized token dimensions:
@@ -68,8 +85,9 @@ import {
 
 ### `MeterClient` methods
 
-`openAccount`, `balance`, `grant`, `entries`, `reserve`, `settle`, `voidReservation`, `openLease`,
-`closeLease`, `recordEvent`, `amendEvent`, `listEvents`, `voidRun`, `invoice`, `meterUsage`.
+`openAccount`, `balance`, `grant`, `entries`, `reserve`, `settle`, `extendReservation`,
+`voidReservation`, `openLease`, `closeLease`, `recordEvent`, `amendEvent`, `listEvents`, `voidRun`,
+`invoice`, `meterUsage`, `reserveUsage`, `settleUsage`.
 
 ## Python
 
@@ -105,12 +123,18 @@ def work(settle):
 with_run(meter, account=account, estimate="5000", work=work)
 ```
 
+To govern in **token terms**, `with_run_usage` reserves a hold sized to an estimated token usage for a
+model (priced by the engine) and settles with the actual tokens — same auto-void-on-failure. `reserve`
+also takes an optional `expires_at` hold timeout, and `extend_reservation` heartbeats a long-running hold.
+
 ### Provider adapters
 
 `anthropic_usage`, `openai_usage`, `gemini_usage`, `bedrock_usage`, `langchain_usage`, plus
-`meter_model_usage` (price + charge) and `record_model_usage` (emit a usage event only).
+`meter_model_usage` (price + charge), `record_model_usage` (emit a usage event only), and
+`metered_call` (wrap a provider call).
 
 ### `MeterClient` methods
 
-`open_account`, `balance`, `grant`, `reserve`, `settle`, `void_reservation`, `open_lease`,
-`close_lease`, `record_event`, `amend_event`, `list_events`, `void_run`, `invoice`, `meter_usage`.
+`open_account`, `balance`, `grant`, `entries`, `reserve`, `settle`, `extend_reservation`,
+`void_reservation`, `open_lease`, `close_lease`, `record_event`, `amend_event`, `list_events`,
+`void_run`, `invoice`, `meter_usage`, `reserve_usage`, `settle_usage`.

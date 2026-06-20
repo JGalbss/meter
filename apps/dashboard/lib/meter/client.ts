@@ -1,0 +1,94 @@
+//! Server-side client for the meter control plane. Reads return a `Result` so a down control plane
+//! degrades to a friendly empty state rather than crashing a page; mutations throw (surfaced via the
+//! calling server action). Used only from Server Components and Server Actions.
+
+import type {
+  AlertRule,
+  Notification,
+  Organization,
+  Webhook,
+  WebhookDelivery,
+} from "./types";
+
+const BASE_URL = process.env.METER_CONTROL_PLANE_URL ?? "http://127.0.0.1:8080";
+
+export type Result<T> = { readonly ok: true; readonly data: T } | { readonly ok: false; readonly error: string };
+
+/** Read a result's data, or a fallback when the control plane was unreachable. */
+export function unwrapOr<T>(result: Result<T>, fallback: T): T {
+  if (result.ok) {
+    return result.data;
+  }
+  return fallback;
+}
+
+function describe(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return "control plane unreachable";
+}
+
+async function getJson<T>(path: string): Promise<Result<T>> {
+  try {
+    const response = await fetch(`${BASE_URL}${path}`, { cache: "no-store" });
+    if (!response.ok) {
+      return { ok: false, error: `control plane responded ${response.status}` };
+    }
+    return { ok: true, data: (await response.json()) as T };
+  } catch (error) {
+    return { ok: false, error: describe(error) };
+  }
+}
+
+async function post(path: string, body?: unknown): Promise<void> {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method: "POST",
+    cache: "no-store",
+    headers: { "content-type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`control plane responded ${response.status}`);
+  }
+}
+
+export function listOrganizations(): Promise<Result<readonly Organization[]>> {
+  return getJson("/v1/organizations");
+}
+
+export function listNotifications(
+  orgId: string,
+  status?: string,
+): Promise<Result<readonly Notification[]>> {
+  const query = status === undefined ? "" : `&status=${encodeURIComponent(status)}`;
+  return getJson(`/v1/notifications?orgId=${encodeURIComponent(orgId)}${query}`);
+}
+
+export function listAlertRules(orgId: string): Promise<Result<readonly AlertRule[]>> {
+  return getJson(`/v1/alert-rules?orgId=${encodeURIComponent(orgId)}`);
+}
+
+export function listWebhooks(orgId: string): Promise<Result<readonly Webhook[]>> {
+  return getJson(`/v1/webhooks?orgId=${encodeURIComponent(orgId)}`);
+}
+
+export function listWebhookDeliveries(orgId: string): Promise<Result<readonly WebhookDelivery[]>> {
+  return getJson(`/v1/webhook-deliveries?orgId=${encodeURIComponent(orgId)}`);
+}
+
+export function markNotificationRead(id: string): Promise<void> {
+  return post(`/v1/notifications/${encodeURIComponent(id)}/read`);
+}
+
+export function ackNotification(id: string): Promise<void> {
+  return post(`/v1/notifications/${encodeURIComponent(id)}/ack`);
+}
+
+export function setAlertRuleEnabled(id: string, enabled: boolean): Promise<void> {
+  return post(`/v1/alert-rules/${encodeURIComponent(id)}/enabled`, { enabled });
+}
+
+export function setWebhookEnabled(id: string, enabled: boolean): Promise<void> {
+  return post(`/v1/webhooks/${encodeURIComponent(id)}/enabled`, { enabled });
+}

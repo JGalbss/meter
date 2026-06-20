@@ -4,6 +4,7 @@ mod accounts;
 mod analytics;
 mod audit;
 mod budgets;
+mod catalog;
 mod events;
 mod health;
 mod invoices;
@@ -42,6 +43,7 @@ pub fn router(state: AppState) -> Router {
         .route("/events/:id/amend", post(events::amend))
         .route("/runs/:id/void", post(events::void_run))
         .route("/usage", post(usage::meter_usage))
+        .route("/catalog", get(catalog::list))
         .route("/audit", get(audit::list));
 
     Router::new()

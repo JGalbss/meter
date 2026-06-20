@@ -723,3 +723,29 @@ async fn audit_log_over_http() {
     assert_eq!(latest["actor"], "system");
     assert_eq!(latest["status"], json!(200));
 }
+
+#[tokio::test]
+async fn catalog_over_http() {
+    let (_container, app) = app().await;
+
+    let (status, body) = call(&app, "GET", "/v1/catalog", &Value::Null).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(body["as_of"].is_string());
+    let models = body["models"].as_array().expect("models array");
+    assert!(!models.is_empty());
+
+    // The catalog spans the major providers and prices are serialized as strings (exact decimals).
+    let ids: Vec<&str> = models
+        .iter()
+        .filter_map(|m| m["model_id"].as_str())
+        .collect();
+    assert!(ids.contains(&"claude-opus-4-8"));
+    assert!(ids.contains(&"gpt-5"));
+    assert!(ids.contains(&"gemini-2.5-pro"));
+    let opus = models
+        .iter()
+        .find(|m| m["model_id"] == "claude-opus-4-8")
+        .expect("opus present");
+    assert!(opus["input_per_token"].is_string());
+    assert_eq!(opus["provider"], "anthropic");
+}

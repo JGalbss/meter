@@ -9,6 +9,7 @@ mod events;
 mod health;
 mod invoices;
 mod leases;
+mod metrics;
 pub(crate) mod openapi;
 mod rate_cards;
 mod request_id;
@@ -64,10 +65,16 @@ pub fn router(state: AppState) -> Router {
         .route("/health", get(health::health))
         .route("/health/ready", get(health::ready))
         .route("/openapi.json", get(openapi::openapi_json))
+        .route("/metrics", get(metrics::metrics))
         .nest("/v1", v1)
         .layer(middleware::from_fn_with_state(
             state.clone(),
             audit::audit_middleware,
+        ))
+        // Count every request/response by status for the /metrics endpoint.
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            metrics::record_metrics,
         ))
         // Every request/response carries a correlation id.
         .layer(middleware::from_fn(request_id::propagate))

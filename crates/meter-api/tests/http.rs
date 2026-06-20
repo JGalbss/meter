@@ -1078,6 +1078,54 @@ async fn usage_prices_with_a_synced_rate_card() {
 }
 
 #[tokio::test]
+async fn metrics_endpoint_counts_requests_and_errors() {
+    let (_container, app) = app().await;
+
+    // One success and one deliberate 404 (a random, non-existent account — not the nil system account).
+    call(&app, "GET", "/health", &Value::Null).await;
+    let missing = uuid::Uuid::now_v7();
+    let (status, _) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{missing}/balance"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // /metrics returns Prometheus text (not JSON), so fetch the raw body.
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/metrics")
+                .body(Body::empty())
+                .expect("build request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("collect")
+        .to_bytes();
+    let body = String::from_utf8(bytes.to_vec()).expect("utf8");
+
+    // Two requests counted before this /metrics call (health + the 404), one of them a client error.
+    assert!(
+        body.contains("meter_http_requests_total 2"),
+        "metrics body: {body}"
+    );
+    assert!(
+        body.contains("meter_http_request_errors_total{class=\"client\"} 1"),
+        "metrics body: {body}"
+    );
+}
+
+#[tokio::test]
 async fn openapi_document_is_served() {
     let (_container, app) = app().await;
     let (status, doc) = call(&app, "GET", "/openapi.json", &Value::Null).await;

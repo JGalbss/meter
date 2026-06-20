@@ -14,11 +14,16 @@ mod cards;
 mod dto;
 mod error;
 pub mod grpc;
+pub mod metrics;
 mod routes;
+
+use std::sync::Arc;
 
 use meter_core::Money;
 use meter_store_ch::ChStore;
 use meter_store_pg::PgLedger;
+
+use crate::metrics::RequestMetrics;
 
 pub use routes::router;
 
@@ -39,22 +44,20 @@ pub struct AppState {
     pub audit: ChStore,
     /// The cash value of one credit (used to price usage into credits).
     pub credit_value: Money,
+    /// HTTP request/error counters, exposed at `GET /metrics`.
+    pub metrics: Arc<RequestMetrics>,
 }
 
 impl AppState {
     /// Build state over the engine stores, with the credit's cash value.
     #[must_use]
-    pub const fn new(
-        ledger: PgLedger,
-        events: ChStore,
-        audit: ChStore,
-        credit_value: Money,
-    ) -> Self {
+    pub fn new(ledger: PgLedger, events: ChStore, audit: ChStore, credit_value: Money) -> Self {
         Self {
             ledger,
             events,
             audit,
             credit_value,
+            metrics: Arc::new(RequestMetrics::default()),
         }
     }
 }

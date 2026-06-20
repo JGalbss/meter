@@ -7,8 +7,9 @@
   "description": "meter documentation site (Next.js + MDX)",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "build": "next build && pagefind --site out",
+    "search:index": "pagefind --site out",
+    "start": "npx --yes serve out",
     "typecheck": "tsc --noEmit",
     "sync:openapi": "node scripts/sync-openapi.mjs"
   },
@@ -25,6 +26,7 @@
     "@types/node": "^22.10.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "pagefind": "^1.4.0",
     "typescript": "^5.7.0"
   }
 }

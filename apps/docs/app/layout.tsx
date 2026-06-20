@@ -21,8 +21,10 @@ export default function RootLayout({ children }: { children: ReactNode }): React
         <div className="shell">
           <Sidebar />
           <main className="main">
-            <article className="prose">{children}</article>
-            <footer className="footer">
+            <article className="prose" data-pagefind-body>
+              {children}
+            </article>
+            <footer className="footer" data-pagefind-ignore>
               meter — open source, self-hostable metering &amp; billing for AI agents.
             </footer>
           </main>

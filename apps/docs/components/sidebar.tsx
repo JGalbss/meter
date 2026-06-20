@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { Search } from "./search";
+
 type NavItem = { href: string; label: string };
 
 const NAV: ReadonlyArray<NavItem> = [
@@ -26,10 +28,11 @@ function isActive(pathname: string, href: string): boolean {
 export function Sidebar(): ReactNode {
   const pathname = usePathname();
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" data-pagefind-ignore>
       <Link href="/" className="brand">
         meter
       </Link>
+      <Search />
       <nav className="nav">
         {NAV.map((item) => (
           <Link

@@ -129,6 +129,75 @@ async fn void_run_invariants_hold_on_postgres() {
     conformance::void_run_property(&ledger2, &specs, 3).await;
 }
 
+/// `void_run` racing a `settle` on the same run must never corrupt the ledger. Whichever wins the
+/// `FOR UPDATE` lock, the run nets to zero: if settle wins it charges, then void_run refunds it; if
+/// void_run wins the hold is released and settle is refused. Either way the account returns to the
+/// granted balance with nothing held — a deterministic invariant, so the test is not flaky.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn void_run_racing_settle_conserves_credits() {
+    let (_container, ledger) = start_ledger().await;
+    let ledger = Arc::new(ledger);
+    let account = ledger
+        .open_account(NewAccount {
+            org_id: OrgId::new(),
+            scope: AccountScope::Org,
+            no_overdraft: true,
+            parent_id: None,
+        })
+        .await
+        .expect("open")
+        .id;
+    ledger
+        .grant(GrantRequest {
+            account,
+            amount: Credit::from(100_i64),
+            source: CreditSource::Paid,
+            idempotency_key: None,
+        })
+        .await
+        .expect("grant");
+
+    let run = meter_core::RunId::new();
+    let reservation = ReservationId::new();
+    ledger
+        .reserve(ReserveRequest {
+            account,
+            reservation_id: reservation,
+            amount: Credit::from(30_i64),
+            limit: LimitClass::Hard,
+            expires_at: None,
+            run_id: Some(run),
+        })
+        .await
+        .expect("reserve");
+
+    // Fire settle and void_run concurrently; they contend on the hold's row lock.
+    let settle_ledger = Arc::clone(&ledger);
+    let settle = tokio::spawn(async move {
+        settle_ledger
+            .settle(SettleRequest {
+                reservation_id: reservation,
+                actual: Credit::from(30_i64),
+            })
+            .await
+    });
+    let void_ledger = Arc::clone(&ledger);
+    let void = tokio::spawn(async move { void_ledger.void_run(run).await });
+
+    // settle may succeed (then void_run refunds it) or be refused (void_run won first) — both fine.
+    let _ = settle.await.expect("settle task");
+    void.await.expect("void task").expect("void_run");
+
+    // Deterministic regardless of who won: the voided run leaves no net charge and no open hold.
+    let balance = ledger.balance(account).await.expect("balance");
+    assert_eq!(
+        balance.settled,
+        Credit::from(100_i64),
+        "voided run must net to zero"
+    );
+    assert_eq!(balance.held, Credit::from(0_i64), "no hold left open");
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn concurrent_reserves_never_overdraft() {
     let (_container, ledger) = start_ledger().await;

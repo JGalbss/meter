@@ -40,7 +40,10 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
   enforced by `buf breaking` + the OpenAPI freshness/client-drift gates; deprecate-then-remove lifecycle.
 
 ## EPIC 02 — Engine schemas & migrations (Postgres, sqlx)
-- [~] Migration tooling: embedded `sqlx::migrate!` done; `meter migrate` CLI (refuses on version skew) pending
+- [x] Migration tooling: embedded `sqlx::migrate!`, the `meterctl migrate` CLI, and **version-skew
+  refusal** — `migrate` fails fast when the database has an applied migration this binary doesn't ship
+  (sqlx default, never `set_ignore_missing`); proven by the `migrate_refuses_when_the_database_is_ahead`
+  integration test.
 - [~] Ledger schema: ledger_accounts, append-only ledger_entries, ledger_holds done; credit_blocks + balances cache + session-lease accounts + cost_micros/credits_charged pending
 - [ ] Event schema: events (custom-field JSONB schema-validated, run_id, status, supersedes_event_id), events_dead_letter, idempotency_keys
 - [ ] `org_id NOT NULL` everywhere + RLS (ENABLE/FORCE, app role w/o BYPASSRLS, withTenant)

@@ -33,6 +33,11 @@ impl PgLedger {
     }
 
     /// Apply the engine ledger migrations.
+    ///
+    /// Refuses on version skew: if the database has an applied migration this binary does not ship (a
+    /// newer build already migrated ahead), the run fails rather than operating against an unknown
+    /// schema. This is sqlx's default (we never `set_ignore_missing`); proven by the `migrate`
+    /// integration test.
     pub async fn migrate(&self) -> Result<(), LedgerError> {
         sqlx::migrate!("./migrations")
             .run(&self.pool)

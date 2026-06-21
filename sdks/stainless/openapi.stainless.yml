@@ -1,0 +1,136 @@
+# Stainless SDK-generation config for the meter ENGINE API (the hot path: meter / reserve / settle /
+# events / analytics). The base clients are generated from the engine's committed OpenAPI spec
+# (`crates/meter-api/openapi.json`, emitted by utoipa and drift-checked in CI). The provider
+# **adapters** (capture LLM/agent usage → normalize → feed the base client) are NOT generated — they
+# are hand-written per language and layered on top; see `docs/SDKS.md`.
+#
+# This file is the starting config to load into Stainless Studio (which validates + refines it). Wiring
+# generation needs a Stainless org + a CI token — see docs/SDKS.md "Regenerating".
+
+organization:
+  name: meter
+  docs: https://github.com/JGalbss/meter
+
+# The engine OpenAPI is the single source of truth for the wire contract.
+openapi:
+  spec: ../../crates/meter-api/openapi.json
+
+# Base clients in the mainstream languages Stainless supports. Package names are placeholders to
+# confirm against the published registries before first release.
+targets:
+  typescript:
+    package_name: "@meter/sdk"
+    production_repo: JGalbss/meter-sdk-typescript
+    options:
+      enable_react_query: false
+  python:
+    package_name: meter-sdk
+    production_repo: JGalbss/meter-sdk-python
+  go:
+    package_name: github.com/JGalbss/meter-sdk-go
+    production_repo: JGalbss/meter-sdk-go
+  java:
+    package_name: com.meter.api
+    production_repo: JGalbss/meter-sdk-java
+  kotlin:
+    package_name: com.meter.api
+    production_repo: JGalbss/meter-sdk-kotlin
+  ruby:
+    package_name: meter
+    production_repo: JGalbss/meter-sdk-ruby
+
+# Configuration is via environment, matching the engine + existing SDKs (METER_ENGINE_URL).
+client_settings:
+  opts:
+    base_url:
+      type: string
+      read_env: METER_ENGINE_URL
+    api_key:
+      type: string
+      read_env: METER_API_KEY
+      auth: { security_scheme: bearer }
+
+environments:
+  production: http://localhost:8080
+
+settings:
+  license: Apache-2.0 # NOTE: confirm vs the repo's AGPL-3.0; generated client licensing is often permissive.
+
+# Resources map the engine's OpenAPI tags → ergonomic SDK surfaces. operationIds already give good
+# method names; these refinements just make the call sites read well (client.accounts.open(...),
+# client.reservations.reserve(...), client.usage.meter(...)).
+resources:
+  accounts:
+    models:
+      account: Account
+      balance: Balance
+      ledger_entry: LedgerEntry
+      invoice: Invoice
+    methods:
+      open: { type: http, endpoint: post /v1/accounts }
+      balance: get /v1/accounts/{id}/balance
+      grant: post /v1/accounts/{id}/grants
+      entries: get /v1/accounts/{id}/entries
+      invoice: get /v1/accounts/{id}/invoice
+      budget_status: get /v1/accounts/{id}/budget
+      usage_by_day: get /v1/accounts/{id}/usage-by-day
+      credit_note: post /v1/accounts/{id}/credit-notes
+
+  reservations:
+    models:
+      reserve_outcome: ReserveOutcome
+    methods:
+      reserve: post /v1/reservations
+      settle: post /v1/reservations/{id}/settle
+      extend: post /v1/reservations/{id}/extend
+      void: post /v1/reservations/{id}/void
+
+  usage:
+    methods:
+      meter: post /v1/usage
+      reserve: post /v1/usage/reserve
+      settle: post /v1/usage/reservations/{id}/settle
+
+  events:
+    models:
+      usage_event: UsageEvent
+    methods:
+      record: post /v1/events
+      record_batch: post /v1/events/batch
+      get: get /v1/events/{id}
+      amend: post /v1/events/{id}/amend
+
+  runs:
+    methods:
+      void: post /v1/runs/{id}/void
+
+  leases:
+    methods:
+      open: post /v1/leases
+      close: post /v1/leases/{id}/close
+
+  catalog:
+    methods:
+      list: get /v1/catalog
+      get: get /v1/catalog/{model_id}
+    subresources:
+      rate_cards:
+        methods:
+          list: get /v1/rate-cards
+          get: get /v1/rate-cards/{id}
+
+  simulate:
+    methods:
+      run: post /v1/simulate
+
+  analytics:
+    methods:
+      usage_by_model: get /v1/orgs/{id}/usage-by-model
+      usage_by_day: get /v1/orgs/{id}/usage-by-day
+      usage_by_field: get /v1/orgs/{id}/usage-by-field
+      event_count: get /v1/orgs/{id}/event-count
+      reconcile: get /v1/orgs/{id}/reconcile
+
+  audit:
+    methods:
+      list: get /v1/audit

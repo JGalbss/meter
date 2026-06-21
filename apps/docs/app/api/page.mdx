@@ -11,7 +11,7 @@ meter exposes two HTTP surfaces:
 - **Engine** (`http://localhost:8080`) — the Rust data plane. Ledger, pricing, enforcement, events,
   invoices. This is where money-truth lives.
 - **Control plane** (`http://localhost:8090`) — the TypeScript configuration API. Organizations,
-  products, API keys, alert rules, webhooks, notifications. Computes no money.
+  agents, API keys, alert rules, webhooks, notifications. Computes no money.
 
 All bodies are JSON. UUIDs are strings. Credit amounts are decimal strings (never floats).
 
@@ -205,7 +205,7 @@ API keys are role-scoped (RBAC), enforced by method and resource:
 | Role | Can do |
 | --- | --- |
 | `viewer` | Read-only — any `GET`. |
-| `member` | Reads plus ordinary writes (products, alert rules, notifications). |
+| `member` | Reads plus ordinary writes (agents, alert rules, notifications). |
 | `admin` | Everything, including credential management (`/v1/api-keys`, `/v1/webhooks`). |
 
 Roles are ranked (`viewer < member < admin`), so a higher role satisfies any lower requirement. A key
@@ -213,13 +213,13 @@ minted without a role defaults to `admin`. Mint a scoped key with
 `POST /v1/api-keys { "orgId", "name", "role": "member" }`. Insufficient role → `403`; missing/invalid
 key → `401`.
 
-### Organizations & products
+### Organizations & agents
 
 ```
 GET  /v1/organizations
 POST /v1/organizations
-GET  /v1/products
-POST /v1/products
+GET  /v1/agents
+POST /v1/agents
 ```
 
 ### API keys

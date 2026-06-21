@@ -10,7 +10,7 @@ import type { components } from "./control-plane.gen"
 type CpSchemas = components["schemas"]
 
 export type Organization = CpSchemas["Organization"]
-export type Product = CpSchemas["Product"]
+export type Agent = CpSchemas["Agent"]
 export type Notification = CpSchemas["Notification"]
 export type AlertRule = CpSchemas["AlertRule"]
 export type Webhook = CpSchemas["Webhook"]

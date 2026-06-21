@@ -69,7 +69,7 @@ const NAV: readonly NavGroup[] = [
   {
     label: "Customers",
     items: [
-      { href: "/products", label: "Products", icon: Package },
+      { href: "/agents", label: "Agents", icon: Package },
       { href: "/accounts", label: "Accounts", icon: Wallet },
     ],
   },

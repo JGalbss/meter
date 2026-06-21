@@ -1,7 +1,7 @@
 # @meter/control-plane
 
 The meter **control plane**: the configuration and operational-state API the dashboard hits. It owns
-config and workflow state (organizations, products, notifications, alert rules, webhooks) — **never
+config and workflow state (organizations, agents, notifications, alert rules, webhooks) — **never
 money**. All money-truth lives in the Rust engine; the control plane calls the engine for anything
 involving credits.
 
@@ -38,8 +38,8 @@ unknown resources return `404 {"error":"not_found", ...}`.
 | `GET /openapi.json` | The OpenAPI document the dashboard client is generated from. |
 | `POST /v1/organizations` | Create an organization (`slug`, `name`). |
 | `GET /v1/organizations` | List organizations. |
-| `POST /v1/products` | Create a product (`orgId`, `key`, `name`). |
-| `GET /v1/products?orgId` | List an org's products. |
+| `POST /v1/agents` | Create an agent (`orgId`, `key`, `name`). |
+| `GET /v1/agents?orgId` | List an org's agents. |
 | `POST /v1/notifications` | Raise a notification (`orgId`, `type`, `severity`, `title`, `body?`, `data?`). Dispatches matching webhooks. |
 | `GET /v1/notifications?orgId&status?` | Pull notifications (optionally filter by `status`). |
 | `POST /v1/notifications/:id/read` | Mark read. |
@@ -60,7 +60,7 @@ unknown resources return `404 {"error":"not_found", ...}`.
 
 - notification `type`: `budget` · `credit` · `invoice` · `run_failure` · `system`
 - notification `severity`: `info` · `warning` · `critical`
-- alert-rule `scope`: `org` · `team` · `user` · `product`
+- alert-rule `scope`: `org` · `team` · `user` · `agent`
 - alert-rule `metric`: `budget` · `credit` · `spend`
 - alert-rule `action`: `notify` · `webhook` · `enforce`
 

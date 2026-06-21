@@ -22,7 +22,8 @@ export const organizations = pgTable("organizations", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const products = pgTable(
+// Physical table stays "products"; logical/API name is "agents" — a physical rename is deferred to a dedicated migration.
+export const agents = pgTable(
   "products",
   {
     id: uuid("id").primaryKey().defaultRandom(),
@@ -39,7 +40,7 @@ export const products = pgTable(
 );
 
 // Alert rules: thresholds that, when crossed, raise notifications (and later drive webhooks/enforce).
-// `metric` (budget|credit|spend) is evaluated against `threshold` per `scope` (org|team|user|product).
+// `metric` (budget|credit|spend) is evaluated against `threshold` per `scope` (org|team|user|agent).
 export const alertRules = pgTable(
   "alert_rules",
   {

@@ -9,7 +9,7 @@ import { Database } from "../../db/service";
 import { forbidden, handle } from "../errors";
 import { CurrentPrincipal, authorizeOrg, isAllowed, orgScope } from "../tenant";
 
-const Scope = Schema.Literal("org", "team", "user", "product");
+const Scope = Schema.Literal("org", "team", "user", "agent");
 const Metric = Schema.Literal("budget", "credit", "spend");
 const Action = Schema.Literal("notify", "webhook", "enforce");
 

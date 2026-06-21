@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/select"
 import { createAlertRuleAction } from "./actions"
 
-const SCOPES = ["org", "team", "user", "product"]
+const SCOPES = ["org", "team", "user", "agent"]
 const METRICS = ["budget", "credit", "spend"]
 const ACTIONS = ["notify", "webhook", "enforce"]
 

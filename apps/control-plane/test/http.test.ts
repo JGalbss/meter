@@ -36,7 +36,7 @@ describe("control-plane HTTP API", () => {
     expect(result.body).toEqual({ status: "ok", database: true });
   });
 
-  it("creates and lists organizations and their products", async () => {
+  it("creates and lists organizations and their agents", async () => {
     const db = await freshDb();
     const result = await run(
       db,
@@ -54,28 +54,28 @@ describe("control-plane HTTP API", () => {
         const orgsResponse = yield* client.get("/v1/organizations");
         const orgs = (yield* orgsResponse.json) as ReadonlyArray<{ slug: string }>;
 
-        const productResponse = yield* client.execute(
-          HttpClientRequest.post("/v1/products").pipe(
+        const agentResponse = yield* client.execute(
+          HttpClientRequest.post("/v1/agents").pipe(
             HttpClientRequest.bodyUnsafeJson({ orgId: org.id, key: "chat", name: "Chat" }),
           ),
         );
-        expect(productResponse.status).toBe(201);
+        expect(agentResponse.status).toBe(201);
 
-        const listResponse = yield* client.get(`/v1/products?orgId=${org.id}`);
-        const products = (yield* listResponse.json) as ReadonlyArray<{
+        const listResponse = yield* client.get(`/v1/agents?orgId=${org.id}`);
+        const agents = (yield* listResponse.json) as ReadonlyArray<{
           orgId: string;
           key: string;
           name: string;
         }>;
 
-        return { org, orgs, products };
+        return { org, orgs, agents };
       }),
     );
 
     expect(result.org.slug).toBe("acme");
     expect(result.orgs).toHaveLength(1);
-    expect(result.products).toHaveLength(1);
-    expect(result.products[0]).toMatchObject({ orgId: result.org.id, key: "chat", name: "Chat" });
+    expect(result.agents).toHaveLength(1);
+    expect(result.agents[0]).toMatchObject({ orgId: result.org.id, key: "chat", name: "Chat" });
   });
 
   it("rejects an invalid body with 400", async () => {
@@ -101,7 +101,7 @@ describe("control-plane HTTP API", () => {
       db,
       Effect.gen(function* () {
         const client = yield* HttpClient.HttpClient;
-        const response = yield* client.get("/v1/products");
+        const response = yield* client.get("/v1/agents");
         return response.status;
       }),
     );

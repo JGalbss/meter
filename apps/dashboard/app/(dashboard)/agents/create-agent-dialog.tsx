@@ -15,9 +15,9 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { createProductAction } from "./actions"
+import { createAgentAction } from "./actions"
 
-export function CreateProductDialog({ orgId }: { orgId: string }) {
+export function CreateAgentDialog({ orgId }: { orgId: string }) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
 
@@ -27,24 +27,24 @@ export function CreateProductDialog({ orgId }: { orgId: string }) {
     const key = String(data.get("key") ?? "")
     const name = String(data.get("name") ?? "")
     startTransition(async () => {
-      const result = await createProductAction({ orgId, key, name })
+      const result = await createAgentAction({ orgId, key, name })
       if (!result.ok) {
         toast.error(result.error)
         return
       }
-      toast.success("Product created")
+      toast.success("Agent created")
       setOpen(false)
     })
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" />}>New product</DialogTrigger>
+      <DialogTrigger render={<Button size="sm" />}>New agent</DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New product</DialogTitle>
+          <DialogTitle>New agent</DialogTitle>
           <DialogDescription>
-            A metered product or agent. Unique key per organization.
+            A metered agent. Unique key per organization.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">

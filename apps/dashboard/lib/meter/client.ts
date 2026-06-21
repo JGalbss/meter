@@ -3,6 +3,7 @@
 //! calling server action). Used only from Server Components and Server Actions.
 
 import type {
+  Agent,
   AlertRule,
   ApiKey,
   ApiKeyRole,
@@ -10,7 +11,6 @@ import type {
   CreatedApiKey,
   Notification,
   Organization,
-  Product,
   Webhook,
   WebhookDelivery,
 } from "./types"
@@ -79,18 +79,16 @@ export function createOrganization(input: {
   return post("/v1/organizations", input)
 }
 
-export function listProducts(
-  orgId: string
-): Promise<Result<readonly Product[]>> {
-  return getJson(`/v1/products?orgId=${encodeURIComponent(orgId)}`)
+export function listAgents(orgId: string): Promise<Result<readonly Agent[]>> {
+  return getJson(`/v1/agents?orgId=${encodeURIComponent(orgId)}`)
 }
 
-export function createProduct(input: {
+export function createAgent(input: {
   orgId: string
   key: string
   name: string
 }): Promise<void> {
-  return post("/v1/products", input)
+  return post("/v1/agents", input)
 }
 
 export function createWebhook(input: {

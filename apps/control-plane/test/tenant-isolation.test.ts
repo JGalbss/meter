@@ -10,7 +10,6 @@ import { createAlertRule } from "../src/alerts/repository";
 import { createApiKey } from "../src/api-keys/repository";
 import { createNotification } from "../src/notifications/repository";
 import { createOrganization } from "../src/organizations/repository";
-import { createProduct } from "../src/products/repository";
 import { createWebhook } from "../src/webhooks/repository";
 import { type TestDb, freshDb, runAuthed } from "./support";
 
@@ -76,7 +75,7 @@ describe("tenant isolation", () => {
       Effect.gen(function* () {
         const client = yield* HttpClient.HttpClient;
         const paths = [
-          `/v1/products?orgId=${f.orgB}`,
+          `/v1/agents?orgId=${f.orgB}`,
           `/v1/alert-rules?orgId=${f.orgB}`,
           `/v1/webhooks?orgId=${f.orgB}`,
           `/v1/webhook-deliveries?orgId=${f.orgB}`,
@@ -103,8 +102,8 @@ describe("tenant isolation", () => {
       db,
       Effect.gen(function* () {
         const client = yield* HttpClient.HttpClient;
-        const product = yield* client.execute(
-          HttpClientRequest.post("/v1/products").pipe(
+        const agent = yield* client.execute(
+          HttpClientRequest.post("/v1/agents").pipe(
             bearer(f.aAdminToken),
             HttpClientRequest.bodyUnsafeJson({ orgId: f.orgB, key: "p", name: "P" }),
           ),
@@ -115,10 +114,10 @@ describe("tenant isolation", () => {
             HttpClientRequest.bodyUnsafeJson({ orgId: f.orgB, url: "https://x.test", secret: "s" }),
           ),
         );
-        return { product: product.status, webhook: webhook.status };
+        return { agent: agent.status, webhook: webhook.status };
       }),
     );
-    expect(result.product).toBe(403);
+    expect(result.agent).toBe(403);
     expect(result.webhook).toBe(403);
   });
 
@@ -211,19 +210,19 @@ describe("tenant isolation", () => {
       Effect.gen(function* () {
         const client = yield* HttpClient.HttpClient;
         const ownRead = yield* client.execute(
-          HttpClientRequest.get(`/v1/products?orgId=${f.orgA}`).pipe(bearer(f.aAdminToken)),
+          HttpClientRequest.get(`/v1/agents?orgId=${f.orgA}`).pipe(bearer(f.aAdminToken)),
         );
         const ownCreate = yield* client.execute(
-          HttpClientRequest.post("/v1/products").pipe(
+          HttpClientRequest.post("/v1/agents").pipe(
             bearer(f.aAdminToken),
             HttpClientRequest.bodyUnsafeJson({ orgId: f.orgA, key: "own", name: "Own" }),
           ),
         );
         const platformA = yield* client.execute(
-          HttpClientRequest.get(`/v1/products?orgId=${f.orgA}`).pipe(bearer(f.platformToken)),
+          HttpClientRequest.get(`/v1/agents?orgId=${f.orgA}`).pipe(bearer(f.platformToken)),
         );
         const platformB = yield* client.execute(
-          HttpClientRequest.get(`/v1/products?orgId=${f.orgB}`).pipe(bearer(f.platformToken)),
+          HttpClientRequest.get(`/v1/agents?orgId=${f.orgB}`).pipe(bearer(f.platformToken)),
         );
         return {
           ownRead: ownRead.status,

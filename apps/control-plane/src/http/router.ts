@@ -11,8 +11,8 @@ import { openApiDocument } from "./openapi";
 import { alertRoutes } from "./routes/alerts";
 import { apiKeyRoutes } from "./routes/api-keys";
 import { notificationRoutes } from "./routes/notifications";
+import { agentRoutes } from "./routes/agents";
 import { organizationRoutes } from "./routes/organizations";
-import { productRoutes } from "./routes/products";
 import { webhookRoutes } from "./routes/webhooks";
 import type { CurrentPrincipal } from "./tenant";
 
@@ -41,7 +41,7 @@ export const router: HttpRouter.HttpRouter<never, Database | CurrentPrincipal> =
     ),
     HttpRouter.get("/openapi.json", Effect.succeed(HttpServerResponse.unsafeJson(openApiDocument))),
     organizationRoutes,
-    productRoutes,
+    agentRoutes,
     notificationRoutes,
     alertRoutes,
     webhookRoutes,

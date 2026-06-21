@@ -22,7 +22,7 @@ Python SDKs, and a dashboard.
   a new version plus a delta; killing a failed run reverses its holds and settlements. The audit trail
   is perfect, but the UX feels mutable.
 - **Money-truth in one engine.** The Rust engine is the sole owner of credits and balances. The control
-  plane configures products, keys, alerts, and webhooks — it never computes money.
+  plane configures agents, keys, alerts, and webhooks — it never computes money.
 - **Performance is a feature.** Reserve/settle is a tight hot path with per-session leasing; analytics
   events live in ClickHouse, money in Postgres.
 
@@ -31,7 +31,7 @@ Python SDKs, and a dashboard.
 | Surface | What it is | Owns |
 | --- | --- | --- |
 | **Engine** (Rust) | HTTP data plane | Ledger, pricing, enforcement, events. Money-truth. |
-| **Control plane** (TypeScript) | Effect + Drizzle API | Products, API keys, alerts, webhooks, notifications. No money. |
+| **Control plane** (TypeScript) | Effect + Drizzle API | Agents, API keys, alerts, webhooks, notifications. No money. |
 | **Dashboard** (Next.js) | Operator console | Read views over engine + control plane. |
 | **SDKs** (TS + Python) | Client libraries | Hot path → engine; config → control plane. |
 | **Postgres** | Store | Money-truth (ledger, audit). |

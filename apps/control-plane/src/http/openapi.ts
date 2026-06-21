@@ -8,17 +8,17 @@
 
 import { JSONSchema, type Schema } from "effect";
 
+import { Agent } from "../agents/repository";
 import { AlertRule } from "../alerts/repository";
 import { ApiKey, CreatedApiKey } from "../api-keys/repository";
 import { Notification } from "../notifications/repository";
 import { Organization } from "../organizations/repository";
-import { Product } from "../products/repository";
 import { Webhook, WebhookDelivery } from "../webhooks/repository";
+import { NewAgentBody } from "./routes/agents";
 import { NewAlertRuleBody } from "./routes/alerts";
 import { NewApiKeyBody } from "./routes/api-keys";
 import { NewNotificationBody } from "./routes/notifications";
 import { NewOrganizationBody } from "./routes/organizations";
-import { NewProductBody } from "./routes/products";
 import { EnabledBody, NewWebhookBody } from "./routes/webhooks";
 
 type Method = "get" | "post";
@@ -61,19 +61,19 @@ const OPERATIONS: ReadonlyArray<Operation> = [
 
   {
     method: "get",
-    path: "/v1/products",
-    tag: "Products",
-    summary: "List products",
+    path: "/v1/agents",
+    tag: "Agents",
+    summary: "List agents",
     query: ORG_QUERY,
-    response: { schema: Product, array: true },
+    response: { schema: Agent, array: true },
   },
   {
     method: "post",
-    path: "/v1/products",
-    tag: "Products",
-    summary: "Create a product",
-    body: NewProductBody,
-    response: { schema: Product },
+    path: "/v1/agents",
+    tag: "Agents",
+    summary: "Create an agent",
+    body: NewAgentBody,
+    response: { schema: Agent },
     created: true,
   },
 
@@ -214,7 +214,7 @@ const OPERATIONS: ReadonlyArray<Operation> = [
 // standard, deduplicated shape that client codegen turns into named types.
 const SCHEMAS: ReadonlyArray<readonly [string, Schema.Schema.AnyNoContext]> = [
   ["Organization", Organization],
-  ["Product", Product],
+  ["Agent", Agent],
   ["ApiKey", ApiKey],
   ["CreatedApiKey", CreatedApiKey],
   ["AlertRule", AlertRule],
@@ -222,7 +222,7 @@ const SCHEMAS: ReadonlyArray<readonly [string, Schema.Schema.AnyNoContext]> = [
   ["Webhook", Webhook],
   ["WebhookDelivery", WebhookDelivery],
   ["NewOrganization", NewOrganizationBody],
-  ["NewProduct", NewProductBody],
+  ["NewAgent", NewAgentBody],
   ["NewApiKey", NewApiKeyBody],
   ["NewAlertRule", NewAlertRuleBody],
   ["NewNotification", NewNotificationBody],
@@ -327,7 +327,7 @@ export const openApiDocument: Record<string, unknown> = {
     title: "meter control plane",
     version: "0.0.0",
     description:
-      "Configuration and operations API for meter (organizations, products, API keys, alert rules, notifications, webhooks). Computes no money — the engine owns money-truth.",
+      "Configuration and operations API for meter (organizations, agents, API keys, alert rules, notifications, webhooks). Computes no money — the engine owns money-truth.",
   },
   servers: [{ url: "/" }],
   security: [{ bearerAuth: [] }],
@@ -339,7 +339,7 @@ export const openApiDocument: Record<string, unknown> = {
   },
   tags: [
     { name: "Organizations" },
-    { name: "Products" },
+    { name: "Agents" },
     { name: "API keys" },
     { name: "Alert rules" },
     { name: "Notifications" },

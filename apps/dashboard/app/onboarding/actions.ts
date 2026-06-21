@@ -7,9 +7,9 @@ import { redirect } from "next/navigation"
 import { requireSession } from "@/lib/auth/session"
 import { writeActiveOrgId } from "@/lib/meter/active-org"
 import {
+  createAgent,
   createApiKey,
   createOrganization,
-  createProduct,
   listOrganizations,
 } from "@/lib/meter/client"
 import {
@@ -95,7 +95,7 @@ export async function createAgentAction(input: {
 }): Promise<CreateAgentResult> {
   try {
     await requireSession()
-    await createProduct({
+    await createAgent({
       orgId: input.orgId,
       key: slugify(input.name),
       name: input.name,

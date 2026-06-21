@@ -118,10 +118,10 @@ describe("RBAC", () => {
 
         // viewer: reads allowed, any write denied.
         const viewerRead = yield* client.execute(
-          HttpClientRequest.get(`/v1/products?orgId=${org.id}`).pipe(bearer(viewer.token)),
+          HttpClientRequest.get(`/v1/agents?orgId=${org.id}`).pipe(bearer(viewer.token)),
         );
         const viewerWrite = yield* client.execute(
-          HttpClientRequest.post("/v1/products").pipe(
+          HttpClientRequest.post("/v1/agents").pipe(
             bearer(viewer.token),
             HttpClientRequest.bodyUnsafeJson({ orgId: org.id, key: "p1", name: "P1" }),
           ),
@@ -129,7 +129,7 @@ describe("RBAC", () => {
 
         // member: ordinary writes allowed, credential management denied.
         const memberWrite = yield* client.execute(
-          HttpClientRequest.post("/v1/products").pipe(
+          HttpClientRequest.post("/v1/agents").pipe(
             bearer(member.token),
             HttpClientRequest.bodyUnsafeJson({ orgId: org.id, key: "p2", name: "P2" }),
           ),

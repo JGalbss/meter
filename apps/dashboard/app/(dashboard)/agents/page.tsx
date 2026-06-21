@@ -13,17 +13,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { listProducts, unwrapOr } from "@/lib/meter/client"
+import { listAgents, unwrapOr } from "@/lib/meter/client"
 import { resolveOrgScope } from "@/lib/meter/org"
-import { CreateProductDialog } from "./create-product-dialog"
+import { CreateAgentDialog } from "./create-agent-dialog"
 
-export default async function ProductsPage() {
+export default async function AgentsPage() {
   const scope = await resolveOrgScope()
 
   if (scope.error !== null) {
     return (
       <>
-        <PageHeader title="Products" />
+        <PageHeader title="Agents" />
         <EmptyState
           icon={PlugsConnected}
           title="Control plane unreachable"
@@ -36,7 +36,7 @@ export default async function ProductsPage() {
   if (scope.activeOrg === null) {
     return (
       <>
-        <PageHeader title="Products" />
+        <PageHeader title="Agents" />
         <EmptyState
           icon={Package}
           title="No organization"
@@ -51,19 +51,19 @@ export default async function ProductsPage() {
   return (
     <>
       <PageHeader
-        title="Products"
-        description="Metered products and agents in this organization."
-        action={<CreateProductDialog orgId={orgId} />}
+        title="Agents"
+        description="Metered agents in this organization."
+        action={<CreateAgentDialog orgId={orgId} />}
       />
       <Suspense fallback={<TableSkeleton />}>
-        <ProductsTable orgId={orgId} />
+        <AgentsTable orgId={orgId} />
       </Suspense>
     </>
   )
 }
 
-async function ProductsTable({ orgId }: { orgId: string }) {
-  const products = unwrapOr(await listProducts(orgId), [])
+async function AgentsTable({ orgId }: { orgId: string }) {
+  const agents = unwrapOr(await listAgents(orgId), [])
 
   return (
     <RevealOnLoad>
@@ -77,24 +77,24 @@ async function ProductsTable({ orgId }: { orgId: string }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {products.length === 0 && (
+            {agents.length === 0 && (
               <TableRow>
                 <TableCell
                   colSpan={3}
                   className="py-10 text-center text-sm text-muted-foreground"
                 >
-                  No products.
+                  No agents.
                 </TableCell>
               </TableRow>
             )}
-            {products.map((product) => (
-              <TableRow key={product.id}>
-                <TableCell className="font-medium">{product.name}</TableCell>
+            {agents.map((agent) => (
+              <TableRow key={agent.id}>
+                <TableCell className="font-medium">{agent.name}</TableCell>
                 <TableCell className="font-mono text-xs text-muted-foreground">
-                  {product.key}
+                  {agent.key}
                 </TableCell>
                 <TableCell className="font-mono text-xs text-muted-foreground">
-                  {product.id}
+                  {agent.id}
                 </TableCell>
               </TableRow>
             ))}

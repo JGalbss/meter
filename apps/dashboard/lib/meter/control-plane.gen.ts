@@ -39,18 +39,18 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/products": {
+    "/v1/agents": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List products */
-        get: operations["get:/v1/products"];
+        /** List agents */
+        get: operations["get:/v1/agents"];
         put?: never;
-        /** Create a product */
-        post: operations["post:/v1/products"];
+        /** Create an agent */
+        post: operations["post:/v1/agents"];
         delete?: never;
         options?: never;
         head?: never;
@@ -258,7 +258,7 @@ export interface components {
             name: string;
             defaultCurrency: string;
         };
-        Product: {
+        Agent: {
             id: string;
             orgId: string;
             key: string;
@@ -345,7 +345,7 @@ export interface components {
             slug: string;
             name: string;
         };
-        NewProduct: {
+        NewAgent: {
             orgId: string;
             key: string;
             name: string;
@@ -362,7 +362,7 @@ export interface components {
             orgId: string;
             name: string;
             /** @enum {string} */
-            scope: "org" | "team" | "user" | "product";
+            scope: "org" | "team" | "user" | "agent";
             /** @enum {string} */
             metric: "budget" | "credit" | "spend";
             threshold: number;
@@ -550,7 +550,7 @@ export interface operations {
             };
         };
     };
-    "get:/v1/products": {
+    "get:/v1/agents": {
         parameters: {
             query: {
                 orgId: string;
@@ -567,7 +567,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Product"][];
+                    "application/json": components["schemas"]["Agent"][];
                 };
             };
             /** @description Invalid request */
@@ -600,7 +600,7 @@ export interface operations {
             };
         };
     };
-    "post:/v1/products": {
+    "post:/v1/agents": {
         parameters: {
             query?: never;
             header?: never;
@@ -609,7 +609,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["NewProduct"];
+                "application/json": components["schemas"]["NewAgent"];
             };
         };
         responses: {
@@ -619,7 +619,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Product"];
+                    "application/json": components["schemas"]["Agent"];
                 };
             };
             /** @description Invalid request */

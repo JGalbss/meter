@@ -95,6 +95,33 @@ chart wires liveness to `/health` and readiness to `/health/ready`.
 - Run the engine behind your own auth/ingress; the control plane issues and verifies API keys.
 - Migrations are forward-only and applied on boot — deploy the engine before pointing traffic at it.
 
+## API keys & tenant isolation
+
+The control plane authenticates every request (except `/health`) with a bearer API key and enforces
+both a **role** and a **scope** (ADR 0007):
+
+- **Role** — `viewer` (read-only), `member` (writes), or `admin` (manage keys + webhooks).
+- **Scope** — `platform` keys may act across **every** organization (this is what the dashboard /
+  operator console uses); `org` keys are confined to the **one** organization that owns them.
+
+Isolation is enforced on every org-scoped route: an `org` key that targets another organization gets
+`403` on reads and creates and `404` on by-id mutations (the row is invisible to it). Listing or
+creating organizations, and minting a `platform` key, are **platform-only** — an `org`-scoped admin
+cannot escalate. Enable auth with `METER_REQUIRE_AUTH=true` (off in local dev).
+
+Mint a key in the dashboard (**API keys → New API key**, which offers the scope) or over the API:
+
+```bash
+# An org-scoped key (the secure default) for a tenant's own automation:
+curl -s $CP/v1/api-keys -H "authorization: Bearer $PLATFORM_KEY" \
+  -d '{"orgId":"<org-uuid>","name":"tenant ci","role":"member","scope":"org"}'
+```
+
+New keys default to `scope: "org"`; provision the dashboard's key as `platform`. **Upgrade note:** the
+`scope` migration backfills any pre-existing keys to `platform`, so existing integrations keep working —
+re-issue them as `org` keys to tighten access. Postgres row-level security is planned as
+defense-in-depth on top of this app-level enforcement (ADR 0007).
+
 ## Private / air-gapped deployment
 
 meter runs entirely inside a private VPC with no public exposure and no runtime egress:

@@ -50,6 +50,13 @@
       "when": 1782014427406,
       "tag": "0006_tenant_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1782018017505,
+      "tag": "0007_rls",
+      "breakpoints": true
     }
   ]
 }

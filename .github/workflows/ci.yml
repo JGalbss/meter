@@ -50,6 +50,19 @@ jobs:
   typescript:
     name: typescript — biome, typecheck, test
     runs-on: ubuntu-latest
+    # A real Postgres so the control-plane RLS suite (which PGlite cannot enforce) actually runs.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: meter
+          POSTGRES_PASSWORD: meter
+          POSTGRES_DB: meter
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U meter -d meter"
+          --health-interval 5s --health-timeout 3s --health-retries 10
     steps:
       - uses: actions/checkout@v4
       # Take the pnpm version from package.json's `packageManager` (single source of truth).
@@ -70,6 +83,9 @@ jobs:
       - name: test
         # Run package suites serially: each spins in-process HTTP test servers, and stacking
         # multiple vitest processes on a small runner can starve them into spurious timeouts.
+        # METER_TEST_PG_URL points the control-plane RLS suite at the Postgres service above.
+        env:
+          METER_TEST_PG_URL: postgres://meter:meter@127.0.0.1:5432/meter
         run: pnpm --workspace-concurrency=1 --filter "@meter/*" run test
 
   python:

@@ -283,9 +283,16 @@ screens pending (need control-plane config resources)
   principal, every org-scoped route authorizes the target org against the caller (cross-org read/create
   → 403), by-id mutations are org-scoped via `byIdInOrg` (cross-org id → 404), org CRUD is platform-only,
   and minting a platform key requires a platform caller. Proven by `test/tenant-isolation.test.ts`. The
-  original gap (a key for org A reading org B via `?orgId=`) is closed. **RLS defense-in-depth pending**
-  (EPIC 02) — needs per-request `SET LOCAL` plumbing, a non-owner DB role, and a real-Postgres test
-  (PGlite doesn't enforce RLS).
+  original gap (a key for org A reading org B via `?orgId=`) is closed. **RLS defense-in-depth — DB
+  policies done, app activation pending:** migration `0007_rls` enables + forces Row-Level Security on
+  every org-scoped control-plane table (organizations, products, alert_rules, notifications, api_keys,
+  webhooks, and webhook_deliveries via its parent webhook), with policies keyed on a per-request
+  `meter.org_id` GUC and a `meter.rls_bypass` flag (fail-closed when neither is set). Proven against
+  **real Postgres** by `test/rls.test.ts` — connecting as a non-superuser role (no BYPASSRLS), reads and
+  writes are confined to the GUC's tenant, cross-tenant writes are refused (WITH CHECK), and an unset
+  tenant sees nothing; CI runs it via a Postgres service. Still pending to activate it in the running
+  app: connect as the non-superuser role + per-request `SET LOCAL` (`withTenant`) plumbing, plus the role
+  in compose/Helm. (The engine-schema RLS in EPIC 02 is separate.)
 - [x] **Dependency audit + CI gate (TS + Rust).** All high/critical advisories fixed: drizzle-orm
   0.38→**0.45.2** (runtime), vitest 2→**3.2.6** + vite→**6.4.3** (dev) across control-plane + SDK —
   every suite green (27 + 15), typecheck clean, `db:generate` no drift. `pnpm audit` 8→1 (the lone

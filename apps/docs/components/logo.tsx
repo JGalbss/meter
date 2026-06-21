@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 
-// The meter brand mark: a tape measure — a rounded case with the blade pulled out over the top,
-// ruled with ticks. Stroke-based on currentColor so it inherits the sidebar's `.brand-mark` color.
+// The meter brand mark: a tape measure seen side-on — a rounded case with its spool, and the steel
+// blade pulled out, ruled with graduations and ending in the hook. Stroke-based on currentColor so it
+// inherits the sidebar's `.brand-mark` color.
 export function MeterMark({ size = 22 }: { size?: number }): ReactNode {
   return (
     <svg
@@ -11,15 +12,15 @@ export function MeterMark({ size = 22 }: { size?: number }): ReactNode {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.75}
+      strokeWidth={2}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <rect x="2.25" y="9.5" width="12.25" height="12" rx="3.5" />
-      <circle cx="8.375" cy="15.5" r="2.25" />
-      <path d="M11.5 9.5 V6 a3 3 0 0 1 3 -3 H21.25" />
-      <path d="M15.75 3 v3 M18 3 v2 M20.25 3 v3" />
+      <rect x="2" y="6.5" width="10" height="11" rx="3" />
+      <circle cx="7" cy="12" r="2.4" />
+      <path d="M12 9.5 H20.5 V12.5" />
+      <path d="M15 9.5 V11.4 M17.75 9.5 V12" />
     </svg>
   );
 }

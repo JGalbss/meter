@@ -18,7 +18,8 @@ The dev compose brings up Postgres (money-truth) and ClickHouse (the event fireh
 docker compose -f deploy/dev/docker-compose.yml up -d
 ```
 
-Postgres listens on `5432`; ClickHouse on `8123` (HTTP) and `9000` (native).
+Postgres listens on `5433` on the host (mapped to the container's `5432`); ClickHouse on `8123` (HTTP)
+and `9000` (native).
 
 ## 2. Run the engine
 
@@ -26,7 +27,7 @@ The engine binary (`meter`, crate `meter-engine`) applies its Postgres ledger mi
 ClickHouse event migrations on boot, then serves HTTP on `:8080` and gRPC on `:50051`.
 
 ```bash
-METER_DATABASE_URL=postgres://meter:meter@localhost:5432/meter \
+METER_DATABASE_URL=postgres://meter:meter@localhost:5433/meter \
 METER_CLICKHOUSE_URL=http://localhost:8123 \
 METER_CLICKHOUSE_USER=meter METER_CLICKHOUSE_PASSWORD=meter METER_CLICKHOUSE_DATABASE=meter \
   cargo run -p meter-engine

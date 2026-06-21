@@ -42,8 +42,9 @@ The engine is functional and tested end to end against real Postgres and ClickHo
 
 - The generated **TypeScript gRPC client** for the control-plane → engine path (the engine side and the
   proto contract are done).
-- **Event amend → ledger delta posting** ([ADR 0009](docs/adr/0009-amend-delta-posting.md), proposed) —
-  a usage-aware re-pricing amend that posts the engine-computed delta.
+- **Event amend → ledger delta posting** ([ADR 0009](docs/adr/0009-amend-delta-posting.md), accepted) —
+  a usage-aware re-pricing amend that posts the engine-computed delta; the reversal foundation has
+  landed, the delta posting is in progress.
 - **Invoice lifecycle** — the `Draft → Grace → Finalized → Void` state machine, credit-notes for
   corrections, and billing periods independent of budget cycles.
 - **Control-plane config resources** — teams/users/roles, rate-card and budget/grant configuration,

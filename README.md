@@ -36,7 +36,7 @@ Start the stores, run the engine, and charge a real model price against a funded
 docker compose -f deploy/dev/docker-compose.yml up -d
 
 # 2. The engine — applies its Postgres and ClickHouse migrations on boot, serves on :8080
-METER_DATABASE_URL=postgres://meter:meter@localhost:5432/meter \
+METER_DATABASE_URL=postgres://meter:meter@localhost:5433/meter \
 METER_CLICKHOUSE_URL=http://localhost:8123 \
 METER_CLICKHOUSE_USER=meter METER_CLICKHOUSE_PASSWORD=meter METER_CLICKHOUSE_DATABASE=meter \
   cargo run -p meter-engine
@@ -145,8 +145,8 @@ The Rust engine is functional and tested end to end against real Postgres and Cl
   chart; and a GHCR publish workflow.
 
 In progress (see [tickets/](tickets/README.md)): the generated TypeScript gRPC client for the
-control-plane → engine path, the event-amend delta posting (ADR 0009, proposed), RLS as
-defense-in-depth, and more catalog providers.
+control-plane → engine path, the event-amend delta posting ([ADR 0009](docs/adr/0009-amend-delta-posting.md)),
+RLS as defense-in-depth, and more catalog providers.
 
 ## Self-hosting
 

@@ -38,9 +38,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Take the pnpm version from package.json's `packageManager` (single source of truth).
+      # Passing `version:` here too now errors ("Multiple versions of pnpm specified").
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: 24

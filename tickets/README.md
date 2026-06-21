@@ -285,11 +285,15 @@ screens pending (need control-plane config resources)
   original gap (a key for org A reading org B via `?orgId=`) is closed. **RLS defense-in-depth pending**
   (EPIC 02) — needs per-request `SET LOCAL` plumbing, a non-owner DB role, and a real-Postgres test
   (PGlite doesn't enforce RLS).
-- [x] **Dependency audit + CI gate (TS).** All high/critical advisories fixed: drizzle-orm
+- [x] **Dependency audit + CI gate (TS + Rust).** All high/critical advisories fixed: drizzle-orm
   0.38→**0.45.2** (runtime), vitest 2→**3.2.6** + vite→**6.4.3** (dev) across control-plane + SDK —
   every suite green (27 + 15), typecheck clean, `db:generate` no drift. `pnpm audit` 8→1 (the lone
   remaining moderate is `esbuild` deep inside drizzle-kit's deprecated bundler chain, dev-only). A
-  `pnpm audit --audit-level high` gate now runs in CI. (`cargo audit` for Rust still to add.)
+  `pnpm audit --audit-level high` gate now runs in CI. **`cargo audit` gate added** (`rust — cargo
+  audit` job): the four open advisories are all unfixable with no runtime exposure — `hickory-proto`
+  (×2) and `tokio-tar` are dev-only (testcontainers), `rsa` isn't in the dependency graph at all — so
+  they're triaged with per-entry justifications in `.cargo/audit.toml`; the gate fails on any new
+  advisory, and the two `unmaintained` warnings stay visible (non-failing).
 - [~] Observability: control-plane **request-id + structured access-log middleware** (propagates/echoes
   `x-request-id`, annotates per-request logs, logs method/path/status/duration); tested. Engine tracing
   + metrics export pending.

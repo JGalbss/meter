@@ -1,0 +1,23 @@
+# cargo-audit configuration (https://github.com/rustsec/rustsec/tree/main/cargo-audit).
+#
+# The RustSec gate fails CI on any new advisory. Each entry below is an advisory with no fixed upgrade
+# available whose affected crate carries no runtime exposure in meter — verified with
+# `cargo tree -i <crate>`. Remove an entry the moment an upstream fix or dependency bump clears it.
+[advisories]
+ignore = [
+  # hickory-proto (DNS) is pulled only by reqwest -> testcontainers, a dev-dependency that drives the
+  # throwaway Postgres/ClickHouse containers in tests. It never ships in the engine binary, and no fixed
+  # upgrade is published. Revisit when testcontainers bumps its reqwest/hickory chain.
+  "RUSTSEC-2026-0118", # hickory-proto: NSEC3 closest-encloser unbounded loop
+  "RUSTSEC-2026-0119", # hickory-proto: O(n^2) name-compression CPU exhaustion
+  # tokio-tar is pulled only by testcontainers (dev-dependency) to unpack container images in tests.
+  # Not in the shipped binary; no fixed upgrade available.
+  "RUSTSEC-2025-0111", # tokio-tar: PAX extended-header file smuggling
+  # rsa 0.9.10 (Marvin timing sidechannel) has no fixed upgrade and is not in meter's dependency graph
+  # at all (`cargo tree -i rsa --target all` finds no path) — a stale Cargo.lock entry with zero
+  # compiled exposure. Drops out on the next `cargo update`.
+  "RUSTSEC-2023-0071", # rsa: Marvin Attack
+]
+# The remaining `unmaintained` informational warnings (proc-macro-error via utoipa-gen's build-time
+# macro; rustls-pemfile via testcontainers) do not fail the gate and are left visible on purpose so
+# they stay on our radar until utoipa and testcontainers move off them.

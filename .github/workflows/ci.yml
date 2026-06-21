@@ -33,6 +33,20 @@ jobs:
         # Bound parallel testcontainers so the Docker daemon is not overwhelmed.
         run: cargo test --workspace -- --test-threads=2
 
+  rust-audit:
+    name: rust — cargo audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Prebuilt cargo-audit binary — no compile, so this stays fast and independent of the build job.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      - name: audit
+        # The RustSec advisory gate. The ignore list + justifications live in .cargo/audit.toml; it
+        # fails on any new advisory that is not already triaged there.
+        run: cargo audit
+
   typescript:
     name: typescript — biome, typecheck, test
     runs-on: ubuntu-latest

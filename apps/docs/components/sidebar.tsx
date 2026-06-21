@@ -10,12 +10,17 @@ type NavItem = { href: string; label: string };
 
 const NAV: ReadonlyArray<NavItem> = [
   { href: "/", label: "Overview" },
+  { href: "/quickstart", label: "Quickstart" },
   { href: "/concepts", label: "Concepts" },
+  { href: "/pricing", label: "Pricing" },
   { href: "/api", label: "API reference" },
   { href: "/api/engine", label: "Engine API" },
   { href: "/api/control-plane", label: "Control plane API" },
-  { href: "/sdks", label: "SDKs & downloads" },
+  { href: "/errors", label: "Errors" },
+  { href: "/sdks", label: "SDKs and downloads" },
+  { href: "/migrating", label: "Migrating" },
   { href: "/self-host", label: "Self-host" },
+  { href: "/glossary", label: "Glossary" },
 ];
 
 function isActive(pathname: string, href: string): boolean {

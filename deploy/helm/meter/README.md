@@ -36,8 +36,10 @@ only if they must differ.
 
 ## Scaling
 
-The engine is stateless — raise `engine.replicas`. The money store (Postgres, or a TigerBeetle backend
-per ADR 0005) and a ClickHouse cluster carry the load. See `docs/adr/0005-provider-scale-throughput.md`.
+The engine is stateless — raise `engine.replicas`. The money store (Postgres) and a ClickHouse cluster
+carry the load. A TigerBeetle ledger backend is a planned opt-in for very high ledger throughput, behind
+the `LedgerBackend` trait; it is not a Helm option today. See
+[`docs/adr/0005-provider-scale-throughput.md`](../../../docs/adr/0005-provider-scale-throughput.md).
 
 ## Key values
 
@@ -48,7 +50,7 @@ per ADR 0005) and a ClickHouse cluster carry the load. See `docs/adr/0005-provid
 | `controlPlane.image.repository` / `.tag` | ghcr placeholder / appVersion | Control-plane image. |
 | `postgres.enabled` / `clickhouse.enabled` | `true` | Run the data store in-cluster. |
 | `engine.databaseUrl` / `engine.clickhouseUrl` | in-cluster | External store URLs. |
-| `credentials.*` | `meter` | In-cluster Postgres credentials (stored in a Secret). |
+| `credentials.postgresUser` / `.postgresPassword` / `.postgresDatabase` | `meter` | In-cluster Postgres credentials (stored in a Secret). |
 | `dashboard.enabled` | `true` | Deploy the operator console; `dashboard.password` / `dashboard.sessionSecret` set its login. |
 | `ingress.enabled` | `false` | Expose the dashboard at `ingress.host` (set `className`, `tls.*`). |
 | `ingress.controlPlaneHost` / `ingress.engineHost` | `""` | Optional hosts that route the control-plane and engine HTTP APIs (for the SDKs); empty keeps a surface cluster-internal. TLS covers every set host. |

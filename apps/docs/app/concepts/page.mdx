@@ -16,17 +16,33 @@ history is the source of truth, and any balance can be recomputed from scratch.
 
 Entries carry a type:
 
-| Entry type | Meaning |
+| `entry_type` | Meaning |
 | --- | --- |
-| `Grant` | Credits added to an account (a top-up, a plan allowance). |
-| `Reserve` | A hold placed against available balance for in-flight work. |
-| `Settle` | A reservation resolved to its actual cost. |
-| `Void` | A reservation released without charge. |
-| `Charge` | A direct debit (e.g. metered usage). |
-| `Transfer` | A conserving movement between two real accounts (used for leasing). |
+| `grant` | Credits added to an account (a top-up, a plan allowance). |
+| `reservation_hold` | A hold placed against available balance for in-flight work. |
+| `settle` | A reservation resolved to its actual cost (`partial_return` returns any unused remainder). |
+| `void` | A reservation released without charge. |
+| `usage` | A direct debit for metered usage. |
+| `transfer` | A conserving movement between two real accounts (used for leasing). |
+
+(`refund`, `chargeback`, `expiration`, and `amendment` round out the set; reversals reference the entry
+they undo.)
 
 Two balances matter: **settled** (what has actually been debited/credited) and **available** (settled
 minus outstanding reservations). Enforcement reads `available`.
+
+Every posting is balanced: a charge debits the account and credits a system account by the same amount,
+so the two entries net to zero. The account balance moves; total credits in the system are conserved.
+
+```
+usage charge: 3.4125 credits
+
+  account 7f3c…           system account
+  ───────────────        ───────────────
+  −3.4125  (debit)        +3.4125  (credit)
+  ───────────────        ───────────────
+       net across both entries = 0
+```
 
 ## Credits and money
 
@@ -54,6 +70,16 @@ Agent work is often priced *after* it runs. meter models this as a two-phase com
 2. When the work finishes, **settle** with the actual cost (which may be more or less than the hold),
    or **void** the reservation if the work failed.
 
+A reserve moves credits from `available` into a hold without touching `settled`; settle debits the true
+cost and releases the hold; void releases the hold and debits nothing.
+
+```
+start          reserve 5000        settle 3000         (or) void
+settled 8000   settled 8000        settled 5000        settled 8000
+held       0   held    5000        held       0        held       0
+avail   8000   avail   3000        avail   5000        avail   8000
+```
+
 This is the safe way to gate expensive calls: reserve before you spend, settle the truth after.
 
 ## Leasing: per-session budgets
@@ -62,6 +88,16 @@ For long-running sessions you don't want a round-trip to the ledger on every tok
 child account funded by a conserving `Transfer` from the parent. The session spends locally against the
 lease; closing the lease transfers the remainder back. Credits are conserved end-to-end — the lease can
 never spend more than it was given.
+
+```
+parent pool                  session lease (child)
+───────────                  ─────────────────────
+open lease  ── Transfer 2000 ──▶  funded 2000
+                                  spends 1500 locally
+close       ◀─ Transfer  500 ──   remainder 500
+───────────                  ─────────────────────
+net parent change = −1500 (only what the session spent)
+```
 
 ## Events: immutable, editable
 
@@ -73,7 +109,8 @@ Usage events are immutable records with custom properties. You never edit one in
 - **`void_run`** — mark every event for a run as voided and reverse its ledger effects.
 
 This is the append-only edit model: the audit trail is perfect, but reads behave as if you mutated the
-data. See [ADR 0003](/self-host) for why events live in ClickHouse rather than Postgres.
+data. See [ADR 0003](https://github.com/JGalbss/meter/blob/main/docs/adr/0003-events-in-clickhouse.md)
+for why events live in ClickHouse rather than Postgres.
 
 ## Budgets and alerts
 
@@ -86,3 +123,5 @@ the ledger's `no_overdraft` flag enforces.
 An invoice is **deterministic**: it is summed directly from the ledger over a time window. Because every
 charge is an immutable entry, `enforced == billed` by construction — there is no separate billing
 pipeline to drift out of sync.
+
+For one-line definitions of every term above, see the [glossary](/glossary).

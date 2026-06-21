@@ -29,6 +29,9 @@ The engine applies Postgres ledger migrations **and** ClickHouse event migration
 control plane applies its config migrations at startup. No manual migration step is required for a
 fresh stack.
 
+New to meter? The [quickstart](/quickstart) takes you from these stores to a charged credit in a few
+commands.
+
 ## Kubernetes (Helm)
 
 For production, deploy with the Helm chart in `deploy/helm/meter`:
@@ -60,17 +63,17 @@ toggleable (`dashboard.enabled`). Point at managed data stores with
 | `METER_CONTROL_PLANE_DATABASE_URL` | yes | — | Postgres connection string (config schema). |
 | `METER_CONTROL_PLANE_PORT` | no | `8090` | HTTP port. |
 | `METER_ENGINE_URL` | yes | — | Engine base URL the control plane calls. |
-| `METER_EVALUATION_INTERVAL_SECONDS` | no | `60` | Alert-rule evaluation cadence. |
+| `METER_EVALUATION_INTERVAL_SECONDS` | no | `0` | Alert-rule evaluation cadence; `0` disables the scheduler. |
 
 ## Why two stores
 
 Money and events have different access patterns, so they live in different stores
-([ADR 0003](/concepts)):
+([ADR 0003](https://github.com/JGalbss/meter/blob/main/docs/adr/0003-events-in-clickhouse.md)):
 
-- **Postgres** holds the ledger and audit log. Strong transactional guarantees, row-level locking on
-  the hot path, no overdraft.
-- **ClickHouse** holds usage events. High-volume append, fast analytical rollups (`usage-by-day`,
-  per-model), versioned reads for the append-only edit model.
+- **Postgres** holds the ledger. Strong transactional guarantees, row-level locking on the hot path,
+  no overdraft.
+- **ClickHouse** holds usage events and the audit log. High-volume append, fast analytical rollups
+  (`usage-by-day`, per-model), versioned reads for the append-only edit model.
 
 Postgres is the single source of money-truth; ClickHouse is the single source of event-truth. Neither
 duplicates the other.

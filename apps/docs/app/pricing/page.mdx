@@ -1,0 +1,151 @@
+export const metadata = {
+  title: "Pricing",
+  description:
+    "How meter prices usage: multi-dimensional rate cards, charge models, the cost → margin → credits pipeline, the credit cash value, the dated catalog, and the re-rate simulator.",
+};
+
+# Pricing
+
+meter prices every usage event through a rate card and turns the result into credits. The pipeline is
+deterministic: tokens → cost of goods (USD) → customer price (margin applied) → credits, rounded once.
+Money is decimal everywhere; it is never a float.
+
+## Rate cards
+
+A rate card maps usage quantities to a price. One card, many priced dimensions.
+
+```
+RateCard {
+  id
+  kind      ProviderCost | Customer
+  currency
+  version
+  margin
+  components [ PriceComponent, … ]
+}
+```
+
+`kind` separates the provider's cost from what you charge: a `ProviderCost` card is what the model
+vendor bills you (the COGS basis), a `Customer` card is what your customer pays. The same shape carries
+both, distinguished by `kind` and a first-class `margin`. Cards are versioned so historical events can
+be re-rated against the card that was in force.
+
+## Dimensions
+
+A `PriceComponent` prices one dimension at a unit price. The catalog cards price the four token
+dimensions; the rest are available on the rate-card model but card-dependent.
+
+| Dimension | What it counts |
+| --- | --- |
+| `InputUncached` | Prompt tokens not served from cache. |
+| `CacheRead` | Prompt tokens served from the provider's prompt cache. |
+| `CacheWrite` | Prompt tokens written to the cache. |
+| `Output` | Generated output tokens. |
+| `ReasoningOutput` | Reasoning/thinking tokens (card-dependent). |
+| `ToolCall` | Tool invocations (card-dependent). |
+| `WebSearch` | Web-search actions (card-dependent). |
+
+Each component also carries a `Modality` (Text/Image/Audio/Video/None), a `ContextTier`
+(Standard/Long200k/Long1m), and a `Unit` (Token/Char/Image/Second/Call).
+
+> Reasoning, tool-call, and web-search pricing is **not** in the default catalog cards. Those cards
+> price `input_uncached`, `cache_read`, `cache_write`, and `output`. Price the other dimensions by
+> authoring a custom card with the relevant components.
+
+## Charge models
+
+A component can charge per unit flat, or in tiers.
+
+| Charge model | How it prices |
+| --- | --- |
+| `Standard` | One unit price for every unit. |
+| `Graduated` | Tiered, **marginal**: each tier prices only the units that fall in it. |
+| `Volume` | Tiered, **landing**: the tier the total lands in prices *all* units. |
+| `Package` | Priced per block of `size` units. |
+
+## The cost → margin → credits pipeline
+
+Three steps, in order, rounding **once** at the end.
+
+1. **`cost`** — COGS in USD = Σ (quantity × unit price) across components.
+2. **`apply_margin`** — customer price = COGS × the margin multiplier.
+3. **`to_credits`** — credits = customer price ÷ credit value, rounded to `CREDIT_SCALE = 5` decimal
+   places.
+
+The result is a `PricedUsage { cogs, customer_price, credits }`. Intermediate values are full precision;
+only the final credit figure is rounded, so the rounding error never compounds.
+
+### The credit cash value
+
+A credit's USD value is set by `METER_CREDIT_VALUE` (default `0.000001`, i.e. $0.000001 per credit).
+This is the divisor in step 3. Lowering it makes each credit cheaper and inflates credit counts;
+raising it does the reverse. It is the one knob that converts the customer price into credits.
+
+### Worked example
+
+`claude-opus-4-8`, 1000 `input_uncached` + 500 `output`, priced against the provider-cost card with a
+30% margin and a credit value of $0.02:
+
+```
+COGS          = 1000 × 0.000015 + 500 × 0.000075
+              = 0.015 + 0.0375
+              = $0.0525
+
+customer price = 0.0525 × 1.30
+              = $0.06825
+
+credits        = 0.06825 ÷ 0.02
+              = 3.4125 credits
+```
+
+The same arithmetic runs inside `POST /v1/usage` (see [Quickstart](/quickstart)).
+
+## The catalog
+
+meter ships a curated, dated catalog of provider model rate cards. As of `CATALOG_AS_OF = "2026-06"`
+it covers 11 models across five providers.
+
+```bash
+curl -s localhost:8080/v1/catalog | jq '{as_of, count: (.models | length)}'
+# { "as_of": "2026-06", "count": 11 }
+
+curl -s localhost:8080/v1/catalog/claude-opus-4-8 | jq   # the RateCard for one model
+```
+
+| Provider | Models (catalog as of 2026-06) |
+| --- | --- |
+| Anthropic | `claude-opus-4-8`, `claude-sonnet-4-6`, `claude-haiku-4-5` |
+| OpenAI | `gpt-5`, `gpt-5-mini` |
+| Google | `gemini-2.5-pro`, `gemini-2.5-flash` |
+| DeepSeek | `deepseek-chat`, `deepseek-reasoner` |
+| Alibaba | `qwen-max`, `qwen-plus` |
+
+Catalog prices are USD per token. For `claude-opus-4-8`: input `0.000015`, cache read `0.0000015`,
+cache write `0.00001875`, output `0.000075`.
+
+## The simulator
+
+`POST /v1/simulate` re-rates a set of usage events against a proposed model and reports the credit
+delta — the answer to "what would switching models cost?"
+
+```bash
+curl -s localhost:8080/v1/simulate -d '{
+  "current_model": "claude-opus-4-8",
+  "proposed_model": "claude-sonnet-4-6",
+  "events": [ { "input_uncached": 1000, "output": 500 } ]
+}' | jq
+```
+
+```json
+{
+  "current_model": "claude-opus-4-8",
+  "proposed_model": "claude-sonnet-4-6",
+  "event_count": 1,
+  "credits_current": "…",
+  "credits_proposed": "…",
+  "credit_delta": "…"
+}
+```
+
+The simulator never writes to the ledger — it only prices. See [Concepts](/concepts) for how priced
+charges become immutable ledger entries.

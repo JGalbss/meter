@@ -1,16 +1,21 @@
 # Decision log
 
-Running log of locked decisions. The full reasoning and system design live in `ARCHITECTURE.md`;
-this is the quick-reference index of what was decided and why.
+Running log of decisions. The full reasoning and system design live in `ARCHITECTURE.md`; this is the
+quick-reference index of what was decided and why.
+
+> Several v1 decisions below have since been **amended by ADRs** — the backend is two planes (Rust engine
+> + TypeScript control plane over protobuf/gRPC), ClickHouse is required, and both wire contracts are
+> versioned. Amended rows carry the ADR that changed them; full records are in [Amendments](#amendments)
+> and [docs/adr/](adr/).
 
 | # | Decision | Rationale | Status |
 |---|---|---|---|
-| 1 | **Rust** for the entire backend (control plane + data plane), not Zig | Performance + memory safety + mature ecosystem (axum/sqlx/tokio); single language = one binary, simplest self-host, no cross-language currency drift | locked |
+| 1 | **Rust** for the entire backend (control plane + data plane), not Zig | Performance + memory safety + mature ecosystem (axum/sqlx/tokio); single language = one binary, simplest self-host, no cross-language currency drift | **amended → [ADR 0001](adr/0001-engine-controlplane-split.md)**: the Rust engine owns money-truth; a TypeScript control plane handles config |
 | 2 | **PostgreSQL** is the system of record for money & config (ledger, accounts, rate cards, budgets, grants, invoices, hierarchy) | Credit transactions are far lower-volume than raw usage; Postgres single-primary + read replicas scales very far (cf. OpenAI: 800M users on one primary) with operational discipline | locked |
-| 3 | **ClickHouse** owns the high-volume usage-event firehose + analytics/rollups | OLAP fit for millions of events/sec; proven by Lago & OpenMeter; idempotent ingest via transaction_id; optional for small self-host | locked |
-| 4 | **TypeScript only client-side**: Next.js dashboard + TS SDK. No TS backend | Keeps the backend single-language; UI/SDK is where TS shines | locked |
+| 3 | **ClickHouse** owns the high-volume usage-event firehose + analytics/rollups | OLAP fit for millions of events/sec; proven by Lago & OpenMeter; idempotent ingest via transaction_id | **amended → [ADR 0003](adr/0003-events-in-clickhouse.md)/[0004](adr/0004-audit-log-in-clickhouse.md)**: now the required system of record for events + audit (no Postgres event path) |
+| 4 | **TypeScript only client-side**: Next.js dashboard + TS SDK. No TS backend | Keeps the backend single-language; UI/SDK is where TS shines | **amended → [ADR 0001](adr/0001-engine-controlplane-split.md)**: TypeScript also runs the control plane (config only); the engine still owns all money |
 | 5 | **AGPL-3.0** license | Open and self-hostable, but network use of modifications must be shared — prevents a closed competing hosted fork | locked |
-| 6 | Backend behind a versioned **OpenAPI contract**; SDK/UI types are codegen'd from it | Single source of truth; makes the all-Rust control-plane decision reversible | locked |
+| 6 | Backend behind a versioned **OpenAPI contract**; SDK/UI types are codegen'd from it | Single source of truth; no hand-mirrored wire types | **extended → [ADR 0006](adr/0006-wire-protocol-versioning.md)/[0008](adr/0008-control-plane-engine-transport.md)**: OpenAPI for control-plane ⇄ client; **protobuf/gRPC** for engine ⇄ control-plane; both versioned, both drift-gated |
 | 7 | **Double-entry ledger**; balances derived, never mutated; all ingest idempotent | Auditable correctness; no lost/double/overspent credits | locked |
 | 8 | Real-time enforcement via **reserve → settle** (two-phase) | Stop out-of-budget agents on the hot path with no overdraft; settle with actuals | locked |
 | 9 | Quality gates: clippy/rustfmt (Rust), **react-doctor** (millionco) for React, **agent-doctor** (JGalbss) for any Effect-TS | Enforce clean code automatically in CI | locked |
@@ -30,13 +35,15 @@ each gated by a measured trigger:
 | Hot-account contention | **Per-session credit leasing is in v1** (the one scale optimization kept early — it makes the throughput claim true under contention). |
 | Multi-tenancy | Shared-schema, `NOT NULL org_id` everywhere, backed by Postgres **RLS** (ENABLE+FORCE). DB-per-tenant is an enterprise toggle reusing identical migrations. |
 | TigerBeetle | Optional **balances/holds accelerator** behind a `LedgerBackend` trait; ships only if it passes the conformance suite **and** a byte-identical bill-equivalence test. |
-| ClickHouse | First optional add-on (usage firehose + rollups + analytics + dispute evidence). **Analytics, not a billing authority.** |
+| ClickHouse | **Required** system of record for the usage firehose + audit log + rollups + dispute evidence ([ADR 0003](adr/0003-events-in-clickhouse.md)/[0004](adr/0004-audit-log-in-clickhouse.md)). **Analytics, not a billing authority** — money stays in the Postgres ledger. |
 
 ## Adopted defaults for the founder's open questions (ADR §15)
 
 The founder delegated these ("figure out the rest"). Recommended defaults adopted; revisit anytime.
 
-1. **Effect-TS control plane?** No — stay all-Rust (reopening requires an explicit RFC against Decision #1).
+1. **Effect-TS control plane?** **Yes — reversed by [ADR 0001](adr/0001-engine-controlplane-split.md).**
+   The control plane is now TypeScript (Effect + Drizzle); the engine stays Rust and remains the only
+   thing that computes money, so there is still one ledger and no currency drift.
 2. **Reservation sizing:** worst-case for HARD pools; statistical p95 opt-in per (model, product); the bounded/alerted overage sub-account is always on.
 3. **Lease quantum:** small, and shrinks toward zero as the balance nears the limit so the final credits are always enforced centrally.
 4. **Invoice boundary:** short mutable Draft + grace window, then immutable finalize; late usage rolls forward via credit-note (never mutate a sealed invoice).
@@ -46,7 +53,10 @@ The founder delegated these ("figure out the rest"). Recommended defaults adopte
 8. **AGPL vs enterprise line:** all core metering/ledger/enforcement/invoicing is AGPL; only org-management & ops-scale features are enterprise.
 9. **CLA vs DCO:** DCO sign-off for v1; a narrow automated CLA only if a closed enterprise build later needs it.
 
-## Amendments (full records in `docs/adr/`)
+## Amendments
+
+The full records live in [`docs/adr/`](adr/). Each ADR says at its top which baseline section or
+decision it amends.
 
 - **[ADR 0001](adr/0001-engine-controlplane-split.md) — Engine / control-plane split (amends Decisions #1, #4).**
   The backend is now **two** services: a Rust **engine** (data plane, the sole owner of money-truth) and

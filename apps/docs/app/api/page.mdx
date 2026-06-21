@@ -20,7 +20,8 @@ All bodies are JSON. UUIDs are strings. Credit amounts are decimal strings (neve
 ## Engine
 
 Base path `/v1` (except `/health`). The engine derives all balances from the ledger; every mutating
-call is idempotent on its key.
+call is idempotent on its key. Every error returns `{ "error": "<code>", "message": "<text>" }` — the
+codes and their HTTP statuses are listed under [errors](/errors).
 
 ### Health
 
@@ -46,7 +47,7 @@ Open an account. Body:
 | `parent_id` | uuid? | Optional parent (for child/session accounts). |
 
 ```
-GET  /v1/accounts/{id}/balance     # settled + available balance
+GET  /v1/accounts/{id}/balance     # settled + held balance
 GET  /v1/accounts/{id}/entries     # the immutable entry history
 ```
 
@@ -114,6 +115,35 @@ call. Body:
 | `usage` | object | Token counts: `input_uncached`, `cache_read`, `cache_write`, `output`, `reasoning`. |
 
 Returns `{ credits, cogs_usd, customer_price_usd, event_id, charged, settled, available }`.
+
+### Catalog & simulation
+
+The catalog is the dated, compiled-in set of provider rate cards (`CATALOG_AS_OF`). Read it to discover
+model ids and their pricing, or simulate a model swap over a batch of usage before committing to it.
+
+```
+GET  /v1/catalog                # { as_of, models: [...] } — every catalogued model
+GET  /v1/catalog/{model_id}     # the resolved RateCard for one model
+POST /v1/simulate               # re-price a batch of events under a different model
+```
+
+`POST /v1/simulate` takes `{ current_model, proposed_model, events: [<usage dims>] }` and returns
+`{ current_model, proposed_model, event_count, credits_current, credits_proposed, credit_delta }` — no
+ledger writes, so it is safe to call from a pricing UI.
+
+### Token-priced enforcement
+
+When you want to reserve and settle in **token terms** rather than a credit amount, the engine prices
+the estimate and the actuals against the catalog for you:
+
+```
+POST /v1/usage/reserve                       # hold sized to an estimated token usage for a model
+POST /v1/usage/reservations/{id}/settle      # settle with the actual token usage
+```
+
+`reserve` body: `{ account, reservation_id, model, estimate: {<usage dims>}, limit, rate_card_id?,
+run_id? }` → `{ outcome, reserved_credits }`. `settle` body: `{ model, actual: {<usage dims>},
+rate_card_id? }` → `{ credits_charged, balance_after }`.
 
 ### Events (immutable, append-only edits)
 

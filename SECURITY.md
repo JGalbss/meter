@@ -4,10 +4,10 @@ meter handles money-truth, so we take security seriously.
 
 ## Reporting a vulnerability
 
-**Do not open a public issue for security vulnerabilities.** Instead, report privately via GitHub
-Security Advisories ("Report a vulnerability" on the repository's Security tab), or email the
-maintainer. Please include a description, reproduction steps, and impact. We aim to acknowledge within
-a few business days and to coordinate a fix and disclosure timeline with you.
+**Do not open a public issue for security vulnerabilities.** Report privately via GitHub Security
+Advisories — "Report a vulnerability" on the repository's Security tab — or contact the maintainer
+directly. Include a description, reproduction steps, and the impact. We aim to acknowledge within a few
+business days and to coordinate a fix and a disclosure timeline with you.
 
 ## Scope
 

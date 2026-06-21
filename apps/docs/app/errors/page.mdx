@@ -1,0 +1,52 @@
+export const metadata = {
+  title: "Errors",
+  description:
+    "The engine error model: every error is a code plus a message, mapped to an HTTP status. The table, idempotency replay behavior, and the reserve 'denied' outcome that is not an error.",
+};
+
+# Errors
+
+Every error from the engine is a JSON object with a stable `error` code and a human `message`:
+
+```json
+{ "error": "insufficient_funds", "message": "available 2.5, requested 3.4125" }
+```
+
+Match on the `error` code, not the message text — messages are for humans and may change. The HTTP
+status mirrors the code.
+
+## Error codes
+
+| Code | HTTP | Meaning | What to do |
+| --- | --- | --- | --- |
+| `not_found` | 404 | The account, reservation, event, or rate card does not exist. | Check the id. A voided or never-created resource reads as not found. |
+| `conflict` | 409 | The resource is in a state that forbids the operation (e.g. settling a closed reservation, amending a voided event). | Re-read the resource state; the operation has already happened or is no longer valid. |
+| `insufficient_funds` | 409 | A reserve or charge would exceed `available` balance under a hard limit. The body also carries `available` and `requested`. | Grant more credits, lower the amount, or use a soft limit if overspend is acceptable. |
+| `bad_request` | 400 | The request is malformed for the domain — a non-positive amount, a non-lease account passed where a lease is required. | Fix the request body and retry. |
+| `unprocessable` | 422 | The request is well-formed but semantically invalid for the engine. | Correct the inputs per the message; retry. |
+| `internal` | 500 | An unexpected engine or store failure. | Retry with backoff. If it persists, check engine logs and `GET /health/ready`. |
+
+## Idempotency replay
+
+Every mutating call takes an idempotency key. Replaying a call with the same key returns the **original
+result** and applies nothing a second time — a grant, charge, or settle is never double-applied. A
+replay is therefore not an error: a retried `POST /v1/usage` with the same `idempotency_key` succeeds
+and returns the first call's response. Reuse a key freely to make network retries safe.
+
+## "denied" is not an error
+
+A reservation that cannot be covered is an **outcome**, not an error. `POST /v1/reservations` returns
+`200` either way:
+
+```json
+{ "outcome": "allowed", "reservation": "…" }
+```
+
+```json
+{ "outcome": "denied", "available": "2.5", "requested": "3.4125" }
+```
+
+Branch on `outcome`. A `denied` reservation means the account lacks the available balance under its
+limit — the engine refused to place the hold, exactly as designed. This is distinct from
+`insufficient_funds` (409), which a direct charge raises when there is nothing to hold against. See
+[Concepts](/concepts) for the reserve → settle model.

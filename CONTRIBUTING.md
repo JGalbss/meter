@@ -36,9 +36,31 @@ cd apps/dashboard && bun install && bun run typecheck && bun run lint && bun run
 
 CI runs four jobs — **rust**, **typescript**, **python**, **dashboard** — all must pass.
 
+### Contracts (`proto/`)
+
+The engine ⇄ control-plane wire contract is a Buf module in `proto/`. Do not hand-mirror these types in
+Rust or TypeScript — they are generated. If you touch `proto/`, run Buf lint and the breaking-change
+check, which CI also enforces:
+
+```bash
+buf lint proto
+buf breaking proto --against '.git#branch=main,subdir=proto'
+```
+
+### Admin CLI (`meterctl`)
+
+`meterctl` (crate `meter-cli`) is the engine's admin and migration tool — `migrate`, `seed`, `grant`,
+`balance`, `price`, `sweep`, `void`, `void-run`, `reconcile`, `rebuild-rollups`. It reads
+`METER_DATABASE_URL` / `METER_CLICKHOUSE_URL` (flags override env). Use it to set up a dev ledger:
+
+```bash
+cargo run -p meter-cli -- seed --credits 1000000
+```
+
 ## Standards
 
-Read `CLAUDE.md` (engineering guide) and `docs/ARCHITECTURE.md` first. In short:
+Read `CLAUDE.md` (engineering guide), `docs/ARCHITECTURE.md` (system design), and the
+[ADRs](docs/adr/) (every decision since the baseline) first. In short:
 
 - **No shortcuts.** Correct schemas, real migrations, full tests; no half-done features or `unwrap` in
   non-test code. Money/credits are exact decimals, never floats. The ledger is append-only.

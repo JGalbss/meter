@@ -1,9 +1,30 @@
 # meter — Architecture Decision Record
 
-> Status: **Locked v1 baseline.** Supersedes the five-store / two-language proposal.
-> Authority: this ADR is reconciled against `docs/DECISIONS.md` (10 locked decisions) and
-> `docs/VISION.md`. Where the proposed architecture conflicted with a locked decision, the locked
-> decision wins unless this ADR explicitly reopens it with stated reasoning. Last revised: 2026-06-19.
+> Status: **v1 baseline, partly superseded by ADRs.** Reconciled against `docs/DECISIONS.md` and
+> `docs/VISION.md`. Last revised: 2026-06-19.
+
+> **Read this first — what the ADRs have since changed.** This document is the original baseline. Per
+> the project's convention ([docs/adr/](adr/)), material changes are recorded as numbered, append-only
+> ADRs rather than by rewriting the baseline, so the reasoning and the history both survive. Several
+> sections below have since been amended. Where they conflict, **the ADR wins**:
+>
+> - **The backend is two planes, not one all-Rust binary** (supersedes §0, §3.1, §3.3, §15). A Rust
+>   **engine** owns money-truth; a TypeScript **control plane** (Effect + Drizzle) owns config and calls
+>   the engine. They speak **protobuf/gRPC**. See [ADR 0001](adr/0001-engine-controlplane-split.md) and
+>   [ADR 0008](adr/0008-control-plane-engine-transport.md). This amends Decisions #1 and #4 — the §3.1
+>   reasoning for staying all-Rust is preserved below as history, not as current truth.
+> - **ClickHouse is required, not optional** (sharpens §3.2). It is the system of record for the usage
+>   firehose ([ADR 0003](adr/0003-events-in-clickhouse.md)) and the audit log
+>   ([ADR 0004](adr/0004-audit-log-in-clickhouse.md)). Money stays in Postgres.
+> - **Events are editable, append-only** (extends §4, §6.4): `amend_event` and `void_run` are
+>   first-class ([ADR 0002](adr/0002-editable-events-and-run-voiding.md),
+>   [ADR 0009](adr/0009-amend-delta-posting.md)).
+> - **Both wire contracts are versioned** ([ADR 0006](adr/0006-wire-protocol-versioning.md)) and
+>   **tenant isolation** is enforced at the app layer ([ADR 0007](adr/0007-tenant-isolation.md)).
+>
+> Everything else below — the ledger model, pricing, the enforcement mechanics, the scale-out path —
+> stands as written. The single load-bearing invariant is unchanged: **money-truth lives in one ledger,
+> and the invoice is summed from it, so `enforced == billed` by construction.**
 
 ---
 
@@ -109,6 +130,12 @@ A weekly "400 credits/week/product" budget is a `budget` + `budget_cycle`; a bia
 ## 3. System architecture
 
 ### 3.1 One backend, one binary, one money type (Decision #1, #4 — honored)
+
+> **Superseded by [ADR 0001](adr/0001-engine-controlplane-split.md) and
+> [ADR 0008](adr/0008-control-plane-engine-transport.md).** The backend is now two planes — a Rust
+> engine and a TypeScript (Effect + Drizzle) control plane that speak protobuf/gRPC. The text below is
+> the original all-Rust reasoning, kept as history. The drift safeguard it argued for is preserved a
+> different way: **money-truth lives only in the engine**, so there is still exactly one ledger.
 
 There is **one Rust backend** (control plane + data plane in one Cargo workspace) that ships as **one
 self-host binary**, `meter-server`, composed of independently-runnable services. There is **no second

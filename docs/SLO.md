@@ -14,7 +14,7 @@
 - **Bursty per-tenant concurrency:** many concurrent agent calls share one org/team credit pool → hot-account contention is the default, not the exception (hence per-session leasing in v1).
 - **Late data:** usage can arrive after `event_time`; billing buckets on business time and self-corrects within the dispute window.
 
-## Latency SLOs (hot path) — from ADR §5.2
+## Latency SLOs (hot path) — from `ARCHITECTURE.md` §5.2
 
 | Operation | p50 | p99 | On store timeout / uncertainty |
 |---|---|---|---|
@@ -60,7 +60,7 @@ not part of the firehose.)
 > the entire load with identical keys** (the live count is unchanged). `METER_BENCH_EVENTS=N` scales it.
 > Baseline for contrast: the pre-batch single-event path measured ~1.1k events/sec.
 
-## Correctness invariant (hard CI gate, from ADR §5.5)
+## Correctness invariant (hard CI gate, from `ARCHITECTURE.md` §5.5)
 
 > Under **N concurrent reservers with injected faults** — kill the durable store leader mid-reservation,
 > restart from disk, partition Redis↔ledger, drop/duplicate settle callbacks, fire hold-timeout races —

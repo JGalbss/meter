@@ -44,27 +44,33 @@ surfaces (`client.accounts.open`, `client.reservations.reserve`, `client.usage.m
 
 ## Adapter roadmap (per language)
 
-Adapters ship today in **TypeScript and Python** (Anthropic, OpenAI, Gemini/Vertex, Bedrock, LangChain,
-Vercel AI — plus `withRun` governance and first-class auto-patch wrappers). Other languages get the
-Stainless base client immediately; their adapters are added on demand, prioritized by where the agent
-ecosystem lives (Go next is the likely candidate).
+Adapters ship today in **TypeScript and Python** (Anthropic, OpenAI, Gemini/Vertex, Bedrock, LangChain
+— plus `withRun` governance and first-class auto-patch wrappers). TypeScript adds a Vercel AI adapter
+that Python does not have: six adapters in TypeScript, five in Python. Other languages get the Stainless
+base client immediately; their adapters are added on demand, prioritized by where the agent ecosystem
+lives (Go is the likely next candidate).
 
-## Adapters (`sdks/typescript/src/adapters`)
+## Adapters
 
 Provider-agnostic and **structurally typed** (no dependency on the provider SDKs, so they keep working
 across provider versions). Available today:
 
-| Adapter | Covers |
+| Adapter | Covers | TS | Python |
+|---|---|:-:|:-:|
+| `anthropicUsage` / `anthropic_usage` | Anthropic / Claude + the Claude Agent SDK | yes | yes |
+| `openaiUsage` / `openai_usage` | OpenAI (chat / responses) | yes | yes |
+| `geminiUsage` / `gemini_usage` | Google Gemini / Vertex (`usageMetadata`) | yes | yes |
+| `bedrockUsage` / `bedrock_usage` | AWS Bedrock Converse | yes | yes |
+| `langchainUsage` / `langchain_usage` | LangChain / LangGraph (`usage_metadata`) | yes | yes |
+| `vercelAiUsage` | Vercel AI SDK (both token namings) | yes | — |
+
+Helpers wrap the adapters into the metering call:
+
+| Helper | Does |
 |---|---|
-| `anthropicUsage` | Anthropic / Claude + the Claude Agent SDK |
-| `openaiUsage` | OpenAI (chat / responses) |
-| `vercelAiUsage` | Vercel AI SDK (both token namings) |
-| `geminiUsage` | Google Gemini / Vertex (`usageMetadata`) |
-| `bedrockUsage` | AWS Bedrock Converse |
-| `langchainUsage` | LangChain / LangGraph (`usage_metadata`) |
-| `recordModelUsage(client, …)` | emit normalized usage as a meter event |
-| `meteredCall(client, …, extract, call)` | wrap a provider call and record its usage |
-| `withRun(client, …)` | reserve → settle run governance; auto-voids a failed run |
+| `recordModelUsage(client, …)` / `record_model_usage` | emit normalized usage as a meter event |
+| `meteredCall(client, …, extract, call)` / `metered_call` | wrap a provider call and record its usage |
+| `withRun(client, …)` / `with_run` | reserve → settle run governance; auto-voids a failed run |
 
 ```ts
 import { MeterClient, meteredCall, openaiUsage } from "@meter/sdk";
@@ -72,13 +78,13 @@ import { MeterClient, meteredCall, openaiUsage } from "@meter/sdk";
 const meter = new MeterClient({ baseUrl: process.env.METER_URL! });
 const completion = await meteredCall(
   meter,
-  { orgId, account, model: "gpt-x", idempotencyKey: requestId, runId },
+  { orgId, account, model: "gpt-5", idempotencyKey: requestId, runId },
   (r) => openaiUsage(r.usage),
   () => openai.chat.completions.create({ /* … */ }),
 );
 ```
 
-All adapters ship in both the TypeScript and Python SDKs.
+The Python equivalents are snake-case: `from meter import MeterClient, metered_call, openai_usage`.
 
 ### Auto-patch a provider client
 

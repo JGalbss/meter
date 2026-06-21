@@ -1,0 +1,104 @@
+export const metadata = {
+  title: "Glossary",
+  description:
+    "Tight definitions of meter's domain terms: the ledger, accounts and balances, grants, reservations, settles and voids, credits, events, amends, rate cards, budgets, and the invariants.",
+};
+
+# Glossary
+
+Every term meter uses, defined once. For how they fit together, read [Concepts](/concepts).
+
+## Ledger and accounts
+
+**ledger** — The immutable double-entry record of every credit movement. The single source of truth;
+balances are folded from it, never stored and mutated.
+
+**entry** — One immutable posting against an account, carrying an `EntryType` (`grant`, `usage`,
+`reservation_hold`, `settle`, `partial_return`, `void`, `transfer`, `refund`, …) and a signed credit
+delta. Entries are never edited or deleted.
+
+**account** — A node in the org → team → user hierarchy that holds credits. Carries a `scope`
+(org/team/user/product/session/promo/paid) and an optional `no_overdraft` flag.
+
+**balance** — Derived from an account's entries, not stored. Three views matter:
+
+- **settled** — what has actually been debited or credited.
+- **held** — the sum of outstanding reservations.
+- **available** — `settled` minus `held`; the figure enforcement reads.
+
+## Credit movements
+
+**grant** — Credits added to an account (a top-up or plan allowance), from a `source` of paid, promo,
+or grant.
+
+**reservation** (hold) — A claim on `available` balance for in-flight work, placed before the work runs.
+Resolved by a settle or a void.
+
+**settle** — Resolve a reservation to its actual cost, which may be more or less than the hold.
+
+**void** — Release a reservation with no charge.
+
+**void_run** — Reverse the full ledger effect of a run: release its holds and refund its settled
+charges, and mark its events voided. The kill switch for a failed run.
+
+**charge** — A direct debit, such as metered usage recorded through `POST /v1/usage`.
+
+**transfer** — A conserving movement between two real accounts. Used by leasing; credits are never
+created or destroyed by a transfer.
+
+**lease** — A child (session-scoped) account funded by a `transfer` from a parent, so a long-running
+session spends locally without a ledger round-trip per call. Closing it transfers the remainder back.
+See [Concepts](/concepts).
+
+## Money and pricing
+
+**credit** — The unit of account inside the engine. Charges, holds, and balances are all in credits.
+
+**credit value** — The USD value of one credit (`METER_CREDIT_VALUE`, default `0.000001`). The divisor
+that turns a customer price into credits.
+
+**COGS** — Cost of goods sold: what the model vendor charges you, in USD, summed across priced
+dimensions. The basis for margin.
+
+**margin** — The multiplier applied to COGS to get the customer price. A 30% margin is a ×1.30
+multiplier.
+
+**rate card** — A versioned, dimensional, priced mapping from usage quantities to a price. `kind` is
+`ProviderCost` (the COGS card) or `Customer` (what you bill). See [Pricing](/pricing).
+
+**price component** — One priced dimension of a rate card: a unit price, a charge model, a unit, a
+modality, and a context tier.
+
+**dimension** — A countable axis of usage: `InputUncached`, `CacheRead`, `CacheWrite`, `Output`,
+`ReasoningOutput`, `ToolCall`, `WebSearch`.
+
+## Events and idempotency
+
+**event** — One immutable usage fact (tokens, an action, an outcome) with custom properties. The system
+of record is ClickHouse.
+
+**amend** — Correct an event by recording a *new version* with corrected properties; reads return the
+latest non-voided version. The original is never mutated.
+
+**idempotency key** — A caller-supplied key on every mutating call. A replay returns the original result
+instead of double-applying — ingest is effectively-once.
+
+**run_id** — Groups the events of one agent run so they can be governed and voided together (`void_run`).
+
+## Policy and billing
+
+**meter** (the noun) — The named label on an event identifying what is being measured (e.g. `tokens`, or
+a custom meter). It segments usage for analytics and billing; `POST /v1/usage` records its events under
+the `tokens` meter.
+
+**budget** — A time-boxed limit evaluated against an account's usage, returning a status of ok, warning,
+or exceeded. Budgets inform; the ledger's `no_overdraft` flag enforces.
+
+**no_overdraft** — An account flag guaranteeing the account can never go negative, even under concurrent
+reserves. Property-tested against every ledger backend.
+
+**burnable** — A flag on a usage call. `burnable: false` prices and records the event but does not debit
+the ledger (credits charged are 0, the price is still reported).
+
+**invoice** — A deterministic statement summed straight from the ledger over a time window. Because
+every charge is an immutable entry, `enforced == billed` by construction.

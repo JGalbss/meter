@@ -9,18 +9,22 @@ Commands connect to whichever store they need.
 
 ## Configuration
 
-Most commands take a Postgres URL; `reconcile` takes a ClickHouse URL. Both default to environment
-variables, so in a configured deployment you can omit the flags:
+The ledger commands take a Postgres URL; the rollup commands (`reconcile`, `rebuild-rollups`) take a
+ClickHouse URL. Both default to environment variables, so in a configured deployment you can drop the
+flags. `price` needs neither — it prices in memory.
 
 - `--database-url` / `METER_DATABASE_URL` — Postgres (the ledger).
 - `--clickhouse-url` / `METER_CLICKHOUSE_URL` — ClickHouse (events + rollups).
+
+A flag always overrides the environment variable. `seed` needs its Postgres URL from `--database-url`
+or `METER_DATABASE_URL`; without either it exits.
 
 ## Commands
 
 | Command | What it does |
 | --- | --- |
 | `migrate` | Apply the ledger migrations (idempotent; refuses on version skew). |
-| `seed --credits N` | Open a funded org account for local dev (migrates first). |
+| `seed [--credits N]` | Open a funded org account for local dev (migrates first). `--credits` defaults to `1000000`. |
 | `balance --account <uuid>` | Print an account's settled / held / available balance. |
 | `entries --account <uuid>` | List an account's immutable ledger entries (the audit trail). |
 | `grant --account <uuid> --credits N` | Grant credits to an existing account. |
@@ -34,8 +38,11 @@ variables, so in a configured deployment you can omit the flags:
 ## Examples
 
 ```bash
-# Bring a fresh database up and seed a funded account.
-meterctl migrate --database-url "$METER_DATABASE_URL"
+# Point the ledger commands at Postgres once (a flag would override this).
+export METER_DATABASE_URL="postgres://meter:meter@localhost:5432/meter"
+
+# Bring a fresh database up and seed a funded account (1,000,000 credits by default).
+meterctl migrate
 meterctl seed --credits 1000000
 
 # Inspect an account.
@@ -44,11 +51,15 @@ meterctl entries --account 11111111-1111-1111-1111-111111111111
 
 # Price a call without touching the database.
 meterctl price --model claude-opus-4-8 --input 1000 --output 500
+```
 
-# Nightly drift check (non-zero exit fails the job if a rollup diverged) + repair.
+```bash
+# Nightly drift check against the event source of record, then repair. These read ClickHouse, not
+# Postgres — a non-zero exit from reconcile fails the job and triggers the rebuild.
+export METER_CLICKHOUSE_URL="http://localhost:8123"
 meterctl reconcile --org 11111111-1111-1111-1111-111111111111 \
   || meterctl rebuild-rollups --org 11111111-1111-1111-1111-111111111111
 ```
 
-The DB-touching commands are integration-tested against real Postgres/ClickHouse containers via the
-built binary.
+The store-touching commands are integration-tested against real Postgres and ClickHouse containers via
+the built binary.

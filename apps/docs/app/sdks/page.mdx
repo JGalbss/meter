@@ -8,7 +8,8 @@ export const metadata = {
 
 Official client libraries for the meter engine. Both are thin wrappers over the HTTP API: a
 `MeterClient`, a `withRun` helper for reserve/settle/void governance, and **provider adapters** that
-normalize token usage from Anthropic, OpenAI, Gemini, Bedrock, LangChain, and the Vercel AI SDK.
+normalize token usage from Anthropic, OpenAI, Gemini, Bedrock, and LangChain. TypeScript adds a sixth
+adapter for the Vercel AI SDK; the Python adapters are the five above.
 
 | SDK | Package | Install |
 | --- | --- | --- |
@@ -82,6 +83,9 @@ import {
   anthropicUsage, openaiUsage, geminiUsage, bedrockUsage, langchainUsage, vercelAiUsage,
 } from "@meter/sdk";
 ```
+
+The engine prices those normalized tokens against a per-model rate card and a credit value. For the
+catalogued models and how tokens become credits, see [pricing](/pricing).
 
 ### `MeterClient` methods
 

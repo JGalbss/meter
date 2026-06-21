@@ -31,7 +31,7 @@ module (`meter-engine` listens on `METER_GRPC_ADDR`, default `0.0.0.0:50051`).
 
 ## Working with the contract
 
-```sh
+```bash
 buf lint proto                    # STANDARD lint rules (enforced)
 buf build proto -o /dev/null      # compile-check the module
 buf breaking proto --against '.git#branch=main,subdir=proto'   # no breaking changes vs main

@@ -1,9 +1,11 @@
 # Architecture Decision Records
 
-`ARCHITECTURE.md` is the locked baseline. As the design evolves, each material change is recorded here
-as a small, numbered, append-only ADR rather than by rewriting the baseline — so the *reasoning* and
-the *history* survive. Format: Context → Decision → Consequences. An ADR may amend or supersede a
-section of `ARCHITECTURE.md`; it says so explicitly at the top.
+`ARCHITECTURE.md` is the v1 baseline. As the design evolves, each material change is recorded here as a
+small, numbered, append-only ADR rather than by rewriting the baseline — so the *reasoning* and the
+*history* both survive. Format: Context → Decision → Consequences. An ADR may amend or supersede a
+section of `ARCHITECTURE.md`; it says so explicitly at the top, and the baseline carries a banner
+pointing back to the ADRs that have changed it. Where a baseline section and an ADR conflict, the ADR
+wins.
 
 | ADR | Title | Status |
 |---|---|---|

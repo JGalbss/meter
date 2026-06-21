@@ -1,203 +1,176 @@
-<div align="center">
-
 # meter
 
-**High-performance, open-source metering, billing & invoicing for the agent era.**
+A metering and billing engine for AI agents, built on an immutable double-entry ledger.
 
-</div>
+meter prices usage, enforces budgets on the request path, and turns the result into invoices — without
+ever losing, double-counting, or overspending a credit. The ledger is the single source of truth;
+balances are derived, never edited. It is open source and built to self-host in your own VPC,
+single-tenant or multi-tenant.
 
-meter turns raw agent and API usage into credits, budgets, and invoices — backed by an immutable,
-double-entry ledger that is the single source of truth. It ingests usage at high throughput, enforces
-budgets and credit limits in real time on the request hot path, and keeps its concepts deliberately
-small. Built to self-host in your own VPC, single-tenant or multi-tenant.
+> **Pre-release.** The engine is functional and tested end to end against real Postgres and ClickHouse.
+> Schemas and APIs will change until the first tagged release.
 
-> ⚠️ **Early and under active construction.** Schemas and APIs will change until the first tagged release.
+## What you get
 
-## Why meter
+- **A ledger that can't drift.** Every credit movement is an immutable, double-entry posting. Balances
+  are folded from the entry history, never stored and mutated. No overdraft and idempotent ingest are
+  property-tested against every ledger backend.
+- **Enforcement on the hot path.** Reserve a worst-case estimate before an agent call, settle the
+  actuals after, void on failure. An out-of-budget agent is refused before it spends — no overdraft,
+  even under concurrency.
+- **Pricing that matches how models bill.** Multi-dimensional rate cards (input, output, cache read,
+  cache write, reasoning, per-action) translate tokens → cost → credits with a fixed cash value and a
+  margin. A dated catalog of provider prices ships in the box.
+- **Edits without mutation.** Events are immutable. Correcting one records a new version plus a delta
+  posting; killing a failed run reverses its holds and settlements. The audit trail is perfect, but the
+  UX behaves as if you edited in place.
+- **One place owns money.** The Rust engine is the sole owner of money-truth. The control plane, the
+  dashboard, and the SDKs are clients — none of them compute a credit.
 
-- **Ledger-first.** Every credit movement is an immutable, double-entry transaction. Balances are
-  derived, never edited. Everything reconciles back to one auditable source of truth.
-- **Built for agents.** Meter by tokens, by credits, by artifacts, or by outcomes the agent actually
-  achieves — across an org → team → user hierarchy.
-- **Real-time enforcement.** Reserve credits before a call, settle with actuals after. Out-of-budget
-  agents are stopped on the hot path with no overdraft.
-- **Flexible pricing, few primitives.** Multi-dimensional rate cards (input / output / cache / context
-  tiers, per model), token→credit translation with a fixed cash value and margin, volume tiers — without
-  the rate-card sprawl of legacy tools.
-- **Budgets & grants.** Periodic budgets (e.g. 400 credits/week per product) that are independent of
-  invoicing periods; prepaid grants; promotional credits; clear burn-down priority.
-- **Batteries-included model rate cards.** An always-current catalog of provider model prices, so you
-  don't have to maintain them.
-- **Open & self-hostable.** Run it yourself; we also offer a managed version.
+## Quickstart
 
-## Architecture
-
-meter splits along a hard data-plane / control-plane seam:
-
-| Component | Tech | Responsibility |
-|---|---|---|
-| **Engine** | Rust | The data plane and **sole owner of money-truth**: event ingestion, the double-entry credit ledger, real-time reserve/settle enforcement, pricing. Exposes gRPC and an HTTP/OpenAPI surface. |
-| **Control plane** | TypeScript · Effect + Drizzle | The management API the dashboard hits: orgs/teams/users/roles, products, rate cards, budgets, grants, invoices, webhooks. Computes no money — it calls the engine for all money-truth. |
-| **System of record** | PostgreSQL | **Money & config only** — the engine owns the ledger schema; the control plane owns the config schema. The high-velocity firehoses (events, audit) live in ClickHouse. |
-| **Events, audit & analytics** | ClickHouse | The usage **event firehose** (system of record for events) + the append-only **audit log** + analytics rollups. The non-transactional, high-velocity writes, kept off the money DB. Required (ADR 0003/0004). |
-| **Dashboard** | Next.js / React | Dropbox-quality console on the shadcn design system. |
-| **Docs site** | Next.js + MDX | Public documentation: concepts, API reference, SDKs, self-host (`apps/docs`). |
-| **SDKs** | TypeScript, Python | Drop-in instrumentation; the hot path (ingest / reserve / settle) talks to the engine directly. |
-
-Money-truth lives only in the engine, so there is exactly one ledger and no cross-language drift. The
-engine↔control-plane contract is protobuf; the dashboard/customer contract is OpenAPI.
-
-**Scale.** meter is built toward provider-grade volume (millions of metering ops/sec, billions of
-events/day) without softening the ledger. Pricing is in-memory; events and audit are ClickHouse
-firehoses; the only true bottleneck is the transactional money path, attacked behind the
-`LedgerBackend` seam — per-session **leasing** (one round-trip per session, not per token) and a
-**TigerBeetle** backend (two-phase transfers, integer credits, database-enforced no-overdraft) — so
-correctness and simplicity are never traded for speed. See [ADR 0005](docs/adr/0005-provider-scale-throughput.md).
-
-Docs: [VISION](docs/VISION.md) · [ARCHITECTURE](docs/ARCHITECTURE.md) · [SLO](docs/SLO.md) ·
-[DECISIONS](docs/DECISIONS.md) · [ADRs](docs/adr/) · [tickets](tickets/README.md).
-
-## Performance
-
-The engine's hot path is benchmarked with `criterion` and reproducible throughput harnesses.
-All numbers below are **measured on a single Apple M5 Pro laptop** (Docker containers, loopback):
-
-| Path | What it counts | Rate | Per day |
-|---|---|---:|---:|
-| **Pricing** | usage events priced → credited (all cores) | ~28 M/s | **~2.4 trillion/day** |
-| **Event ingest** | usage events durably written to the ClickHouse system of record (batched) | ~80 K/s | **~7 billion/day** |
-| **Durable ledger** | full reserve + settle, double-entry, no overdraft | ~3.2 K/s | ~0.28 billion/day |
-
-Per-operation latency: pricing **~191 ns** (O(1) in ledger history); a durable Postgres reserve→settle
-round trip **~1.32 ms**. Analytics reads stay **~4–5 ms at 1 M events**.
-
-These are three different paths and "throughput" means a different thing for each — usage events are
-**not** ledger writes. Events firehose into ClickHouse; per-session **leasing** collapses many metered
-events into one durable ledger round trip, so the ledger isn't on the per-event path (see
-[ADR 0005](docs/adr/0005-provider-scale-throughput.md)). The laptop ledger figure is **not** a
-"billions of settlements/day" claim — server hardware and the TigerBeetle backend target more but are
-not measured here. Full methodology, caveats, and reproduce commands: [benchmarks page](docs/BENCHMARKS.md).
-
-**vs. Lago, Metronome, Orb.** meter's defining path is *synchronous real-time enforcement* — reserve
-credits before an agent call, settle actuals after, refuse the call with no overdraft — backed by a
-double-entry ledger. Lago, Metronome, and Orb are *ingest-then-aggregate-then-bill* pipelines: usage
-events are streamed and priced asynchronously. So "speed" is not one quantity across them, and two of
-the three (Metronome, Orb) are closed SaaS that can't be self-hosted or independently load-tested. The
-[benchmarks page](docs/BENCHMARKS.md) lays out the architectural comparison and each vendor's published
-throughput claims **side by side, clearly labeled** — meter's numbers are measured and reproducible
-here; the competitors' are their own marketing figures for a different (async) operation, not a
-head-to-head we ran.
-
-## Quickstart (engine)
+Start the stores, run the engine, and charge a real model price against a funded account.
 
 ```bash
-# 1. Start Postgres (money-truth) + ClickHouse (events, ADR 0003)
-docker compose -f deploy/dev/docker-compose.yml up -d postgres clickhouse
+# 1. Postgres (money-truth) + ClickHouse (events)
+docker compose -f deploy/dev/docker-compose.yml up -d
 
-# 2. Run the engine (applies ledger migrations on Postgres + event migrations on ClickHouse on boot)
+# 2. The engine — applies its Postgres and ClickHouse migrations on boot, serves on :8080
 METER_DATABASE_URL=postgres://meter:meter@localhost:5432/meter \
-  METER_CLICKHOUSE_URL=http://localhost:8123 cargo run -p meter-engine
-
-# 3. Exercise the ledger
-curl localhost:8080/health
-ACC=$(curl -s localhost:8080/v1/accounts -d '{"org_id":"11111111-1111-1111-1111-111111111111","scope":"org","no_overdraft":true}' | jq -r .id)
-curl -s localhost:8080/v1/accounts/$ACC/grants -d '{"amount":"100","source":"paid"}'
-curl -s localhost:8080/v1/accounts/$ACC/balance
+METER_CLICKHOUSE_URL=http://localhost:8123 \
+METER_CLICKHOUSE_USER=meter METER_CLICKHOUSE_PASSWORD=meter METER_CLICKHOUSE_DATABASE=meter \
+  cargo run -p meter-engine
 ```
 
-## Quickstart (full stack)
+```bash
+# 3. Open an account, fund it, and meter usage in one call
+ORG=00000000-0000-0000-0000-000000000001
 
-Bring up the whole stack — Postgres + ClickHouse + the engine (`:8080`) + the control plane (`:8090`) +
-the dashboard (`:3000`) + the docs site (`:3001`) — each service applying its migrations on boot:
+ACCT=$(curl -s localhost:8080/v1/accounts \
+  -d "{\"org_id\":\"$ORG\",\"scope\":\"org\",\"no_overdraft\":true}" | jq -r .id)
+
+curl -s localhost:8080/v1/accounts/$ACCT/grants \
+  -d '{"amount":"1000","source":"paid"}' > /dev/null
+
+# Price 1000 input + 500 output tokens against the catalogued Opus rate card, record the
+# event, and charge credits — atomically and idempotently.
+curl -s localhost:8080/v1/usage -d "{
+  \"org_id\": \"$ORG\", \"account\": \"$ACCT\", \"model\": \"claude-opus-4-8\",
+  \"idempotency_key\": \"turn-1\",
+  \"usage\": { \"input_uncached\": 1000, \"output\": 500 }
+}" | jq
+
+curl -s localhost:8080/v1/accounts/$ACCT/balance | jq
+```
+
+The `usage` call returns the credits charged, the cost of goods, the customer price, the new balance,
+and the recorded event id. Replaying it with the same `idempotency_key` is a no-op.
+
+### Run the whole stack
+
+Bring up Postgres, ClickHouse, the engine (`:8080`), the control plane (`:8090`), the dashboard
+(`:3000`), and the docs site (`:3001`) — each service applies its own migrations on boot:
 
 ```bash
 docker compose -f deploy/docker-compose.yml up --build
 ```
 
-The control plane (config + notifications/alerts/webhooks) is the API the dashboard hits; it calls the
-engine for money-truth. The dashboard is auth-gated (signed-cookie session) — set `DASHBOARD_PASSWORD`
-and `DASHBOARD_SESSION_SECRET` (compose ships dev defaults). Browse the console at
-`http://localhost:3000` and the documentation at `http://localhost:3001`.
+The dashboard is auth-gated; set `DASHBOARD_PASSWORD` and `DASHBOARD_SESSION_SECRET` (the compose ships
+dev defaults). Browse the console at `http://localhost:3000` and the documentation at
+`http://localhost:3001`.
 
-For dashboard development against the running stack, run it in dev mode instead:
+## Architecture
+
+meter splits along one hard seam: the data plane owns money, the control plane owns configuration.
+
+| Component | Tech | Owns |
+|---|---|---|
+| **Engine** | Rust | The data plane and sole owner of money-truth: ingest, the double-entry ledger, reserve/settle enforcement, pricing. Serves HTTP (`:8080`) and gRPC (`:50051`). |
+| **Control plane** | TypeScript · Effect + Drizzle | The management API the dashboard hits: orgs, products, API keys + RBAC, alert rules, notifications, signed webhooks. Computes no money — it calls the engine. |
+| **Postgres** | — | Money-truth: the ledger, accounts, and the control-plane config schema. |
+| **ClickHouse** | — | The usage-event firehose (system of record), the audit log, and analytics rollups — the high-velocity writes, kept off the money database. |
+| **Dashboard** | Next.js · shadcn | Operator console: read views over the engine plus config CRUD against the control plane. |
+| **SDKs** | TypeScript · Python | Drop-in instrumentation. The hot path (meter / reserve / settle) talks to the engine directly; config goes to the control plane. |
+
+Money-truth lives only in the engine, so there is exactly one ledger and no cross-language drift. The
+engine ⇄ control-plane contract is **protobuf/gRPC**; the control-plane ⇄ dashboard/customer contract is
+**OpenAPI**. Both are generated, never hand-mirrored, and gated against drift in CI.
+
+For the full reasoning — the storage choices, the enforcement mechanics, and the scale-out path behind
+the `LedgerBackend` trait — read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and the
+[ADRs](docs/adr/).
+
+## Performance
+
+The hot path is benchmarked with `criterion` on an Apple M5 Pro, single node:
+
+| Path | What it measures | Median |
+|---|---|---:|
+| **Pricing** | A 5-dimension event → COGS → margin → credits, in memory, O(1) | **~191 ns** (~5.2 M ops/s/core) |
+| **Reserve → settle** | A full credit reserve + settle with no-overdraft against **Postgres** | **~1.32 ms** |
 
 ```bash
-cd apps/dashboard && bun install \
-  && METER_CONTROL_PLANE_URL=http://localhost:8090 \
-     METER_ENGINE_URL=http://localhost:8080 \
-     DASHBOARD_SESSION_SECRET=$(openssl rand -hex 32) DASHBOARD_PASSWORD=changeme \
-     bun run dev
+cargo bench -p meter-pricing      # pricing hot path, no external dependencies
+cargo bench -p meter-store-pg     # durable reserve/settle (spins a throwaway Postgres container)
 ```
 
-React code is reviewed by **react-doctor** (advisory PR workflow + `bun run doctor`).
+meter's defining path is *synchronous, real-time enforcement* — reserve before a call, settle after,
+refuse with no overdraft. That is a different operation from the *ingest-then-aggregate-then-bill*
+pipelines of Lago, Metronome, and Orb, and two of those three are closed SaaS that can't be
+independently load-tested. [docs/BENCHMARKS.md](docs/BENCHMARKS.md) sets the measured numbers against
+each vendor's published claims, side by side and clearly labeled — no invented head-to-head.
 
-## Status — what works today
+## What works today
 
-The Rust engine is functional and tested end-to-end against real Postgres:
+The Rust engine is functional and tested end to end against real Postgres and ClickHouse.
 
-- **Ledger** — double-entry, append-only; grant / reserve / settle / void; balances derived; no
-  overdraft under concurrency (property- and conformance-tested; in-memory reference + Postgres backend).
-- **Pricing** — multi-dimensional rate cards; token→credit translation with margin (`meter-pricing`).
-- **Enforcement** — reserve→settle priced via rate cards (`meter-enforcement`).
-- **Events** — editable, custom-field usage events: record (idempotent), amend (append-only version),
-  `void_run`; latest-non-voided reads. The system of record is **ClickHouse** (ADR 0003); conformance-
-  tested identically to the in-memory reference.
-- **Invoicing** — deterministic invoice summed from the ledger (`enforced == billed`).
-- **Catalog** — curated model rate-card snapshot (`meter-ratecards`).
-- **Engine** — the `meter` binary serving HTTP; `meterctl` admin CLI; Docker image + compose.
+- **Ledger** — double-entry, append-only; grant / reserve / settle / void / refund; per-session leasing;
+  balances derived; no overdraft under concurrency. Property- and conformance-tested against an
+  in-memory reference and the Postgres backend.
+- **Usage metering** — `POST /v1/usage` prices token usage against the catalog, records the event, and
+  charges credits in one idempotent call. Token-priced reserve/settle and run governance too.
+- **Pricing & catalog** — multi-dimensional rate cards with margin, versioned and re-rateable; a dated
+  catalog of Anthropic, OpenAI, Google, DeepSeek, and Alibaba model prices; a pricing simulator.
+- **Events** — immutable, custom-field events with `record` (idempotent), `amend` (a new version), and
+  `void_run`; ClickHouse is the system of record (ADR 0003).
+- **Invoicing** — a deterministic invoice summed straight from the ledger, so `enforced == billed`.
+- **Control plane** — orgs, products, API keys with RBAC (viewer/member/admin) and platform/org scopes,
+  alert rules with a budget-evaluation loop, and signed, retried webhooks with a dead-letter log.
+- **Dashboard** — a full operator console: usage analytics, an events explorer with amend / void-run,
+  accounts and ledger entries, invoices, the audit log, a rate-card catalog viewer, and a pricing
+  simulator.
+- **Docs site** — concepts, generated API references for both surfaces (rendered from the committed
+  OpenAPI contracts), SDK guides, and self-host instructions, with client-side search.
+- **Deployment** — engine, control-plane, dashboard, and docs images; a 6-service Docker Compose; a Helm
+  chart; and a GHCR publish workflow.
 
-- **Usage metering** — `POST /v1/usage` prices token usage via the catalog (`model` + token counts),
-  records the event, and charges credits in one idempotent call (the core loop, end-to-end tested).
-- **Budgets & alerts** — `GET /v1/accounts/{id}/budget?…&limit` returns usage vs limit with a threshold
-  status (`ok` / `warning` ≥80% / `exceeded` ≥100%).
-
-Engine HTTP endpoints under `/v1`: `usage` (meter), `accounts` (open · balance · grants · entries ·
-events · invoice · budget · usage-by-day), `reservations` (reserve · settle · void), `leases`
-(open · close), `events` (record · batch · get · amend), `runs/{id}/void`, `orgs` (usage-by-model ·
-usage-by-day · event-count), `audit`.
-
-Beyond the engine:
-
-- **Control plane** (`apps/control-plane`, TypeScript · Effect + Drizzle) — the config + ops API the
-  dashboard hits: organizations, products, **API keys with RBAC** (viewer/member/admin roles enforced
-  by the auth middleware), notifications (pull/read/ack), alert rules with a **budget-evaluation loop**
-  (asks the engine to classify usage, raises notifications on escalation), and **signed, retried
-  webhooks** with a dead-letter log. Request-id + structured access-log middleware for tracing. Applies
-  migrations on boot; Docker image + compose service; e2e-tested over an in-process server.
-- **Audit log** — engine middleware records every mutating request; `GET /v1/audit`. Stored in
-  ClickHouse (ADR 0004) — a high-velocity append-only firehose, kept off the money database.
-- **SDKs** (`sdks/typescript`, `sdks/python`) — drop-in client + run governance (`withRun`) + usage
-  adapters for Anthropic, OpenAI, Vercel AI SDK, Gemini/Vertex, Bedrock, and LangChain/LangGraph.
-- **Dashboard** (`apps/dashboard`, Next.js + shadcn preset) — a full operator console: overview (with a
-  top-models-by-spend summary), organizations, products, API keys (mint + RBAC role select),
-  notifications, alert rules, and webhooks (wired to the control plane); plus engine-read views — usage
-  analytics (usage-by-model + daily credit burn), an events explorer with **amend / void-run** actions,
-  accounts (balance + ledger entries), invoices (month-to-date statement), the audit log, a
-  **rate-card catalog** viewer, and a **pricing simulator** (re-rate a usage profile across two
-  catalogued models). Shipped as a Docker image; run-verified.
-- **Docs site** (`apps/docs`, Next.js + MDX) — concepts, a narrative API reference plus **generated
-  references for both the engine and control-plane surfaces** (rendered from their committed OpenAPI
-  contracts, drift-checked in CI), SDK guides with provider adapters, and self-host instructions (incl.
-  air-gapped). Client-side **search** (Pagefind over a static export); built and typechecked in CI;
-  shipped as a Docker image.
-
-- **ClickHouse** (`meter-store-ch`, required) — the **system of record for events** (editable model:
-  record/amend/void via `ReplacingMergeTree` + `FINAL`) plus the **audit log** and **usage analytics**
-  (ADR 0003/0004). Integration-tested against a real ClickHouse container. Money-truth stays in the
-  Postgres ledger; the high-velocity firehoses live here.
-- **Deployment** — engine, control-plane, dashboard, and docs Docker images; a 6-service docker-compose
-  (Postgres · ClickHouse · engine · control plane · dashboard · docs); a Helm chart (toggleable
-  in-cluster Postgres/ClickHouse, Ingress/TLS) and a GHCR publish workflow.
-
-In progress (see [tickets](tickets/README.md)): the protobuf engine↔control-plane contract and its
-generated TypeScript client (the OpenAPI surface and the generated dashboard client are done), and a
-rate-card catalog scraper for more providers.
+In progress (see [tickets/](tickets/README.md)): the generated TypeScript gRPC client for the
+control-plane → engine path, the event-amend delta posting (ADR 0009, proposed), RLS as
+defense-in-depth, and more catalog providers.
 
 ## Self-hosting
 
-Minimal footprint: the **engine** + **control plane** **+ PostgreSQL**. Add ClickHouse for high-volume
-usage analytics. Redpanda / Redis / TigerBeetle are opt-in scale-out backends behind traits. Docker
-Compose for local/dev; Helm for production.
+The footprint is the **engine + control plane + Postgres + ClickHouse**. Redpanda, Redis, and a
+TigerBeetle ledger backend are opt-in scale-out backends behind stable traits, each activated by a
+measured trigger ([ADR 0005](docs/adr/0005-provider-scale-throughput.md)). Docker Compose for local and
+dev; Helm for production, including air-gapped private-VPC deployment. The docs site `/self-host` page
+is the full guide.
+
+## Documentation
+
+- [VISION](docs/VISION.md) — the problem and the product thesis.
+- [ARCHITECTURE](docs/ARCHITECTURE.md) + [ADRs](docs/adr/) — the system design and every decision since.
+- [DECISIONS](docs/DECISIONS.md) — the decision log at a glance.
+- [SLO](docs/SLO.md) · [BENCHMARKS](docs/BENCHMARKS.md) — the performance contract and measured numbers.
+- [SDKS](docs/SDKS.md) — the SDK strategy and provider adapters.
+- [docs/](docs/README.md) — the index of everything above.
+
+## Contributing
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md). meter is AGPL-3.0; contributions are by DCO sign-off
+(`git commit -s`), not a CLA. The bar is enterprise quality: correct schemas, real migrations, full
+tests, no shortcuts. Money is never a float and the ledger is append-only — see [CLAUDE.md](CLAUDE.md)
+for the engineering standards CI enforces.
 
 ## License
 

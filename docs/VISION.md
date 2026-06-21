@@ -109,7 +109,12 @@ that an **agent can run on**, and that **humans can build with**.
 
 ## 7. Open questions (to resolve in design)
 
-These are surfaced for an explicit founder decision; the ADR will carry recommended defaults.
+These were surfaced for an explicit founder decision. Most are now answered in `docs/DECISIONS.md` and the
+ADRs — Postgres is the default ledger store with a pluggable `LedgerBackend` for a TigerBeetle accelerator
+([ADR 0005](adr/0005-provider-scale-throughput.md)); the engine is Rust with a TypeScript control plane
+over gRPC ([ADR 0001](adr/0001-engine-controlplane-split.md), [ADR 0008](adr/0008-control-plane-engine-transport.md));
+ClickHouse is required as the event system of record ([ADR 0003](adr/0003-events-in-clickhouse.md)); and the
+license is AGPL-3.0. The original questions, for the record:
 
 - Ledger store: specialized (TigerBeetle) vs Postgres-native vs hybrid?
 - Analytics store: ClickHouse vs alternatives? Required for v1 or scale-out later?

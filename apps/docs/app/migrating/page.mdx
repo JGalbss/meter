@@ -1,0 +1,62 @@
+export const metadata = {
+  title: "Migrating",
+  description:
+    "Moving to meter from Metronome, Lago, or Orb: a concept-mapping table, what is genuinely different (real-time reserve/settle, one ledger, enforced == billed), and how to port a usage stream.",
+};
+
+# Migrating from Metronome, Lago, or Orb
+
+meter collapses the usage-billing vocabulary to six nouns and adds something those tools don't have:
+real-time, no-overdraft enforcement on the request path. If you run a metered-billing pipeline today,
+the mapping below gets you oriented; the differences are where meter changes how you work.
+
+## Concept mapping
+
+Metronome's common complaint is roughly nine overlapping nouns. meter maps them onto six.
+
+| meter | What it is | Replaces in Metronome |
+| --- | --- | --- |
+| **Event** | One idempotent, immutable usage fact — tokens, an action, an outcome. | event |
+| **Meter** | A named label that measures and segments usage into a billable quantity. | billable-metric (and the product's display role) |
+| **Rate card** | A versioned, dimensional, priced mapping from quantities to credits. One card, many priced dimensions. | product + rate + rate-card + rate-card-alias |
+| **Account** | A node in the org → team → user hierarchy and the carrier of contract terms. | contract + customer hierarchy |
+| **Grant + Budget** | Credit pools (grant) and time-boxed limits (budget) — two distinct ideas. | commit + credit (a budget had no first-class noun) |
+| **Invoice** | A deterministic statement for a billing period, summed from the ledger. | invoice |
+
+Lago and Orb use a similar shape — billable metric, plan/price, customer, coupon/credit, invoice — and
+map the same way: their metric is meter's **Meter**, their plan and price collapse into one **Rate
+card**, their customer is an **Account**, their credits and coupons become **Grant + Budget**, and the
+invoice is an **Invoice**.
+
+## What is different
+
+Three things change how you operate, not just what you call things.
+
+- **Enforcement is real-time, on the request path.** Metronome, Lago, and Orb ingest usage, then
+  aggregate, then bill — overspend is discovered after the fact. meter's defining path is the opposite:
+  **reserve** a worst-case estimate before an agent call, **settle** the actuals after, **void** on
+  failure. An out-of-budget agent is refused before it spends, with no overdraft even under concurrency.
+- **One ledger, no reconciliation.** Money-truth lives only in the Rust engine, as an immutable
+  double-entry ledger. There is no separate usage store reconciled against a billing store by a nightly
+  job — balances are folded from the entries.
+- **`enforced == billed` by construction.** The invoice is summed directly from the same ledger that
+  enforcement reads. What you blocked an agent on is exactly what shows up on the invoice; there is no
+  second pipeline to drift out of sync.
+
+## Porting a usage stream
+
+If you emit usage events to a billing provider today, the move is mechanical:
+
+1. **Map the metric to a model or meter.** A per-token LLM metric becomes a call to `POST /v1/usage`
+   with a catalog `model`. A custom metric becomes a named `meter` recorded via `POST /v1/events`.
+2. **Carry your idempotency key across.** meter requires an `idempotency_key` on every event and
+   charge, so the cutover is safe to run in parallel with the old pipeline — replays are no-ops.
+3. **Translate prices into a rate card.** Set the per-dimension unit prices and a margin on a `Customer`
+   rate card; start from a catalog template for known models. See [Pricing](/pricing).
+4. **Backfill, then enforce.** Replay historical events through `POST /v1/usage` or
+   `POST /v1/events/batch` to seed the ledger and invoices, then switch the hot path to reserve/settle
+   for live enforcement.
+
+The grouping you need for governance is `run_id`: events that share a run can be voided together with
+`void_run`. See [Concepts](/concepts) for the full model and [Quickstart](/quickstart) to run the core
+loop end to end.

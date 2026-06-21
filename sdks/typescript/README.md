@@ -2,7 +2,8 @@
 
 A thin, drop-in client for the meter engine, plus adapters that normalize usage from the major AI
 providers (Anthropic / Claude, OpenAI, Google Gemini, AWS Bedrock, LangChain, the Vercel AI SDK) and
-helpers that govern a run (reserve → settle → auto-void).
+helpers that govern a run (reserve → settle → auto-void). The client is hand-written today; see
+[Notes](#notes) for the path to a generated client.
 
 ```bash
 npm install @meter/sdk   # or: pnpm add @meter/sdk

@@ -1,0 +1,164 @@
+export const metadata = {
+  title: "Quickstart",
+  description:
+    "Run meter end to end in ten minutes: start the stores, boot the engine, open a funded account, and charge a real model price against it.",
+};
+
+# Quickstart
+
+Run meter against real Postgres and ClickHouse, open a funded account, and charge the catalogued price
+of a `claude-opus-4-8` turn — in ten minutes, on one machine. Every step below is copy-pasteable and
+independently runnable.
+
+## 1. Start the stores
+
+The dev compose brings up Postgres (money-truth) and ClickHouse (the event firehose) and nothing else.
+
+```bash
+docker compose -f deploy/dev/docker-compose.yml up -d
+```
+
+Postgres listens on `5432`; ClickHouse on `8123` (HTTP) and `9000` (native).
+
+## 2. Run the engine
+
+The engine binary (`meter`, crate `meter-engine`) applies its Postgres ledger migrations and its
+ClickHouse event migrations on boot, then serves HTTP on `:8080` and gRPC on `:50051`.
+
+```bash
+METER_DATABASE_URL=postgres://meter:meter@localhost:5432/meter \
+METER_CLICKHOUSE_URL=http://localhost:8123 \
+METER_CLICKHOUSE_USER=meter METER_CLICKHOUSE_PASSWORD=meter METER_CLICKHOUSE_DATABASE=meter \
+  cargo run -p meter-engine
+```
+
+The ClickHouse credentials match the dev compose (which sets user `meter`). A passwordless connection
+works against a localhost server, but ClickHouse refuses one over a remote connection, so a networked
+deployment must supply them — see [Self-host](/self-host).
+
+Confirm it is up and both stores are reachable:
+
+```bash
+curl -s localhost:8080/health/ready | jq
+# { "ledger": true, "events": true }
+```
+
+## 3. Open an account and fund it
+
+Accounts belong to an org and carry a scope. Set `no_overdraft` so the account can never go negative.
+
+```bash
+ORG=00000000-0000-0000-0000-000000000001
+
+ACCT=$(curl -s localhost:8080/v1/accounts \
+  -d "{\"org_id\":\"$ORG\",\"scope\":\"org\",\"no_overdraft\":true}" | jq -r .id)
+
+curl -s localhost:8080/v1/accounts/$ACCT/grants \
+  -d '{"amount":"1000","source":"paid"}' | jq
+```
+
+The grant returns a `LedgerEntry`. Amounts are decimal **strings**, never floats:
+
+```json
+{
+  "id": "…",
+  "account_id": "…",
+  "entry_type": "grant",
+  "delta_credits": "1000",
+  "balance_after": "1000"
+}
+```
+
+## 4. Meter a model turn
+
+`POST /v1/usage` does three things in one idempotent call: it prices the token usage against the
+model's rate card, records an immutable event, and charges credits to the account. Here we price
+1000 input tokens and 500 output tokens of `claude-opus-4-8`.
+
+```bash
+curl -s localhost:8080/v1/usage -d "{
+  \"org_id\": \"$ORG\",
+  \"account\": \"$ACCT\",
+  \"model\": \"claude-opus-4-8\",
+  \"idempotency_key\": \"turn-1\",
+  \"usage\": { \"input_uncached\": 1000, \"output\": 500 }
+}" | jq
+```
+
+The response carries the credits charged, the cost of goods, the customer price, the new balance, and
+the recorded event id:
+
+```json
+{
+  "credits": "…",
+  "priced_credits": "…",
+  "cogs_usd": "…",
+  "customer_price_usd": "…",
+  "event_id": "…",
+  "charged": true,
+  "settled": "…",
+  "available": "…"
+}
+```
+
+Replaying the call with the same `idempotency_key` returns the original result and charges nothing — the
+hot path is effectively-once. See [Pricing](/pricing) for the exact cost → margin → credits arithmetic
+behind these numbers.
+
+## 5. Read the balance
+
+```bash
+curl -s localhost:8080/v1/accounts/$ACCT/balance | jq
+# { "settled": "…", "held": "…" }
+```
+
+`settled` is what has actually been debited; the available balance is `settled` minus any outstanding
+reservations. Enforcement reads `available`.
+
+## The same thing with the SDK
+
+The SDKs talk to the engine directly on the hot path. The constructor takes the engine base URL;
+`meterUsage` / `meter_usage` wraps `POST /v1/usage`.
+
+```ts
+import { MeterClient } from "@meter/sdk";
+
+const meter = new MeterClient({ baseUrl: "http://localhost:8080" });
+
+const account = await meter.openAccount({ orgId, scope: "org", noOverdraft: true });
+await meter.grant(account.id, { amount: "1000", source: "paid" });
+
+const result = await meter.meterUsage({
+  orgId,
+  account: account.id,
+  model: "claude-opus-4-8",
+  idempotencyKey: "turn-1",
+  usage: { input_uncached: 1000, output: 500 },
+});
+```
+
+```python
+from meter import MeterClient
+
+meter = MeterClient(base_url="http://localhost:8080")
+
+account = meter.open_account(org_id=org_id, scope="org", no_overdraft=True)
+meter.grant(account["id"], amount="1000", source="paid")
+
+result = meter.meter_usage(
+    org_id=org_id,
+    account=account["id"],
+    model="claude-opus-4-8",
+    idempotency_key="turn-1",
+    usage={"input_uncached": 1000, "output": 500},
+)
+```
+
+For provider auto-instrumentation (`patchAnthropic`, `patch_openai`) and run governance, see [SDKs](/sdks).
+
+## Next steps
+
+- [Concepts](/concepts) — the ledger, reservations, leasing, and the append-only edit model.
+- [Pricing](/pricing) — rate cards, dimensions, and the credit cash value.
+- [SDKs](/sdks) — the TypeScript and Python clients, adapters, and downloads.
+- [Self-host](/self-host) — running the full stack with the control plane and dashboard.

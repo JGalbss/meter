@@ -164,6 +164,12 @@ scraper. Single-binary self-host runs them in-process; the hosted tier runs them
 The default is **two stores**. Three more are **opt-in scale-out backends**, each behind a stable Rust
 trait, each gated by a measured trigger (§9).
 
+> **Implementation status.** Only **PostgreSQL** and **ClickHouse** ship today (plus an in-memory
+> `LedgerBackend` used as a correctness reference in tests). **TigerBeetle**, **Redpanda**, and
+> **Redis** are *specified seams* — the `LedgerBackend`/ingest traits leave room for them — but are
+> **planned, not yet implemented**. The triggers below are the conditions under which each would be
+> built, not runtime feature flags you can turn on today.
+
 | Store | Tier | Role | Why / why-not |
 |---|---|---|---|
 | **PostgreSQL** | **Default (always)** | **System of record for money & config**: hierarchy, RBAC, rate cards, grants, budgets, invoices, **and the authoritative double-entry ledger** (immutable entries, derived balances). Also the default durable ingest queue (outbox). | Decision #2/#7. Credit-transaction volume ≪ raw-event volume; a tuned single primary + replicas scales very far. Hot-row contention (real: ~160–430 TPS on one contended row) is solved by **balance sharding / per-session leasing** (§5), not by adding a second money store. |

@@ -153,11 +153,14 @@ control-plane → engine path, RLS as defense-in-depth, and more catalog provide
 
 ## Self-hosting
 
-The footprint is the **engine + control plane + Postgres + ClickHouse**. Redpanda, Redis, and a
-TigerBeetle ledger backend are opt-in scale-out backends behind stable traits, each activated by a
-measured trigger ([ADR 0005](docs/adr/0005-provider-scale-throughput.md)). Docker Compose for local and
-dev; Helm for production, including air-gapped private-VPC deployment. The docs site `/self-host` page
-is the full guide.
+The shipped footprint is the **engine + control plane + Postgres + ClickHouse** — fully self-hostable,
+no external SaaS. Postgres is money-truth (the double-entry ledger) and config; ClickHouse holds events
+and analytics. The `LedgerBackend` trait leaves a seam for a future **TigerBeetle** ledger accelerator,
+and [ADR 0005](docs/adr/0005-provider-scale-throughput.md) specifies **Redpanda** (ingest log) and
+**Redis** (hot-path gate) as opt-in scale-out backends gated by measured triggers — these are
+**planned, not yet implemented**: today both the ledger and the ingest queue run on Postgres. Docker
+Compose for local and dev; Helm for production, including air-gapped private-VPC deployment. The docs
+site `/self-host` page is the full guide.
 
 ## Documentation
 

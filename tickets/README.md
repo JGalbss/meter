@@ -53,7 +53,10 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 - [x] Concurrency no-overdraft test (50 racing reserves vs capacity) green against real Postgres
 - [x] Per-session credit leasing (hot-account mitigation): `open_lease`/`close_lease` move credits via a conserving `Transfer` entry between a parent pool and a fresh `Session` child — refuses to overdraw a no-overdraft parent; `close_lease` returns `settled − held` (safe with holds open). Implemented on **both** backends and verified by the shared conformance suite (in-memory oracle + real Postgres): credits conserved, no overdraft. Exposed over the engine HTTP API (`POST /v1/leases`, `POST /v1/leases/{id}/close`) and both SDKs (`openLease`/`closeLease`, `open_lease`/`close_lease`); end-to-end conservation verified by the `lease_flow_over_http` e2e test (Postgres + ClickHouse)
 - [ ] Chaos/fault-injection harness: leader kill, restart, dup/drop settle, hold-timeout race
-- [ ] Hold timeouts (auto-void), settle-after-void overage path, heartbeat extension
+- [x] Hold timeouts (auto-void via the expiry sweep), heartbeat extension, and the settle-after-void /
+  overage paths — all conformance-tested across both backends (`expired_holds_are_swept`,
+  `extend_hold_keeps_it_alive`, `settle_after_void_is_refused`, `settle_overage_charges_actual`,
+  `soft_limit_allows_overage`).
 
 ## EPIC 04 — Pricing & rate cards
 - [x] `meter-pricing`: rate_card (kind: provider_cost|customer, margin), price_component matrix (dimension/modality/context_tier/unit/charge_model)

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { MeterMark } from "./logo";
 import { Search } from "./search";
 
 type NavItem = { href: string; label: string };
@@ -35,6 +36,7 @@ export function Sidebar(): ReactNode {
   return (
     <aside className="sidebar" data-pagefind-ignore>
       <Link href="/" className="brand">
+        <MeterMark />
         meter
       </Link>
       <Search />

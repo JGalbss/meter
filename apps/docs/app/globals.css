@@ -83,11 +83,19 @@ a:hover {
 }
 
 .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-size: 20px;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--fg);
   margin-bottom: 24px;
+}
+
+.brand-mark {
+  flex: none;
+  color: var(--accent, var(--fg));
 }
 
 .brand:hover {

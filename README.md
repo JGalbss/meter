@@ -57,6 +57,28 @@ correctness and simplicity are never traded for speed. See [ADR 0005](docs/adr/0
 Docs: [VISION](docs/VISION.md) · [ARCHITECTURE](docs/ARCHITECTURE.md) · [SLO](docs/SLO.md) ·
 [DECISIONS](docs/DECISIONS.md) · [ADRs](docs/adr/) · [tickets](tickets/README.md).
 
+## Performance
+
+The engine's hot path is benchmarked with `criterion`. Measured on an Apple M5 Pro, single node:
+
+| Path | What it measures | Median |
+|---|---|---:|
+| **Pricing** | 5-dimension event → COGS → margin → credits (in memory, O(1)) | **~191 ns** (~5.2 M ops/s/core) |
+| **Reserve → settle** | Full credit reserve + settle with no-overdraft against **Postgres** | **~1.32 ms** |
+
+Reproduce: `cargo bench -p meter-pricing` and `cargo bench -p meter-store-pg` (the latter spins a
+throwaway Postgres container via Docker).
+
+**vs. Lago, Metronome, Orb.** meter's defining path is *synchronous real-time enforcement* — reserve
+credits before an agent call, settle actuals after, refuse the call with no overdraft — backed by a
+double-entry ledger. Lago, Metronome, and Orb are *ingest-then-aggregate-then-bill* pipelines: usage
+events are streamed and priced asynchronously. So "speed" is not one quantity across them, and two of
+the three (Metronome, Orb) are closed SaaS that can't be self-hosted or independently load-tested. The
+[benchmarks page](docs/BENCHMARKS.md) lays out the architectural comparison and each vendor's published
+throughput claims **side by side, clearly labeled** — meter's numbers are measured and reproducible
+here; the competitors' are their own marketing figures for a different (async) operation, not a
+head-to-head we ran.
+
 ## Quickstart (engine)
 
 ```bash

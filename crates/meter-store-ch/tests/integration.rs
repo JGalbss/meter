@@ -254,3 +254,45 @@ async fn promoted_field_rollup_equals_the_scan_path_through_amends_and_voids() {
     assert_eq!(by_team[1].events, 2);
     assert_eq!(by_team[1].credits, 15.0);
 }
+
+/// Idempotent re-ingest must not double-count in the promoted-field rollup. A materialized view fires
+/// once per insert, so the only thing keeping `field_usage_rollup` exact under retries is the
+/// exactly-once dedup that drops an already-recorded event *before* it is inserted. Recording the same
+/// event twice (same idempotency key) must leave the burndown at one event.
+#[tokio::test]
+async fn promoted_field_rollup_is_not_double_counted_by_idempotent_reingest() {
+    let container = ClickHouse::default()
+        .start()
+        .await
+        .expect("start clickhouse");
+    let port = container.get_host_port_ipv4(8123).await.expect("http port");
+    let store = ChStore::new(&format!("http://127.0.0.1:{port}"));
+    store.migrate().await.expect("migrate");
+
+    let org = Uuid::parse_str("11111111-1111-1111-1111-111111111111").unwrap();
+    let account = Uuid::parse_str("22222222-2222-2222-2222-222222222222").unwrap();
+    let run = Uuid::parse_str("a0000000-0000-0000-0000-000000000000").unwrap();
+    let props = || json!({ "team": "alpha", "credits": "10" });
+
+    // Same idempotency key twice — the second insert must be dropped before it reaches the MV.
+    let first = record(&store, account, "dup-1", run, props()).await;
+    let second = record(&store, account, "dup-1", run, props()).await;
+    assert_eq!(first, second, "same key must resolve to the same event id");
+
+    // `team` is promoted, so this reads field_usage_rollup: one event, ten credits — not two/twenty.
+    let by_team = store
+        .usage_by_field(org, "team")
+        .await
+        .expect("usage by team");
+    assert_eq!(by_team.len(), 1);
+    assert_eq!(by_team[0].dimension, "alpha");
+    assert_eq!(by_team[0].events, 1);
+    assert_eq!(by_team[0].credits, 10.0);
+
+    // And the rollup still reconciles with the source of record.
+    assert!(store
+        .reconcile_model_usage(org)
+        .await
+        .expect("reconcile")
+        .is_empty());
+}

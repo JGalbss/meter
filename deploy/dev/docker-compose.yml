@@ -15,7 +15,9 @@ services:
       POSTGRES_PASSWORD: meter
       POSTGRES_DB: meter
     ports:
-      - "5432:5432"
+      # Host 5433 (not 5432) to avoid clashing with a Postgres already running on the default port.
+      # Inside the compose network it is still 5432; only the host mapping changes.
+      - "5433:5432"
     volumes:
       - meter_pg:/var/lib/postgresql/data
     healthcheck:

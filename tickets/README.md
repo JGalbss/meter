@@ -58,9 +58,14 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 ## EPIC 04 — Pricing & rate cards
 - [x] `meter-pricing`: rate_card (kind: provider_cost|customer, margin), price_component matrix (dimension/modality/context_tier/unit/charge_model)
 - [x] Two-stage token→credit translation (cost → margin → credits via credit cash value); round once at the credit layer
-- [ ] action_charge (per-action/duration), graduated/volume/package charge models, ttl tiers
-- [~] Versioned rate cards (version field present); resolvable `latest` + per-event priced-version recording pending
-- [ ] Pricing simulation (re-rate historical events against a proposed card)
+- [~] Charge models: `action_charge` (per-action/duration), and graduated / volume / package all
+  shipped in `ChargeModel` (tier-schedule + package-size validation) and tested. ttl (cache-duration)
+  tiers still pending.
+- [x] Versioned rate cards: `latest` resolution done (`latest_rate_card` → `ORDER BY version DESC LIMIT
+  1`, used by `resolve_card`), and each priced event records its `rate_card_id` + `rate_card_version` +
+  `priced_via` for re-derivation. Tested (`usage_prices_with_a_synced_rate_card`, store-pg `config`).
+- [x] Pricing simulation (re-rate a usage stream onto a proposed card): `POST /v1/simulate` via
+  `simulate_rerate`; e2e-tested (`simulate_over_http`).
 - [ ] Schema-validated pricing config (AST for custom aggregations, never eval)
 
 ## EPIC 05 — Enforcement
@@ -132,7 +137,10 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 - [x] Analytics query API on the authoritative Postgres data: `GET /v1/accounts/:id/usage-by-day?start&end` (daily credit time series, UTC-bucketed); e2e-tested
 - [ ] gRPC surface (proto) for control-plane RPC; role-selectable services
 - [ ] OpenAPI emission + typed client codegen
-- [~] `meter-cli` (`meterctl`): `migrate` command done (idempotent, env-configurable via METER_DATABASE_URL); seed + more admin ops pending
+- [x] `meter-cli` (`meterctl`): `migrate`, `seed`, `balance`, `entries`, `grant`, `price`, `sweep`,
+  `void`, `void-run`, and `reconcile` (rollup-vs-SoR, exits non-zero on drift) — env-configurable
+  (`METER_DATABASE_URL` / `METER_CLICKHOUSE_URL`); the DB-touching commands are tested against real
+  containers via the built binary.
 
 ## EPIC 09 — Control plane (TypeScript: Effect + Drizzle)
 - [~] `apps/control-plane`: Effect HTTP API (`HttpRouter`, one module per resource) over Drizzle — health, organizations, products, notifications (raise/pull/read/ack), alert rules (create/list/enable) with `Schema`-validated bodies/query/path params and typed-error→JSON mapping (400/404/500); `Database` service (Postgres in prod, PGlite in tests); shared repository error channel; e2e-tested via in-process test server + `HttpClient` (11 tests). RLS/`withTenant`, RBAC/API keys, gRPC-to-engine pending

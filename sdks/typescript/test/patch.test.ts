@@ -109,6 +109,23 @@ describe("patchAnthropic", () => {
     await anthropic.messages.create();
     expect(calls).toHaveLength(0);
   });
+  it("preserves the provider method's `this` binding", async () => {
+    const { client, calls } = recordingClient();
+    // A class whose create() reads instance state via `this` — the patch must keep it bound.
+    class Messages {
+      readonly defaultModel = "claude-opus-4-8";
+      async create(): Promise<{ model: string; usage: Record<string, number> }> {
+        return { model: this.defaultModel, usage: { input_tokens: 1, output_tokens: 1 } };
+      }
+    }
+    const anthropic = { messages: new Messages() };
+
+    patchAnthropic(client, anthropic, { orgId: "org-1", account: "acc-1" });
+    const response = await anthropic.messages.create();
+
+    expect(response.model).toBe("claude-opus-4-8"); // `this.defaultModel` resolved
+    expect(calls[0]?.body).toMatchObject({ model: "claude-opus-4-8" });
+  });
 });
 
 describe("patchOpenAI", () => {

@@ -104,6 +104,27 @@ class PatchAnthropicTests(unittest.TestCase):
         provider.messages.create()
         self.assertEqual(len(calls), 0)
 
+    def test_preserves_self_binding(self) -> None:
+        transport, calls = make_transport()
+        client = MeterClient("http://engine", transport)
+
+        # A class whose create() reads instance state via `self` — the patch must keep it bound.
+        class Messages:
+            default_model = "claude-opus-4-8"
+
+            def create(self) -> Any:
+                return SimpleNamespace(
+                    model=self.default_model,
+                    usage={"input_tokens": 1, "output_tokens": 1},
+                )
+
+        provider = SimpleNamespace(messages=Messages())
+        patch_anthropic(client, provider, org_id="org-1", account="acc-1")
+        response = provider.messages.create()
+
+        self.assertEqual(response.model, "claude-opus-4-8")  # self.default_model resolved
+        self.assertEqual(calls[0][2]["model"], "claude-opus-4-8")
+
 
 class PatchOpenAiTests(unittest.TestCase):
     def test_record_mode_emits_event_and_coerces_object_usage(self) -> None:

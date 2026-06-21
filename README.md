@@ -59,15 +59,24 @@ Docs: [VISION](docs/VISION.md) · [ARCHITECTURE](docs/ARCHITECTURE.md) · [SLO](
 
 ## Performance
 
-The engine's hot path is benchmarked with `criterion`. Measured on an Apple M5 Pro, single node:
+The engine's hot path is benchmarked with `criterion` and reproducible throughput harnesses.
+All numbers below are **measured on a single Apple M5 Pro laptop** (Docker containers, loopback):
 
-| Path | What it measures | Median |
-|---|---|---:|
-| **Pricing** | 5-dimension event → COGS → margin → credits (in memory, O(1)) | **~191 ns** (~5.2 M ops/s/core) |
-| **Reserve → settle** | Full credit reserve + settle with no-overdraft against **Postgres** | **~1.32 ms** |
+| Path | What it counts | Rate | Per day |
+|---|---|---:|---:|
+| **Pricing** | usage events priced → credited (all cores) | ~28 M/s | **~2.4 trillion/day** |
+| **Event ingest** | usage events durably written to the ClickHouse system of record (batched) | ~80 K/s | **~7 billion/day** |
+| **Durable ledger** | full reserve + settle, double-entry, no overdraft | ~3.2 K/s | ~0.28 billion/day |
 
-Reproduce: `cargo bench -p meter-pricing` and `cargo bench -p meter-store-pg` (the latter spins a
-throwaway Postgres container via Docker).
+Per-operation latency: pricing **~191 ns** (O(1) in ledger history); a durable Postgres reserve→settle
+round trip **~1.32 ms**. Analytics reads stay **~4–5 ms at 1 M events**.
+
+These are three different paths and "throughput" means a different thing for each — usage events are
+**not** ledger writes. Events firehose into ClickHouse; per-session **leasing** collapses many metered
+events into one durable ledger round trip, so the ledger isn't on the per-event path (see
+[ADR 0005](docs/adr/0005-provider-scale-throughput.md)). The laptop ledger figure is **not** a
+"billions of settlements/day" claim — server hardware and the TigerBeetle backend target more but are
+not measured here. Full methodology, caveats, and reproduce commands: [benchmarks page](docs/BENCHMARKS.md).
 
 **vs. Lago, Metronome, Orb.** meter's defining path is *synchronous real-time enforcement* — reserve
 credits before an agent call, settle actuals after, refuse the call with no overdraft — backed by a

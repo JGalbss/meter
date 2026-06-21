@@ -27,14 +27,50 @@ Notes:
 - The in-memory `LedgerBackend` is a **correctness reference**, not a performance target (it scans
   history for idempotency), so it is deliberately **not** reported as a throughput number.
 
+### Aggregate throughput (single node)
+
+Latency is per-operation; these are sustained **rates** on the same Apple M5 Pro laptop (Docker
+containers, loopback). Three different paths, three very different numbers — "throughput" means a
+different thing for each, so they are reported separately rather than as one headline.
+
+| Path | What it counts | Sustained rate | Per day |
+|---|---|---:|---:|
+| **Pricing** (all 18 cores) | events priced → credited (`price_usage`) | **~28 M/s** | **~2.4 trillion/day** |
+| **Pricing** (1 core) | same, single-threaded | ~3.8 M/s | ~325 billion/day |
+| **Event ingest** (`record_batch` → ClickHouse) | usage events durably written to the system of record, batched (best config: batch 10k × conc 16) | **~80 K/s** | **~7 billion/day** |
+| **Durable ledger** (32 concurrent accounts) | full `reserve`+`settle` cycles, each a durable double-entry no-overdraft transaction | ~3.2 K/s | ~0.28 billion/day |
+
+What these mean — and the honest caveats:
+
+- **Pricing scales with cores and is the per-event compute ceiling.** O(1) per event and embarrassingly
+  parallel; 7.4× on 18 cores here (efficiency cores + memory bandwidth, not a clean 18×). On
+  server-class core counts it goes higher. This is CPU work, not a durability claim.
+- **Ingest is the "billions/day" number, and it is a *durable* write** to the ClickHouse system of
+  record, not fire-and-forget. ~80 K events/s ≈ 7 billion/day on one laptop. Batching is essential:
+  single-event `record` manages only ~150/s, so the batch path is ~500× faster. Ingest is idempotent —
+  replaying the entire load double-counts nothing — and analytics reads stay **~4–5 ms at 1 M rows**
+  (`usage_by_model`, `usage_by_day`, `event_count`).
+- **The durable ledger money path is the real bottleneck, by design.** ~3.2 K reserve+settle cycles/s
+  here (independent accounts; the single-account hot-row case is lower and is what per-session
+  **leasing** exists to avoid). Crucially, **usage events are not ledger writes**: events firehose into
+  ClickHouse, and leasing collapses many metered events into one durable ledger round trip — so the
+  ledger is not on the per-event path. This laptop number is **not** a "billions of settlements/day"
+  claim; real DB hardware and the TigerBeetle backend ([ADR 0005](adr/0005-provider-scale-throughput.md))
+  target much higher but are **not measured here**, so they are not claimed.
+
 ### Reproduce
 
 ```bash
-# Pricing hot path (no external dependencies)
+# Pricing latency + aggregate multi-core throughput (no external dependencies)
 cargo bench -p meter-pricing
+cargo run --release --example throughput -p meter-pricing
 
-# Durable reserve/settle against Postgres (needs Docker; spins a throwaway container)
+# Durable reserve/settle: latency (criterion) + concurrent throughput (needs Docker)
 cargo bench -p meter-store-pg
+cargo run --release --example throughput -p meter-store-pg
+
+# Event-ingest throughput + read latency at scale against ClickHouse (needs Docker)
+cargo test -p meter-store-ch --test throughput -- --ignored --nocapture
 ```
 
 Criterion writes full reports (including distributions) to `target/criterion/`.

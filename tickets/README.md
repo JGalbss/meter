@@ -95,8 +95,8 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 - [~] Compose void_run with the ledger (reverse a run's holds/settles) **done** (`POST /v1/runs/:id/void`
   reverses events + ledger, e2e-tested). **event amend → delta posting**: idempotency prerequisite done
   (amend is now idempotent on an optional key, rollup-safe under retries — commit 5eeeafc); the delta
-  posting itself still needs event↔ledger linkage (charges aren't keyed by `event_id`) — a money-model
-  decision, see the `amend-delta-posting-design` note.
+  posting itself is designed in **ADR 0009 (Proposed)** — a usage-aware re-pricing amend that posts the
+  engine-computed delta — pending acceptance before implementation (it changes money-truth behaviour).
 - [ ] `meter-ingest`: `IngestSource` trait; Postgres-outbox default source; effectively-once consumer; dead-letter
 - [~] Reconciliation (aggregates vs raw; ledger vs invoice) — **aggregates-vs-SoR done**:
   `reconcile_rollups` diffs **every** pre-aggregated rollup against a live `events FINAL` scan — the

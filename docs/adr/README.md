@@ -15,3 +15,4 @@ section of `ARCHITECTURE.md`; it says so explicitly at the top.
 | [0006](0006-wire-protocol-versioning.md) | Wire-protocol versioning policy (proto + OpenAPI) | Accepted |
 | [0007](0007-tenant-isolation.md) | Control-plane tenant isolation (platform vs org-scoped keys) | Accepted |
 | [0008](0008-control-plane-engine-transport.md) | Control-plane → engine runtime transport is gRPC (proto) | Accepted |
+| [0009](0009-amend-delta-posting.md) | Event amendment → ledger delta posting | Proposed |

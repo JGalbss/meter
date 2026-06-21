@@ -9,7 +9,10 @@ import { Effect, Schema } from "effect";
 import type { Db } from "../db/client";
 import { apiKeys } from "../db/schema";
 import { type Role, toRole } from "../http/rbac";
+import { type Principal, type Scope, toScope } from "../http/tenant";
 import { NotFound, RepoError } from "../repository/errors";
+
+export type { Principal } from "../http/tenant";
 
 // The response Schema is the single source of truth for the `ApiKey` type + the OpenAPI contract.
 export const ApiKey = Schema.Struct({
@@ -17,6 +20,7 @@ export const ApiKey = Schema.Struct({
   orgId: Schema.String,
   name: Schema.String,
   role: Schema.Literal("viewer", "member", "admin"),
+  scope: Schema.Literal("platform", "org"),
   prefix: Schema.String,
   createdAt: Schema.String,
   lastUsedAt: Schema.NullOr(Schema.String),
@@ -32,12 +36,7 @@ export interface NewApiKey {
   readonly orgId: string;
   readonly name: string;
   readonly role?: Role | undefined;
-}
-
-/** The authenticated caller behind a verified API key. */
-export interface Principal {
-  readonly orgId: string;
-  readonly role: Role;
+  readonly scope?: Scope | undefined;
 }
 
 function hashToken(token: string): string {
@@ -57,6 +56,7 @@ function toApiKey(row: typeof apiKeys.$inferSelect): ApiKey {
     orgId: row.orgId,
     name: row.name,
     role: toRole(row.role),
+    scope: toScope(row.scope),
     prefix: row.prefix,
     createdAt: row.createdAt.toISOString(),
     lastUsedAt: isoOrNull(row.lastUsedAt),
@@ -83,6 +83,7 @@ export function createApiKey(db: Db, input: NewApiKey): Effect.Effect<CreatedApi
           orgId: input.orgId,
           name: input.name,
           role: input.role ?? "admin",
+          scope: input.scope ?? "org",
           prefix,
           tokenHash: hashToken(token),
         })
@@ -147,7 +148,7 @@ export function verifyApiKey(db: Db, token: string): Effect.Effect<Principal | n
         return null;
       }
       await db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, row.id));
-      return { orgId: row.orgId, role: toRole(row.role) };
+      return { orgId: row.orgId, role: toRole(row.role), scope: toScope(row.scope) };
     },
     catch: (cause) => new RepoError({ cause }),
   });

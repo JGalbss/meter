@@ -102,6 +102,12 @@ export const apiKeys = pgTable(
     // RBAC role: "viewer" (read-only), "member" (writes), or "admin" (manage keys/webhooks).
     // Defaults to "admin" so pre-RBAC keys retain full access.
     role: text("role").notNull().default("admin"),
+    // Tenant scope (ADR 0007): "org" keys may only act within their own organization; "platform"
+    // keys may act across every organization (the dashboard's key). New keys default to "org"; the
+    // 0006 migration backfills pre-existing keys to "platform" so they keep working unchanged.
+    scope: text("scope", { enum: ["platform", "org"] })
+      .notNull()
+      .default("org"),
     prefix: text("prefix").notNull(),
     tokenHash: text("token_hash").notNull().unique(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

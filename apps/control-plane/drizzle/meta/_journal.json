@@ -43,6 +43,13 @@
       "when": 1781973555701,
       "tag": "0005_last_shadowcat",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1782014427406,
+      "tag": "0006_tenant_scope",
+      "breakpoints": true
     }
   ]
 }

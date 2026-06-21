@@ -270,6 +270,8 @@ export interface components {
             name: string;
             /** @enum {string} */
             role: "viewer" | "member" | "admin";
+            /** @enum {string} */
+            scope: "platform" | "org";
             prefix: string;
             createdAt: string;
             lastUsedAt: string | null;
@@ -281,6 +283,8 @@ export interface components {
             name: string;
             /** @enum {string} */
             role: "viewer" | "member" | "admin";
+            /** @enum {string} */
+            scope: "platform" | "org";
             prefix: string;
             createdAt: string;
             lastUsedAt: string | null;

@@ -79,6 +79,7 @@
           "orgId",
           "name",
           "role",
+          "scope",
           "prefix",
           "createdAt",
           "lastUsedAt",
@@ -100,6 +101,13 @@
               "viewer",
               "member",
               "admin"
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "platform",
+              "org"
             ]
           },
           "prefix": {
@@ -138,6 +146,7 @@
           "orgId",
           "name",
           "role",
+          "scope",
           "prefix",
           "createdAt",
           "lastUsedAt",
@@ -160,6 +169,13 @@
               "viewer",
               "member",
               "admin"
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "platform",
+              "org"
             ]
           },
           "prefix": {

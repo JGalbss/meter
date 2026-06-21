@@ -1,11 +1,27 @@
 # ADR 0007 — Control-plane tenant isolation (platform vs org-scoped keys)
 
-Status: accepted; implementation tracked in `/tickets` (EPIC 02 RLS, EPIC 12 RBAC/isolation). Approved
-as proposed — platform vs org-scoped keys, app-level `requireOrgAccess` on reads and writes, Postgres
-RLS as defense-in-depth, and a non-breaking migration (existing keys default to platform scope, new
-keys to org scope).
+Status: accepted. App-level enforcement is **implemented and tested**; Postgres RLS (defense-in-depth)
+is the remaining layer, tracked in `/tickets` (EPIC 02 RLS). Approved as proposed — platform vs
+org-scoped keys, app-level `requireOrgAccess` on reads and writes, RLS as defense-in-depth, and a
+non-breaking migration (existing keys default to platform scope, new keys to org scope).
 
 Extends DECISIONS #7 (multi-tenancy via Postgres RLS) with the concrete control-plane model.
+
+## Implementation status
+
+- **Done (app layer):** the api-key `scope` column (migration 0006; existing keys → `platform`, new →
+  `org`), the `CurrentPrincipal` request service published by the auth middleware, `requireOrgAccess`
+  on every org-scoped route (reads + writes), org-scoped by-id mutations via `byIdInOrg` (cross-org id →
+  404), platform-only organization CRUD, and a no-privilege-escalation guard on minting platform keys.
+  Proven by `test/tenant-isolation.test.ts`. This closes the exploitable gap.
+- **Remaining (RLS defense-in-depth):** deliberately not shipped yet, because doing it safely requires:
+  (1) the app to set `app.current_org` (and a platform bypass) via `SET LOCAL` inside a **per-request
+  transaction**, threaded through the data-table repositories — `FORCE ROW LEVEL SECURITY` without this
+  locks the app out of its own tables; (2) the app to connect as a **non-owner role** without
+  `BYPASSRLS`; and (3) a **real-Postgres** integration test (e.g. testcontainers) — the control-plane
+  test DB (PGlite) does **not enforce RLS** (verified), so RLS cannot be proven by the current harness
+  and must not be enabled unverified. RLS is therefore its own focused change with real-PG verification,
+  not an add-on to the app-layer commit.
 
 ## Context
 

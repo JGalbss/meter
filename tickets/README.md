@@ -251,12 +251,15 @@ screens pending (need control-plane config resources)
 - [ ] Single-tenant & multi-tenant modes; opt-in scale-out backends behind traits
 
 ## EPIC 16 — Cross-cutting: security, observability, e2e, benchmarks
-- [ ] RBAC + tenant isolation tests; secrets handling. **Tenant isolation gap identified**: the
-  control plane enforces RBAC by role but does not scope data access to the key's org (a key for org A
-  can read org B via `?orgId=`). Fix designed in **[ADR 0007](../docs/adr/0007-tenant-isolation.md)
-  (proposed)** — platform vs org-scoped keys + app-level enforcement + RLS defense-in-depth; **awaiting
-  sign-off** before implementation (security-critical, schema migration, diverges from a pure-RLS
-  approach).
+- [~] RBAC + tenant isolation tests; secrets handling. **App-level tenant isolation done** per
+  **[ADR 0007](../docs/adr/0007-tenant-isolation.md) (accepted)**: api-key `scope` (platform vs org;
+  migration 0006 backfills existing keys to platform, new keys org), the auth middleware publishes the
+  principal, every org-scoped route authorizes the target org against the caller (cross-org read/create
+  → 403), by-id mutations are org-scoped via `byIdInOrg` (cross-org id → 404), org CRUD is platform-only,
+  and minting a platform key requires a platform caller. Proven by `test/tenant-isolation.test.ts`. The
+  original gap (a key for org A reading org B via `?orgId=`) is closed. **RLS defense-in-depth pending**
+  (EPIC 02) — needs per-request `SET LOCAL` plumbing, a non-owner DB role, and a real-Postgres test
+  (PGlite doesn't enforce RLS).
 - [x] **Dependency audit + CI gate (TS).** All high/critical advisories fixed: drizzle-orm
   0.38→**0.45.2** (runtime), vitest 2→**3.2.6** + vite→**6.4.3** (dev) across control-plane + SDK —
   every suite green (27 + 15), typecheck clean, `db:generate` no drift. `pnpm audit` 8→1 (the lone

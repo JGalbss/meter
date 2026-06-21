@@ -3,7 +3,7 @@
 //! update simply matches nothing and the handler returns 404). A `null` org means unconfined (platform
 //! keys, dev no-auth). See ADR 0007.
 
-import { type Column, type SQL, and, eq } from "drizzle-orm";
+import { type Column, type SQL, and, eq, sql } from "drizzle-orm";
 
 /** WHERE clause matching a row by id, optionally confined to an org (`null` = unconfined). */
 export function byIdInOrg(
@@ -15,9 +15,7 @@ export function byIdInOrg(
   if (orgId === null) {
     return eq(idColumn, id);
   }
-  const clause = and(eq(idColumn, id), eq(orgColumn, orgId));
-  if (clause === undefined) {
-    return eq(idColumn, id);
-  }
-  return clause;
+  // Match id AND org. If the conjunction were ever absent, fail closed (match nothing) rather than
+  // widening to id-only — an org-confined caller must never be able to reach another org's row.
+  return and(eq(idColumn, id), eq(orgColumn, orgId)) ?? sql`false`;
 }

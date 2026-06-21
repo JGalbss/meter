@@ -116,11 +116,6 @@ ORDER BY (org_id, field_name, field_value, day)";
 /// the JSON once here, off the read path, and emitting the sign-weighted `(events, credits)` contribution.
 #[must_use]
 pub fn field_usage_rollup_mv() -> String {
-    let pairs = PROMOTED_FIELDS
-        .iter()
-        .map(|field| format!("('{field}', JSONExtractString(properties, '{field}'))"))
-        .collect::<Vec<_>>()
-        .join(",\n        ");
     format!(
         "CREATE MATERIALIZED VIEW IF NOT EXISTS field_usage_rollup_mv TO field_usage_rollup AS
 SELECT
@@ -131,10 +126,22 @@ SELECT
     if(status = 'recorded', 1, -1) AS events,
     if(status = 'recorded', 1, -1) * toFloat64OrZero(JSONExtractString(properties, 'credits')) AS credits
 FROM events
-ARRAY JOIN arrayFilter(x -> x.2 != '', [
-        {pairs}
-    ]) AS field"
+{}",
+        promoted_fields_array_join()
     )
+}
+
+/// The `ARRAY JOIN` clause that fans an `events` row out to one row per promoted field it carries
+/// (empty values filtered out). Shared by the maintaining materialized view and the rebuild
+/// `INSERT … SELECT` so the two can never disagree on which fields are promoted.
+#[must_use]
+pub fn promoted_fields_array_join() -> String {
+    let pairs = PROMOTED_FIELDS
+        .iter()
+        .map(|field| format!("('{field}', JSONExtractString(properties, '{field}'))"))
+        .collect::<Vec<_>>()
+        .join(",\n        ");
+    format!("ARRAY JOIN arrayFilter(x -> x.2 != '', [\n        {pairs}\n    ]) AS field")
 }
 
 /// `CREATE TABLE events_dead_letter` — events that failed validation/ingest, kept for inspection and

@@ -28,7 +28,8 @@ variables, so in a configured deployment you can omit the flags:
 | `sweep` | Release expired open holds (auto-void for stranded reservations). |
 | `void --reservation <uuid>` | Release one specific open hold (e.g. a stuck hold from a crashed run). |
 | `void-run --run <uuid>` | Reverse a whole run's ledger impact: release its holds, refund its settled charges (idempotent). |
-| `reconcile --org <uuid>` | Reconcile the pre-aggregated usage rollup against the event source of record, per model. Prints any drift and exits non-zero when it finds some, so it can gate a cron/alert. |
+| `reconcile --org <uuid>` | Reconcile the pre-aggregated usage rollups (by model and by promoted field) against the event source of record. Prints any drift and exits non-zero when it finds some, so it can gate a cron/alert. |
+| `rebuild-rollups --org <uuid>` | Repair drift: clear and repopulate an org's rollups from the event source of record. |
 
 ## Examples
 
@@ -44,8 +45,9 @@ meterctl entries --account 11111111-1111-1111-1111-111111111111
 # Price a call without touching the database.
 meterctl price --model claude-opus-4-8 --input 1000 --output 500
 
-# Nightly drift check (non-zero exit fails the job if the rollup diverged).
-meterctl reconcile --org 11111111-1111-1111-1111-111111111111
+# Nightly drift check (non-zero exit fails the job if a rollup diverged) + repair.
+meterctl reconcile --org 11111111-1111-1111-1111-111111111111 \
+  || meterctl rebuild-rollups --org 11111111-1111-1111-1111-111111111111
 ```
 
 The DB-touching commands are integration-tested against real Postgres/ClickHouse containers via the

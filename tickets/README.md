@@ -103,9 +103,11 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
   `usage_rollup` (by model) and each promoted-field `field_usage_rollup` (by team/feature/…) — returning
   per-group drift tagged with its scope + dimension (empty = consistent). Surfaced as
   `GET /v1/orgs/:id/reconcile` and `meterctl reconcile --org <id>` (exits non-zero on drift, so it can
-  gate a cron/alert). Unit-tested (drift detection incl. one-sided groups) + e2e (zero drift after
-  record/amend/void, over HTTP, and via the CLI binary). Still to do: ledger-vs-invoice reconciliation
-  (needs the sealed invoice from EPIC 09).
+  gate a cron/alert). The **repair** side is `rebuild_rollups` / `meterctl rebuild-rollups --org <id>`:
+  it clears and repopulates an org's rollups from the SoR, closing the detect→fix loop. Unit-tested
+  (drift detection incl. one-sided groups) + e2e (zero drift after record/amend/void; drift injected via
+  append-mode double-ingest is detected then repaired by rebuild; over HTTP and via the CLI binary).
+  Still to do: ledger-vs-invoice reconciliation (needs the sealed invoice from EPIC 09).
 
 ## EPIC 07 — Analytics store (ClickHouse)
 - [x] `meter-store-ch`: usage analytics (`usage_by_model`, `usage_by_day`, `event_count`) derived

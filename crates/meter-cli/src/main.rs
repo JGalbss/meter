@@ -116,13 +116,24 @@ enum Command {
         #[arg(long)]
         run: Uuid,
     },
-    /// Reconcile the pre-aggregated usage rollup against the event store of record (ClickHouse), per
-    /// model. Prints any drift; exits non-zero if the rollup has diverged so it can gate a cron/alert.
+    /// Reconcile the pre-aggregated usage rollups against the event store of record (ClickHouse), by
+    /// model and by promoted field. Prints any drift; exits non-zero if a rollup has diverged so it can
+    /// gate a cron/alert.
     Reconcile {
         /// ClickHouse URL (defaults to $`METER_CLICKHOUSE_URL`, e.g. `http://127.0.0.1:8123`).
         #[arg(long, env = "METER_CLICKHOUSE_URL")]
         clickhouse_url: String,
         /// The org id (UUID) to reconcile.
+        #[arg(long)]
+        org: Uuid,
+    },
+    /// Rebuild an org's pre-aggregated rollups from the event source of record — the repair for drift
+    /// that `reconcile` reports. Clears and repopulates them from the live aggregate.
+    RebuildRollups {
+        /// ClickHouse URL (defaults to $`METER_CLICKHOUSE_URL`, e.g. `http://127.0.0.1:8123`).
+        #[arg(long, env = "METER_CLICKHOUSE_URL")]
+        clickhouse_url: String,
+        /// The org id (UUID) to rebuild.
         #[arg(long)]
         org: Uuid,
     },
@@ -176,6 +187,10 @@ async fn main() -> anyhow::Result<()> {
             clickhouse_url,
             org,
         } => reconcile(&clickhouse_url, org).await,
+        Command::RebuildRollups {
+            clickhouse_url,
+            org,
+        } => rebuild_rollups(&clickhouse_url, org).await,
     }
 }
 
@@ -238,6 +253,16 @@ async fn reconcile(clickhouse_url: &str, org: Uuid) -> anyhow::Result<()> {
         );
     }
     anyhow::bail!("rollup drift detected for org {org}");
+}
+
+async fn rebuild_rollups(clickhouse_url: &str, org: Uuid) -> anyhow::Result<()> {
+    let store = ChStore::new(clickhouse_url);
+    store
+        .rebuild_rollups(org)
+        .await
+        .map_err(|error| anyhow::anyhow!("rebuilding rollups for org {org}: {error}"))?;
+    println!("org {org}: rollups rebuilt from the event source of record");
+    Ok(())
 }
 
 fn price(

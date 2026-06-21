@@ -5,7 +5,7 @@
 
 use meter_core::{AccountId, EventId, OrgId, RunId};
 use meter_event::{AmendEvent, EventStore, RecordEvent};
-use meter_store_ch::{ChStore, DeadLetter};
+use meter_store_ch::{ChStore, DeadLetter, IngestMode};
 use serde_json::{json, Value};
 use time::macros::datetime;
 use uuid::Uuid;
@@ -297,4 +297,64 @@ async fn promoted_field_rollup_is_not_double_counted_by_idempotent_reingest() {
         .await
         .expect("reconcile")
         .is_empty());
+}
+
+/// Rebuilding repairs a drifted rollup. Append-mode ingest skips cross-call dedup, so recording the
+/// same event twice double-fires the rollup materialized view (rollup counts it twice) while the events
+/// source of record still dedups to one — genuine drift. `rebuild_rollups` repopulates from the SoR and
+/// reconciliation then comes back clean, for both the model and the promoted-field rollups.
+#[tokio::test]
+async fn rebuild_rollups_repairs_drift() {
+    let container = ClickHouse::default()
+        .start()
+        .await
+        .expect("start clickhouse");
+    let port = container.get_host_port_ipv4(8123).await.expect("http port");
+    let store =
+        ChStore::new(&format!("http://127.0.0.1:{port}")).with_ingest_mode(IngestMode::Append);
+    store.migrate().await.expect("migrate");
+
+    let org = Uuid::parse_str("11111111-1111-1111-1111-111111111111").unwrap();
+    let account = Uuid::parse_str("22222222-2222-2222-2222-222222222222").unwrap();
+    let run = Uuid::parse_str("a0000000-0000-0000-0000-000000000000").unwrap();
+    let props = || {
+        json!({
+            "model": "gpt-5", "input_uncached": 100, "cache_read": 0, "cache_write": 0,
+            "output": 50, "reasoning": 0, "credits": "10", "team": "alpha"
+        })
+    };
+
+    // Same event twice in append mode → the rollup MV fires twice; the SoR dedups to one.
+    record(&store, account, "dup", run, props()).await;
+    record(&store, account, "dup", run, props()).await;
+
+    let drift = store.reconcile_rollups(org).await.expect("reconcile");
+    assert!(
+        !drift.is_empty(),
+        "append-mode double-ingest should drift the rollups"
+    );
+
+    store.rebuild_rollups(org).await.expect("rebuild");
+
+    let after = store
+        .reconcile_rollups(org)
+        .await
+        .expect("reconcile after rebuild");
+    assert!(after.is_empty(), "rebuild must repair drift: {after:?}");
+
+    // The repaired rollups read the true single event, by model and by promoted field.
+    let by_model = store.usage_by_model(org).await.expect("usage by model");
+    assert_eq!(by_model.len(), 1);
+    assert_eq!(by_model[0].model, "gpt-5");
+    assert_eq!(by_model[0].events, 1);
+    assert_eq!(by_model[0].credits, 10.0);
+
+    let by_team = store
+        .usage_by_field(org, "team")
+        .await
+        .expect("usage by team");
+    assert_eq!(by_team.len(), 1);
+    assert_eq!(by_team[0].dimension, "alpha");
+    assert_eq!(by_team[0].events, 1);
+    assert_eq!(by_team[0].credits, 10.0);
 }

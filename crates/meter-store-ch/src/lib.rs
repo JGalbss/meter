@@ -533,6 +533,65 @@ impl ChStore {
         Ok(diff_aggregates(field, rollup, scan))
     }
 
+    /// Rebuild every pre-aggregated rollup for an org from the `events` source of record — the repair
+    /// side of [`reconcile_rollups`](Self::reconcile_rollups). Clears the org's rollup rows and
+    /// repopulates them from the live aggregate (`FINAL` + `status = 'recorded'`). Unlike the
+    /// incrementally-maintained rollup (sign-weighted per insert), a rebuild reads ground truth, so it
+    /// inserts the current live totals directly; afterwards `reconcile_rollups` returns empty. Use it
+    /// when a backfilled materialized view or an anomaly left a rollup drifted from the SoR.
+    pub async fn rebuild_rollups(&self, org_id: Uuid) -> Result<(), ChError> {
+        // Drop this org's derived rows (lightweight delete; masked out of reads immediately).
+        self.client
+            .query("DELETE FROM usage_rollup WHERE org_id = ?")
+            .bind(org_id)
+            .execute()
+            .await?;
+        self.client
+            .query("DELETE FROM field_usage_rollup WHERE org_id = ?")
+            .bind(org_id)
+            .execute()
+            .await?;
+
+        // Repopulate the model rollup from the live aggregate (positive entries — ground truth).
+        self.client
+            .query(
+                "INSERT INTO usage_rollup \
+                 SELECT org_id, meter, JSONExtractString(properties, 'model') AS model, \
+                 toDate(event_time) AS day, \
+                 toInt64(count()) AS events, \
+                 toInt64(sum(JSONExtractUInt(properties, 'input_uncached') \
+                     + JSONExtractUInt(properties, 'cache_read') \
+                     + JSONExtractUInt(properties, 'cache_write'))) AS input_tokens, \
+                 toInt64(sum(JSONExtractUInt(properties, 'output') \
+                     + JSONExtractUInt(properties, 'reasoning'))) AS output_tokens, \
+                 sum(toFloat64OrZero(JSONExtractString(properties, 'credits'))) AS credits \
+                 FROM events FINAL \
+                 WHERE org_id = ? AND status = 'recorded' \
+                 GROUP BY org_id, meter, model, day",
+            )
+            .bind(org_id)
+            .execute()
+            .await?;
+
+        // Repopulate the promoted-field rollup, fanning each event over its promoted fields.
+        self.client
+            .query(&format!(
+                "INSERT INTO field_usage_rollup \
+                 SELECT org_id, field.1 AS field_name, field.2 AS field_value, \
+                 toDate(event_time) AS day, \
+                 toInt64(count()) AS events, \
+                 sum(toFloat64OrZero(JSONExtractString(properties, 'credits'))) AS credits \
+                 FROM events FINAL {} \
+                 WHERE org_id = ? AND status = 'recorded' \
+                 GROUP BY org_id, field_name, field_value, day",
+                schema::promoted_fields_array_join()
+            ))
+            .bind(org_id)
+            .execute()
+            .await?;
+        Ok(())
+    }
+
     /// Count of an organization's live events, from the pre-aggregated rollup (sign-weighted, so
     /// amended/voided events net to zero) — sub-linear in event count.
     pub async fn event_count(&self, org_id: Uuid) -> Result<u64, ChError> {

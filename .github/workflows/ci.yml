@@ -167,6 +167,9 @@ jobs:
       - uses: bufbuild/buf-setup-action@v1
         with:
           version: "1.56.0"
+          # Authenticate buf's release lookup against the GitHub API; without a token it hits the
+          # unauthenticated rate limit and the download URL resolution intermittently fails.
+          github_token: ${{ github.token }}
       - name: lint
         run: buf lint
       - name: breaking

@@ -2,6 +2,14 @@
 
 export { meteredCall, meterModelUsage, recordModelUsage } from "./instrument";
 export type { MeterModelInput, MeterModelUsageInput } from "./instrument";
+export { patchAnthropic, patchOpenAI } from "./patch";
+export type {
+  AnthropicClientLike,
+  OpenAiClientLike,
+  PatchMode,
+  PatchOptions,
+  Unpatch,
+} from "./patch";
 export {
   ZERO_USAGE,
   anthropicUsage,

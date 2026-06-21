@@ -13,7 +13,7 @@
     "dev": "pnpm dev:infra && concurrently -k -n engine,control-plane,dashboard -c yellow,green,magenta \"pnpm dev:engine\" \"pnpm dev:control-plane\" \"pnpm dev:dashboard\"",
     "dev:infra": "docker compose -f deploy/dev/docker-compose.yml up -d --wait",
     "dev:infra:down": "docker compose -f deploy/dev/docker-compose.yml down",
-    "dev:engine": "METER_DATABASE_URL=postgres://meter:meter@127.0.0.1:5433/meter METER_CLICKHOUSE_URL=http://127.0.0.1:8123 METER_CLICKHOUSE_USER=meter METER_CLICKHOUSE_PASSWORD=meter METER_CLICKHOUSE_DATABASE=meter cargo run -p meter-engine",
+    "dev:engine": "METER_DATABASE_URL=postgres://meter:meter@127.0.0.1:5433/meter METER_CLICKHOUSE_URL=http://127.0.0.1:8123 METER_CLICKHOUSE_USER=meter METER_CLICKHOUSE_PASSWORD=meter METER_CLICKHOUSE_DATABASE=meter METER_ROLES=http cargo run -p meter-engine",
     "dev:control-plane": "METER_CONTROL_PLANE_DATABASE_URL=postgres://meter:meter@127.0.0.1:5433/meter METER_ENGINE_URL=http://127.0.0.1:8080 pnpm --filter @meter/control-plane dev",
     "dev:dashboard": "cd apps/dashboard && METER_CONTROL_PLANE_URL=http://127.0.0.1:8090 METER_ENGINE_URL=http://127.0.0.1:8080 DASHBOARD_PASSWORD=meter DASHBOARD_SESSION_SECRET=local-dev-session-secret-change-me bun run dev"
   },

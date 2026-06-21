@@ -1,7 +1,32 @@
 # ADR 0009 — Event amendment → ledger delta posting
 
-**Status:** Proposed (2026-06-21). **Implements** ADR 0002 §"Editing an event" and `ARCHITECTURE.md`
-§6.4 (reversals). Needs acceptance before implementation — it changes money-truth behaviour.
+**Status:** Accepted (2026-06-21). **Implements** ADR 0002 §"Editing an event" and `ARCHITECTURE.md`
+§6.4 (reversals). The reversal foundation is shipped (see "Foundation shipped"); the amend half is
+implemented per the refined, chain-safe design below.
+
+## Foundation shipped (2026-06-21, commit faf6a59)
+
+Voiding a failed run now reverses its **direct** `/v1/usage` charges, not just reservations: charges
+carry `run_id` (a nullable `ledger_entries.run_id` column), and `void_run` reverses each charge's
+**unreversed remainder** — its original magnitude minus every refund that already references it via
+`reverses_entry_id`. This is idempotent on re-void and never double-refunds a charge already corrected
+by a linked credit-note (an adversarial review surfaced and we closed that conservation hole; an
+*unlinked* credit-note is independent and does not offset the charge). Proven on both ledger backends
+via the shared conformance suite + an HTTP e2e. This remainder-based reversal is the primitive the amend
+delta-posting reuses.
+
+## Refinement: chain-safe amend (supersedes the per-charge delta sketch below)
+
+A naive "post the signed delta, linking delta-downs to the original charge" breaks under **chained
+amends with mixed up/down deltas** (a delta-down after a delta-up can drive a charge's remainder
+negative, and void then over- or under-refunds). The correct, chain-safe model is **reverse-and-
+recharge by remainder**: an amend (1) reverses the event's *current* charge by its unreversed remainder
+(a linked refund — the same primitive `void_run` uses), then (2) posts a fresh charge for the re-priced
+new amount (engine-computed, honouring the original event's immutable `burnable` flag), and (3) records
+the amended event version pointing at the new charge. Net account effect = new − old, every step is
+idempotent on the amend key, and void/manual-refund interactions stay conservation-exact because every
+reversal nets against an entry's remainder. The original `/v1/usage` charge records its ledger entry id
+on the event so the amend can target it.
 
 ## Context
 

@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type { ApiKeyRole } from "@/lib/meter/types"
+import type { ApiKeyRole, ApiKeyScope } from "@/lib/meter/types"
 import { createApiKeyAction } from "./actions"
 
 const ROLES: readonly { value: ApiKeyRole; label: string }[] = [
@@ -31,17 +31,24 @@ const ROLES: readonly { value: ApiKeyRole; label: string }[] = [
   { value: "admin", label: "Admin — full access" },
 ]
 
+const SCOPES: readonly { value: ApiKeyScope; label: string }[] = [
+  { value: "org", label: "Org — this organization only" },
+  { value: "platform", label: "Platform — all organizations" },
+]
+
 export function CreateApiKeyDialog({ orgId }: { orgId: string }) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [token, setToken] = useState<string | null>(null)
   const [role, setRole] = useState<ApiKeyRole>("member")
+  const [scope, setScope] = useState<ApiKeyScope>("org")
 
   const onOpenChange = (next: boolean) => {
     setOpen(next)
     if (!next) {
       setToken(null)
       setRole("member")
+      setScope("org")
     }
   }
 
@@ -52,12 +59,18 @@ export function CreateApiKeyDialog({ orgId }: { orgId: string }) {
     }
   }
 
+  const onScopeChange = (value: ApiKeyScope | null) => {
+    if (value !== null) {
+      setScope(value)
+    }
+  }
+
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
     const name = String(data.get("name") ?? "")
     startTransition(async () => {
-      const result = await createApiKeyAction({ orgId, name, role })
+      const result = await createApiKeyAction({ orgId, name, role, scope })
       if (!result.ok) {
         toast.error(result.error)
         return
@@ -91,6 +104,21 @@ export function CreateApiKeyDialog({ orgId }: { orgId: string }) {
                 </SelectTrigger>
                 <SelectContent>
                   {ROLES.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="scope">Scope</Label>
+              <Select value={scope} onValueChange={onScopeChange}>
+                <SelectTrigger id="scope">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SCOPES.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>

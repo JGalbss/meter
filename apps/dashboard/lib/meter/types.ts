@@ -18,6 +18,7 @@ export type WebhookDelivery = CpSchemas["WebhookDelivery"]
 export type ApiKey = CpSchemas["ApiKey"]
 export type CreatedApiKey = CpSchemas["CreatedApiKey"]
 export type ApiKeyRole = ApiKey["role"]
+export type ApiKeyScope = ApiKey["scope"]
 
 // --- Engine read-models (hand-written until the engine emits OpenAPI) -----------------------------
 export interface DayUsage {

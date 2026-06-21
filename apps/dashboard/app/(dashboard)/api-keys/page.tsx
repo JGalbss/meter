@@ -25,6 +25,7 @@ const ROLE_VARIANTS = {
   member: "secondary",
   viewer: "outline",
 } as const
+const SCOPE_VARIANTS = { platform: "default", org: "secondary" } as const
 
 function keyStatus(revokedAt: string | null): string {
   if (revokedAt === null) {
@@ -91,6 +92,7 @@ export default async function ApiKeysPage({
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Role</TableHead>
+                <TableHead>Scope</TableHead>
                 <TableHead>Prefix</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead>Last used</TableHead>
@@ -102,7 +104,7 @@ export default async function ApiKeysPage({
               {keys.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={8}
                     className="py-10 text-center text-sm text-muted-foreground"
                   >
                     No API keys.
@@ -114,6 +116,9 @@ export default async function ApiKeysPage({
                   <TableCell className="font-medium">{key.name}</TableCell>
                   <TableCell>
                     <ValueBadge value={key.role} variants={ROLE_VARIANTS} />
+                  </TableCell>
+                  <TableCell>
+                    <ValueBadge value={key.scope} variants={SCOPE_VARIANTS} />
                   </TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">
                     {key.prefix}…

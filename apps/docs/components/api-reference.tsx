@@ -6,8 +6,8 @@ import type { ReactNode } from "react";
 
 import {
   type JsonSchema,
-  type Operation,
   type OpenApiDocument,
+  type Operation,
   type Parameter,
   operationsByTag,
   requestSchema,

@@ -5,10 +5,13 @@
     "ignore": [
       "**/dist/**",
       "**/.next/**",
+      "**/out/**",
       "**/node_modules/**",
       "**/target/**",
       "**/drizzle/**",
-      "apps/dashboard/**"
+      "apps/dashboard/**",
+      "**/openapi.json",
+      "apps/docs/lib/*-openapi.json"
     ]
   },
   "formatter": {

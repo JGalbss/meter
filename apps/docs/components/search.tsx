@@ -40,11 +40,11 @@ function loadStylesheet(): void {
 }
 
 function initSearch(): void {
-  const constructor = window.PagefindUI;
-  if (constructor === undefined) {
+  const PagefindUi = window.PagefindUI;
+  if (PagefindUi === undefined) {
     return;
   }
-  new constructor({ element: "#docs-search", showSubResults: true, showImages: false });
+  new PagefindUi({ element: "#docs-search", showSubResults: true, showImages: false });
 }
 
 export function Search(): ReactNode {

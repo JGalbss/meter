@@ -95,11 +95,9 @@ export function evaluateAllOrgs(db: Db): Effect.Effect<AllOrgsSummary, never> {
   return Effect.gen(function* () {
     const now = new Date(yield* Clock.currentTimeMillis);
     const orgs = yield* listOrganizations(db);
-    const summaries = yield* Effect.forEach(
-      orgs,
-      (org) => evaluateOrgAlertRules(db, org.id, now),
-      { concurrency: EVALUATION_CONCURRENCY },
-    );
+    const summaries = yield* Effect.forEach(orgs, (org) => evaluateOrgAlertRules(db, org.id, now), {
+      concurrency: EVALUATION_CONCURRENCY,
+    });
     return {
       orgs: orgs.length,
       evaluated: summaries.reduce((total, summary) => total + summary.evaluated, 0),

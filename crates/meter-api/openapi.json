@@ -776,6 +776,43 @@
         }
       }
     },
+    "/v1/orgs/{id}/reconcile": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "`GET /v1/orgs/{id}/reconcile` — reconcile the pre-aggregated rollup against the event store of",
+        "description": "record, per model. An empty array means the fast read path agrees with ground truth; any returned\nrow is drift that warrants rebuilding the rollup.",
+        "operationId": "reconcile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Org id (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Per-model rollup-vs-source drift; empty means consistent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RollupDrift"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/orgs/{id}/usage-by-day": {
       "get": {
         "tags": [
@@ -2294,6 +2331,38 @@
           }
         ],
         "description": "`POST /v1/usage/reserve` result: the reserve outcome (flattened) plus the engine-computed credits\nthat were held."
+      },
+      "RollupDrift": {
+        "type": "object",
+        "description": "One model's drift between the pre-aggregated `usage_rollup` and the live `events` system of record.\nReturned only when the two disagree, so an empty result means the rollup faithfully tracks the SoR.\n`*_events`/`*_credits` are the two sides; a non-empty list flags a rollup that needs rebuilding\n(e.g. a materialized view added after data already existed, or a merge/ingest anomaly).",
+        "required": [
+          "model",
+          "rollup_events",
+          "scan_events",
+          "rollup_credits",
+          "scan_credits"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "rollup_credits": {
+            "type": "number",
+            "format": "double"
+          },
+          "rollup_events": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "scan_credits": {
+            "type": "number",
+            "format": "double"
+          },
+          "scan_events": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
       },
       "SettleBody": {
         "type": "object",

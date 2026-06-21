@@ -41,6 +41,7 @@ pub fn router(state: AppState) -> Router {
         .route("/orgs/:id/usage-by-field", get(analytics::usage_by_field))
         .route("/orgs/:id/usage-by-day", get(analytics::org_usage_by_day))
         .route("/orgs/:id/event-count", get(analytics::event_count))
+        .route("/orgs/:id/reconcile", get(analytics::reconcile))
         .route("/reservations", post(reservations::reserve))
         .route("/reservations/:id/settle", post(reservations::settle))
         .route("/reservations/:id/void", post(reservations::void))

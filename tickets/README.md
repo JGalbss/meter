@@ -83,7 +83,11 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
   schema validation pending
 - [ ] Compose void_run with the ledger (reverse a run's holds/settles); event amend → delta posting
 - [ ] `meter-ingest`: `IngestSource` trait; Postgres-outbox default source; effectively-once consumer; dead-letter
-- [ ] Reconciliation job (aggregates vs raw; ledger vs invoice)
+- [~] Reconciliation (aggregates vs raw; ledger vs invoice) — **aggregates-vs-SoR done**:
+  `reconcile_model_usage` diffs the pre-aggregated `usage_rollup` against a live `events FINAL` scan per
+  model and returns per-model drift (empty = consistent), surfaced as `GET /v1/orgs/:id/reconcile`.
+  Unit-tested (drift detection incl. one-sided models) + e2e (zero drift after record/amend/void, and
+  over HTTP). Still to do: ledger-vs-invoice reconciliation.
 
 ## EPIC 07 — Analytics store (ClickHouse)
 - [x] `meter-store-ch`: usage analytics (`usage_by_model`, `usage_by_day`, `event_count`) derived

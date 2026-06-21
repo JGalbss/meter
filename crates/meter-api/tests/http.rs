@@ -1200,6 +1200,71 @@ async fn non_burnable_usage_records_cost_but_never_charges() {
     assert_eq!(rows[0]["credits"], json!(100000.0));
 }
 
+/// The reconcile endpoint reports zero drift when the pre-aggregated rollup agrees with the event
+/// store of record — the healthy steady state after ordinary metering.
+#[tokio::test]
+async fn reconcile_reports_no_drift_on_consistent_usage() {
+    let (_container, app, ledger, _events) = app_with_stores().await;
+    let org = "33333333-3333-3333-3333-333333333333";
+
+    let (_status, account) = call(
+        &app,
+        "POST",
+        "/v1/accounts",
+        &json!({ "org_id": org, "scope": "org", "no_overdraft": true }),
+    )
+    .await;
+    let account_id = account["id"].as_str().expect("account id").to_owned();
+    call(
+        &app,
+        "POST",
+        &format!("/v1/accounts/{account_id}/grants"),
+        &json!({ "amount": "1000000", "source": "paid" }),
+    )
+    .await;
+
+    let card_id = uuid::Uuid::now_v7();
+    PgConfig::new(ledger.pool().clone())
+        .put_rate_card(&RateCardRecord {
+            id: card_id,
+            version: 1,
+            kind: "provider_cost".to_owned(),
+            currency: "USD".to_owned(),
+            margin: Decimal::from(1),
+            components: json!([{
+                "dimension": "output", "modality": "text", "context_tier": "standard",
+                "unit": "token", "charge_model": "standard",
+                "unit_price": { "amount": "0.0001", "currency": "USD" }
+            }]),
+        })
+        .await
+        .expect("put card");
+
+    for key in ["r1", "r2"] {
+        call(
+            &app,
+            "POST",
+            "/v1/usage",
+            &json!({
+                "org_id": org, "account": account_id, "model": "custom-x",
+                "idempotency_key": key, "usage": { "output": 1000 },
+                "rate_card_id": card_id.to_string()
+            }),
+        )
+        .await;
+    }
+
+    let (status, drift) = call(
+        &app,
+        "GET",
+        &format!("/v1/orgs/{org}/reconcile"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(drift.as_array().expect("array").len(), 0, "drift: {drift}");
+}
+
 #[tokio::test]
 async fn usage_prices_with_a_synced_rate_card() {
     let (_container, app, ledger, _events) = app_with_stores().await;

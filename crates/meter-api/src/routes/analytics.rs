@@ -8,7 +8,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use meter_core::AccountId;
-use meter_store_ch::{DayUsage as EventDayUsage, FieldUsage, ModelUsage};
+use meter_store_ch::{DayUsage as EventDayUsage, FieldUsage, ModelUsage, RollupDrift};
 use meter_store_pg::DayUsage;
 
 use crate::error::ApiError;
@@ -118,6 +118,28 @@ pub async fn org_usage_by_day(
         .await
         .map_err(|error| ApiError::internal(error.to_string()))?;
     Ok(Json(days))
+}
+
+/// `GET /v1/orgs/{id}/reconcile` — reconcile the pre-aggregated rollup against the event store of
+/// record, per model. An empty array means the fast read path agrees with ground truth; any returned
+/// row is drift that warrants rebuilding the rollup.
+#[utoipa::path(
+    get,
+    path = "/v1/orgs/{id}/reconcile",
+    params(("id" = String, Path, description = "Org id (UUID)")),
+    responses((status = 200, description = "Per-model rollup-vs-source drift; empty means consistent", body = Vec<RollupDrift>)),
+    tag = "analytics"
+)]
+pub async fn reconcile(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<RollupDrift>>, ApiError> {
+    let drift = state
+        .events
+        .reconcile_model_usage(id)
+        .await
+        .map_err(|error| ApiError::internal(error.to_string()))?;
+    Ok(Json(drift))
 }
 
 /// The count of an organization's live (recorded) events.

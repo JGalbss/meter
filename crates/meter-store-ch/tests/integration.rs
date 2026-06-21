@@ -175,6 +175,11 @@ async fn aggregates_reflect_idempotency_amends_and_voids() {
     assert_eq!(dead.len(), 1);
     assert_eq!(dead[0].source, "ingest");
     assert_eq!(dead[0].error, "missing account");
+
+    // Reconciliation: the pre-aggregated rollup must agree with the live `events` scan after the
+    // idempotent record, the amend, and the void above — zero drift on consistent data.
+    let drift = store.reconcile_model_usage(org).await.expect("reconcile");
+    assert!(drift.is_empty(), "unexpected rollup drift: {drift:?}");
 }
 
 /// Credit burndown grouped by a custom field. `team` is a promoted field (served from the

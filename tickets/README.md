@@ -92,12 +92,14 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 - [~] Event API on the engine (record/get/list/amend/void_run) done; **202-fast batch shipped**
   (`POST /v1/events/batch` → one bulk ClickHouse insert via `record_batch`, e2e-tested); per-meter
   schema validation pending
-- [~] Compose void_run with the ledger — **a void now negates a run's COMPLETE financial impact**:
-  holds released, settles refunded, AND direct `/v1/usage` charges refunded (commit faf6a59 — charges
-  carry `run_id`, reversal is remainder-based so it's idempotent and never double-refunds a charge
-  already corrected by a linked credit-note; conformance on both backends + HTTP e2e). **event amend →
-  delta posting**: amend is idempotent (5eeeafc); the re-pricing delta-posting amend is designed in
-  **ADR 0009** — next to implement now that the remainder-based reversal foundation is in place.
+- [x] Compose void_run with the ledger — **a void negates a run's COMPLETE financial impact**: holds
+  released, settles refunded, AND direct `/v1/usage` charges refunded (faf6a59 — charges carry `run_id`,
+  reversal is remainder-based so it's idempotent and never double-refunds a charge already corrected by a
+  linked credit-note; both backends + HTTP e2e). **event amend → delta posting done** (d337f22, ADR
+  0009): `POST /v1/usage/{id}/amend` re-prices in the engine and posts the delta via reverse-and-recharge
+  (shared `reverse_charge` remainder primitive), so chained up/down amends + manual partial refunds + a
+  later void all stay conservation-exact; idempotent; rejects voided/superseded events. e2e: up/down
+  chain + idempotent replay + void-restores, and amend-refused-after-void.
 - [ ] `meter-ingest`: `IngestSource` trait; Postgres-outbox default source; effectively-once consumer; dead-letter
 - [~] Reconciliation (aggregates vs raw; ledger vs invoice) — **aggregates-vs-SoR done**:
   `reconcile_rollups` diffs **every** pre-aggregated rollup against a live `events FINAL` scan — the

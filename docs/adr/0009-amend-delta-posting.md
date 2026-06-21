@@ -1,8 +1,10 @@
 # ADR 0009 — Event amendment → ledger delta posting
 
-**Status:** Accepted (2026-06-21). **Implements** ADR 0002 §"Editing an event" and `ARCHITECTURE.md`
-§6.4 (reversals). The reversal foundation is shipped (see "Foundation shipped"); the amend half is
-implemented per the refined, chain-safe design below.
+**Status:** Accepted & implemented (2026-06-21). **Implements** ADR 0002 §"Editing an event" and
+`ARCHITECTURE.md` §6.4 (reversals). Both halves shipped: the remainder-based reversal foundation (commit
+faf6a59) and the amend delta-posting (commit d337f22) — `POST /v1/usage/{id}/amend`, reverse-and-recharge
+via the shared `reverse_charge` primitive, idempotent, e2e-tested (up/down chain, idempotent replay,
+void-restores, refused-after-void).
 
 ## Foundation shipped (2026-06-21, commit faf6a59)
 

@@ -79,6 +79,9 @@ The dashboard is auth-gated; set `DASHBOARD_PASSWORD` and `DASHBOARD_SESSION_SEC
 dev defaults). Browse the console at `http://localhost:3000` and the documentation at
 `http://localhost:3001`.
 
+For local development with hot reload, `pnpm dev` brings up the stores and runs the engine, control
+plane, and dashboard from source — see [deploy/dev/README.md](deploy/dev/README.md).
+
 ## Architecture
 
 meter splits along one hard seam: the data plane owns money, the control plane owns configuration.

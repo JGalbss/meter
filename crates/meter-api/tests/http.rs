@@ -1425,6 +1425,16 @@ async fn metrics_endpoint_counts_requests_and_errors() {
         body.contains("meter_http_request_errors_total{class=\"client\"} 1"),
         "metrics body: {body}"
     );
+    // The latency histogram records the same two completed requests end-to-end (the in-flight
+    // /metrics request is recorded only after it is served, so it is not yet counted here).
+    assert!(
+        body.contains("meter_http_request_duration_seconds_count 2"),
+        "metrics body: {body}"
+    );
+    assert!(
+        body.contains("meter_http_request_duration_seconds_bucket{le=\"+Inf\"} 2"),
+        "metrics body: {body}"
+    );
 }
 
 #[tokio::test]

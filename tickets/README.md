@@ -139,7 +139,10 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 - [x] `meter-engine` binary: serves HTTP over Postgres, runs migrations on boot, env config (METER_DATABASE_URL/METER_LISTEN_ADDR), tracing
 - [x] e2e HTTP test (open→grant→balance→reserve→settle→deny) green against real Postgres
 - [x] Analytics query API on the authoritative Postgres data: `GET /v1/accounts/:id/usage-by-day?start&end` (daily credit time series, UTC-bucketed); e2e-tested
-- [ ] gRPC surface (proto) for control-plane RPC; role-selectable services
+- [x] gRPC surface (proto) for control-plane RPC; **role-selectable services**: the engine serves HTTP
+  and gRPC, and `METER_ROLES` (comma-separated `http`,`grpc`; default both) selects which surfaces a
+  process runs, so a deployment can split them across dedicated replicas. Role parsing is unit-tested;
+  gRPC-over-the-wire is e2e-tested (`grpc_server_serves_ledger_over_the_wire`).
 - [ ] OpenAPI emission + typed client codegen
 - [x] `meter-cli` (`meterctl`): `migrate`, `seed`, `balance`, `entries`, `grant`, `price`, `sweep`,
   `void`, `void-run`, and `reconcile` (rollup-vs-SoR, exits non-zero on drift) — env-configurable

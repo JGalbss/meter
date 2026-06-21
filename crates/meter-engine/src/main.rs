@@ -1,9 +1,12 @@
 //! The meter engine binary.
 //!
 //! Connects to Postgres (money-truth) + `ClickHouse` (events, ADR 0003), applies migrations, and serves
-//! the HTTP API. Configuration is via environment: `METER_DATABASE_URL` and `METER_CLICKHOUSE_URL`
-//! (both required), `METER_LISTEN_ADDR` (default `0.0.0.0:8080`), and `METER_INGEST_MODE`
-//! (`exactly_once` default | `append` for max throughput with upstream exactly-once, ADR 0005).
+//! the HTTP and gRPC APIs. Configuration is via environment: `METER_DATABASE_URL` and
+//! `METER_CLICKHOUSE_URL` (both required), `METER_LISTEN_ADDR` (default `0.0.0.0:8080`),
+//! `METER_GRPC_ADDR` (default `0.0.0.0:50051`), `METER_INGEST_MODE` (`exactly_once` default | `append`
+//! for max throughput with upstream exactly-once, ADR 0005), and `METER_ROLES` — which surfaces this
+//! process serves (comma-separated `http`,`grpc`; default both), so a deployment can run dedicated
+//! HTTP and gRPC replicas.
 
 #![forbid(unsafe_code)]
 
@@ -64,26 +67,89 @@ async fn main() -> anyhow::Result<()> {
 
     let state = AppState::new(ledger, events.clone(), events, credit_value);
 
-    // The gRPC surface (control-plane RPC) is served on its own port alongside HTTP.
-    let grpc_addr: SocketAddr = std::env::var("METER_GRPC_ADDR")
-        .unwrap_or_else(|_| "0.0.0.0:50051".to_owned())
-        .parse()
-        .context("METER_GRPC_ADDR must be a valid socket address")?;
-    let grpc = meter_api::grpc::router(state.clone());
-    tokio::spawn(async move {
-        tracing::info!(%grpc_addr, "meter engine gRPC listening");
-        if let Err(error) = grpc.serve(grpc_addr).await {
-            tracing::error!(%error, "gRPC server stopped");
-        }
-    });
+    // Which surfaces this process serves. Default is both; a deployment can split them across dedicated
+    // replicas (e.g. HTTP-only edge nodes, gRPC-only control-plane nodes) via METER_ROLES.
+    let roles = roles_from_env()?;
 
-    let app = router(state);
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .with_context(|| format!("binding {addr}"))?;
-    tracing::info!(%addr, "meter engine HTTP listening");
-    axum::serve(listener, app).await.context("serving HTTP")?;
+    let grpc_handle = match roles.grpc {
+        true => {
+            let grpc_addr: SocketAddr = std::env::var("METER_GRPC_ADDR")
+                .unwrap_or_else(|_| "0.0.0.0:50051".to_owned())
+                .parse()
+                .context("METER_GRPC_ADDR must be a valid socket address")?;
+            let grpc = meter_api::grpc::router(state.clone());
+            tracing::info!(%grpc_addr, "meter engine gRPC listening");
+            Some(tokio::spawn(async move {
+                grpc.serve(grpc_addr).await.context("serving gRPC")
+            }))
+        }
+        false => None,
+    };
+
+    let http_handle = match roles.http {
+        true => {
+            let app = router(state);
+            let listener = tokio::net::TcpListener::bind(addr)
+                .await
+                .with_context(|| format!("binding {addr}"))?;
+            tracing::info!(%addr, "meter engine HTTP listening");
+            Some(tokio::spawn(async move {
+                axum::serve(listener, app).await.context("serving HTTP")
+            }))
+        }
+        false => None,
+    };
+
+    // Run until any selected server stops (each serving forever is the steady state).
+    match (grpc_handle, http_handle) {
+        (Some(grpc), Some(http)) => tokio::select! {
+            res = grpc => res.context("gRPC task")?.context("gRPC server")?,
+            res = http => res.context("HTTP task")?.context("HTTP server")?,
+        },
+        (Some(grpc), None) => grpc.await.context("gRPC task")?.context("gRPC server")?,
+        (None, Some(http)) => http.await.context("HTTP task")?.context("HTTP server")?,
+        (None, None) => unreachable!("parse_roles guarantees at least one role"),
+    }
     Ok(())
+}
+
+/// The surfaces this engine process serves.
+#[derive(Debug, PartialEq, Eq)]
+struct Roles {
+    http: bool,
+    grpc: bool,
+}
+
+/// Read `METER_ROLES` from the environment (empty/unset → both surfaces).
+fn roles_from_env() -> anyhow::Result<Roles> {
+    parse_roles(&std::env::var("METER_ROLES").unwrap_or_default())
+}
+
+/// Parse a comma-separated role list. Empty selects both `http` and `grpc`; an unknown role or a list
+/// that selects nothing is an error (fail fast rather than silently serve nothing).
+fn parse_roles(raw: &str) -> anyhow::Result<Roles> {
+    if raw.trim().is_empty() {
+        return Ok(Roles {
+            http: true,
+            grpc: true,
+        });
+    }
+    let mut roles = Roles {
+        http: false,
+        grpc: false,
+    };
+    for part in raw.split(',') {
+        match part.trim() {
+            "" => {}
+            "http" => roles.http = true,
+            "grpc" => roles.grpc = true,
+            other => anyhow::bail!("unknown role in METER_ROLES: {other:?} (valid: http, grpc)"),
+        }
+    }
+    if !roles.http && !roles.grpc {
+        anyhow::bail!("METER_ROLES selected no roles (valid: http, grpc)");
+    }
+    Ok(roles)
 }
 
 /// The event-ingest idempotency mode from `METER_INGEST_MODE` (`exactly_once` | `append`); defaults to
@@ -92,5 +158,55 @@ fn ingest_mode_from_env() -> IngestMode {
     match std::env::var("METER_INGEST_MODE").as_deref() {
         Ok("append") => IngestMode::Append,
         _ => IngestMode::ExactlyOnce,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{parse_roles, Roles};
+
+    #[test]
+    fn empty_or_unset_serves_both_surfaces() {
+        let both = Roles {
+            http: true,
+            grpc: true,
+        };
+        assert_eq!(parse_roles("").unwrap(), both);
+        assert_eq!(parse_roles("   ").unwrap(), both);
+    }
+
+    #[test]
+    fn a_single_role_serves_only_that_surface() {
+        assert_eq!(
+            parse_roles("http").unwrap(),
+            Roles {
+                http: true,
+                grpc: false
+            }
+        );
+        assert_eq!(
+            parse_roles(" grpc ").unwrap(),
+            Roles {
+                http: false,
+                grpc: true
+            }
+        );
+    }
+
+    #[test]
+    fn both_roles_listed_explicitly_serves_both() {
+        assert_eq!(
+            parse_roles("grpc,http").unwrap(),
+            Roles {
+                http: true,
+                grpc: true
+            }
+        );
+    }
+
+    #[test]
+    fn an_unknown_role_is_rejected() {
+        assert!(parse_roles("http,ftp").is_err());
+        assert!(parse_roles("nonsense").is_err());
     }
 }

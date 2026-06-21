@@ -116,6 +116,16 @@ call. Body:
 
 Returns `{ credits, cogs_usd, customer_price_usd, event_id, charged, settled, available }`.
 
+```
+POST /v1/usage/{id}/amend
+```
+
+Correct a priced turn. The engine re-prices the event from the corrected usage dimensions and posts the
+**difference** to the ledger — a charge if the new price is higher, a refund if lower — so the
+correction stays money-true (idempotent on an optional key). This is distinct from
+`POST /v1/events/{id}/amend`, which edits an event's properties only and never touches the ledger
+([ADR 0009](https://github.com/JGalbss/meter/blob/main/docs/adr/0009-amend-delta-posting.md)).
+
 ### Catalog & simulation
 
 The catalog is the dated, compiled-in set of provider rate cards (`CATALOG_AS_OF`). Read it to discover

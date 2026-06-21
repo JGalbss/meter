@@ -20,7 +20,8 @@ The engine is functional and tested end to end against real Postgres and ClickHo
   token-priced reserve/settle with HARD/SOFT limits; `burnable` cost-only usage.
 - **Events** — immutable, custom-field events with `record`, `amend` (new version), and `void_run`;
   ClickHouse is the system of record; 202-fast batch ingest; usage analytics (by model, day, and custom
-  field) with reconciliation against the source of record.
+  field) with reconciliation against the source of record. Amending a priced turn re-prices it and posts
+  the ledger delta ([ADR 0009](docs/adr/0009-amend-delta-posting.md)).
 - **Invoicing** — a deterministic invoice summed straight from the ledger, so `enforced == billed`.
 - **Engine surface** — HTTP and gRPC, role-selectable via `METER_ROLES`; a Prometheus `/metrics`
   endpoint; the `meterctl` admin CLI (migrate, seed, balance, grant, price, sweep, void, void-run,
@@ -42,9 +43,6 @@ The engine is functional and tested end to end against real Postgres and ClickHo
 
 - The generated **TypeScript gRPC client** for the control-plane → engine path (the engine side and the
   proto contract are done).
-- **Event amend → ledger delta posting** ([ADR 0009](docs/adr/0009-amend-delta-posting.md), accepted) —
-  a usage-aware re-pricing amend that posts the engine-computed delta; the reversal foundation has
-  landed, the delta posting is in progress.
 - **Invoice lifecycle** — the `Draft → Grace → Finalized → Void` state machine, credit-notes for
   corrections, and billing periods independent of budget cycles.
 - **Control-plane config resources** — teams/users/roles, rate-card and budget/grant configuration,

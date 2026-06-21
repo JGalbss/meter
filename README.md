@@ -132,7 +132,8 @@ The Rust engine is functional and tested end to end against real Postgres and Cl
 - **Pricing & catalog** — multi-dimensional rate cards with margin, versioned and re-rateable; a dated
   catalog of Anthropic, OpenAI, Google, DeepSeek, and Alibaba model prices; a pricing simulator.
 - **Events** — immutable, custom-field events with `record` (idempotent), `amend` (a new version), and
-  `void_run`; ClickHouse is the system of record (ADR 0003).
+  `void_run`; ClickHouse is the system of record (ADR 0003). Amending a priced turn re-prices it and
+  posts the ledger delta (ADR 0009).
 - **Invoicing** — a deterministic invoice summed straight from the ledger, so `enforced == billed`.
 - **Control plane** — orgs, products, API keys with RBAC (viewer/member/admin) and platform/org scopes,
   alert rules with a budget-evaluation loop, and signed, retried webhooks with a dead-letter log.
@@ -145,8 +146,7 @@ The Rust engine is functional and tested end to end against real Postgres and Cl
   chart; and a GHCR publish workflow.
 
 In progress (see [tickets/](tickets/README.md)): the generated TypeScript gRPC client for the
-control-plane → engine path, the event-amend delta posting ([ADR 0009](docs/adr/0009-amend-delta-posting.md)),
-RLS as defense-in-depth, and more catalog providers.
+control-plane → engine path, RLS as defense-in-depth, and more catalog providers.
 
 ## Self-hosting
 

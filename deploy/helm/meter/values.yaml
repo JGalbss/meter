@@ -7,11 +7,16 @@
 nameOverride: ""
 fullnameOverride: ""
 
-# Shared database credentials (used by the in-cluster Postgres and the connection URLs below).
+# Shared database credentials (used by the in-cluster Postgres/ClickHouse and the connection URLs
+# below). ClickHouse credentials are required even for an external store: ClickHouse rejects a
+# passwordless user over a remote connection, so the engine always authenticates.
 credentials:
   postgresUser: meter
   postgresPassword: meter
   postgresDatabase: meter
+  clickhouseUser: meter
+  clickhousePassword: meter
+  clickhouseDatabase: meter
 
 engine:
   image:

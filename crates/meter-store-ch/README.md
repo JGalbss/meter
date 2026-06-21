@@ -1,8 +1,9 @@
 # meter-store-ch
 
-ClickHouse **analytics** store for meter usage events — an optional add-on for high-volume dashboards.
-This store holds analytics only; **money-truth lives in the engine's Postgres ledger** (ADR 0001), so
-credits here are `Float64` and aggregations are allowed to be approximate.
+ClickHouse store for meter usage events: the **system of record for events** (ADR 0003) plus the
+analytics rollups and audit log derived from them. **Money-truth lives only in the engine's Postgres
+ledger** (ADR 0001) — credits here are `Float64` for analytics, never the billed truth. ClickHouse is a
+required dependency of the engine, not an optional add-on.
 
 ## Model
 
@@ -24,9 +25,13 @@ or read-time JSON parsing), keep the hot reads fast:
 ## API
 
 ```rust
-let store = ChStore::new("http://clickhouse:8123");
+let store = ChStore::new("http://clickhouse:8123")
+    .with_credentials("meter", "meter")           // required for a networked server (no passwordless remote)
+    .with_database("meter");                       // optional; defaults to `default`
+// or, in a binary, fold the three METER_CLICKHOUSE_{USER,PASSWORD,DATABASE} env vars in at once:
+let store = ChStore::new("http://clickhouse:8123").with_env_credentials();
 store.migrate().await?;                            // events + rollups + MVs + dead-letter + audit
-store.record(event).await?;                        // ingest one event (idempotent on org_id + key)
+store.record(event).await?;                        // ingest one event (idempotent on (org_id, id))
 let by_model = store.usage_by_model(org).await?;   // rollup, highest spend first
 let by_day = store.usage_by_day(org).await?;       // daily credit/event time series (for charts)
 let by_team = store.usage_by_field(org, "team").await?;  // flexible burndown by any custom field
@@ -42,17 +47,15 @@ let dead = store.list_dead_letter(org).await?;     // inspect / replay
 model (record / get / list / amend / `void_run`, custom-field `properties`) lives in the `events`
 `ReplacingMergeTree`: a status change is a new row with the same `id` and a higher `version`, and reads
 use `FINAL` to resolve the latest version. It passes the **same** event conformance suite as the
-in-memory reference, against a real ClickHouse container.
+in-memory reference, against a real ClickHouse container (`testcontainers-modules`): ingest → idempotent
+dedup via `FINAL` → aggregation by model.
 
+## Status
 
-Verified by an integration test against a real ClickHouse container (`testcontainers-modules`):
-ingest → idempotent dedup via `FINAL` → aggregation by model.
+Shipped: the `events` system of record, the `usage_rollup` (model/day) and `field_usage_rollup`
+(custom-field burndown) `SummingMergeTree` views with their materialized views, the `events_dead_letter`
+queue, the audit log (ADR 0004), and the query API surfaced over the engine's HTTP and gRPC surfaces.
 
-## Pending
-
-Deterministic historical re-rating (`INSERT … SELECT` partition-by-partition, sourced from per-event
-properties — not the rollup, which collapses cache dimensions), and minute-granularity time-series
-rollups for live dashboards.
-
-Shipped: the `usage_rollup` (model/day) and `field_usage_rollup` (custom-field burndown) `SummingMergeTree`
-views, the `events_dead_letter` queue, and the query API surfaced over the engine HTTP + gRPC surfaces.
+Planned: deterministic historical re-rating (`INSERT … SELECT` partition-by-partition, sourced from
+per-event properties — not the rollup, which collapses the cache dimensions), and minute-granularity
+time-series rollups for live dashboards.

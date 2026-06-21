@@ -26,6 +26,12 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server:24.8
     restart: unless-stopped
+    # ClickHouse rejects a passwordless user over a remote (cross-container) connection, so the engine
+    # authenticates as this user — credentials must match the engine's METER_CLICKHOUSE_* env below.
+    environment:
+      CLICKHOUSE_USER: meter
+      CLICKHOUSE_PASSWORD: meter
+      CLICKHOUSE_DB: meter
     volumes:
       - meter_ch:/var/lib/clickhouse
     ulimits:
@@ -46,6 +52,9 @@ services:
     environment:
       METER_DATABASE_URL: postgres://meter:meter@postgres:5432/meter
       METER_CLICKHOUSE_URL: http://clickhouse:8123
+      METER_CLICKHOUSE_USER: meter
+      METER_CLICKHOUSE_PASSWORD: meter
+      METER_CLICKHOUSE_DATABASE: meter
       METER_LISTEN_ADDR: 0.0.0.0:8080
       RUST_LOG: info
     ports:

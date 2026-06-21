@@ -22,6 +22,22 @@ spec:
           ports:
             - name: http
               containerPort: {{ .Values.clickhouse.httpPort }}
+          env:
+            - name: CLICKHOUSE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "meter.secretName" . }}
+                  key: clickhouse-user
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "meter.secretName" . }}
+                  key: clickhouse-password
+            - name: CLICKHOUSE_DB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "meter.secretName" . }}
+                  key: clickhouse-database
           volumeMounts:
             - name: data
               mountPath: /var/lib/clickhouse

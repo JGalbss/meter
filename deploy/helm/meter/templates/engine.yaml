@@ -29,6 +29,21 @@ spec:
                   key: database-url
             - name: METER_CLICKHOUSE_URL
               value: {{ include "meter.clickhouseUrl" . | quote }}
+            - name: METER_CLICKHOUSE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "meter.secretName" . }}
+                  key: clickhouse-user
+            - name: METER_CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "meter.secretName" . }}
+                  key: clickhouse-password
+            - name: METER_CLICKHOUSE_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "meter.secretName" . }}
+                  key: clickhouse-database
             - name: METER_LISTEN_ADDR
               value: {{ printf "0.0.0.0:%d" (int .Values.engine.listenPort) | quote }}
             - name: METER_CREDIT_VALUE

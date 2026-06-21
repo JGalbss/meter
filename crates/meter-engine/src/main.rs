@@ -2,7 +2,10 @@
 //!
 //! Connects to Postgres (money-truth) + `ClickHouse` (events, ADR 0003), applies migrations, and serves
 //! the HTTP and gRPC APIs. Configuration is via environment: `METER_DATABASE_URL` and
-//! `METER_CLICKHOUSE_URL` (both required), `METER_LISTEN_ADDR` (default `0.0.0.0:8080`),
+//! `METER_CLICKHOUSE_URL` (both required), the optional `ClickHouse` credentials
+//! `METER_CLICKHOUSE_USER`/`METER_CLICKHOUSE_PASSWORD`/`METER_CLICKHOUSE_DATABASE` (needed for any
+//! networked `ClickHouse`, which rejects a passwordless user over a remote connection),
+//! `METER_LISTEN_ADDR` (default `0.0.0.0:8080`),
 //! `METER_GRPC_ADDR` (default `0.0.0.0:50051`), `METER_INGEST_MODE` (`exactly_once` default | `append`
 //! for max throughput with upstream exactly-once, ADR 0005), and `METER_ROLES` — which surfaces this
 //! process serves (comma-separated `http`,`grpc`; default both), so a deployment can run dedicated
@@ -51,7 +54,9 @@ async fn main() -> anyhow::Result<()> {
     // ClickHouse holds events + the audit log (both high-velocity firehoses, ADR 0003/0004).
     // METER_INGEST_MODE=append trades the cross-call dedup read for maximum throughput when ingest is
     // made exactly-once upstream (Kafka EOS, ADR 0005); default is the safe ExactlyOnce mode.
-    let events = ChStore::new(&clickhouse_url).with_ingest_mode(ingest_mode_from_env());
+    let events = ChStore::new(&clickhouse_url)
+        .with_env_credentials()
+        .with_ingest_mode(ingest_mode_from_env());
     events
         .migrate()
         .await

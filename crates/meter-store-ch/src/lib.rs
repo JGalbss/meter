@@ -215,6 +215,15 @@ pub struct ChStore {
 
 impl ChStore {
     /// Connect to `ClickHouse` over its HTTP interface (e.g. `http://127.0.0.1:8123`).
+    ///
+    /// The URL carries the endpoint only; authentication is layered on with [`with_credentials`] and
+    /// the target database with [`with_database`] (the `clickhouse` crate's `with_url` ignores any
+    /// userinfo/path in the URL). With no credentials applied, the connection uses the default user —
+    /// fine for a localhost server, but ClickHouse rejects a passwordless user over a remote
+    /// connection, so a networked deployment must supply credentials.
+    ///
+    /// [`with_credentials`]: ChStore::with_credentials
+    /// [`with_database`]: ChStore::with_database
     pub fn new(url: &str) -> Self {
         let seed =
             u64::try_from(OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000).unwrap_or(0);
@@ -223,6 +232,42 @@ impl ChStore {
             version_seq: Arc::new(AtomicU64::new(seed)),
             ingest_mode: IngestMode::default(),
         }
+    }
+
+    /// Authenticate as `user` with `password`. Required for any networked ClickHouse, which refuses a
+    /// passwordless user over a remote connection.
+    #[must_use]
+    pub fn with_credentials(self, user: impl Into<String>, password: impl Into<String>) -> Self {
+        Self {
+            client: self.client.with_user(user).with_password(password),
+            ..self
+        }
+    }
+
+    /// Target a specific ClickHouse database (defaults to the server's `default`).
+    #[must_use]
+    pub fn with_database(self, database: impl Into<String>) -> Self {
+        Self {
+            client: self.client.with_database(database),
+            ..self
+        }
+    }
+
+    /// Apply credentials and the target database from the standard environment:
+    /// `METER_CLICKHOUSE_USER`, `METER_CLICKHOUSE_PASSWORD`, and `METER_CLICKHOUSE_DATABASE`. Each is
+    /// optional and applied only when set, so a localhost default-user connection needs none. Shared by
+    /// the engine and CLI binaries so the variable names never drift between them.
+    #[must_use]
+    pub fn with_env_credentials(self) -> Self {
+        let mut store = self;
+        if let Ok(user) = std::env::var("METER_CLICKHOUSE_USER") {
+            let password = std::env::var("METER_CLICKHOUSE_PASSWORD").unwrap_or_default();
+            store = store.with_credentials(user, password);
+        }
+        if let Ok(database) = std::env::var("METER_CLICKHOUSE_DATABASE") {
+            store = store.with_database(database);
+        }
+        store
     }
 
     /// Select the ingest idempotency mode (see [`IngestMode`]). Defaults to [`IngestMode::ExactlyOnce`].

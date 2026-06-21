@@ -231,7 +231,7 @@ async fn void_run(database_url: &str, run: RunId) -> anyhow::Result<()> {
 }
 
 async fn reconcile(clickhouse_url: &str, org: Uuid) -> anyhow::Result<()> {
-    let store = ChStore::new(clickhouse_url);
+    let store = ChStore::new(clickhouse_url).with_env_credentials();
     let drift = store
         .reconcile_rollups(org)
         .await
@@ -256,7 +256,7 @@ async fn reconcile(clickhouse_url: &str, org: Uuid) -> anyhow::Result<()> {
 }
 
 async fn rebuild_rollups(clickhouse_url: &str, org: Uuid) -> anyhow::Result<()> {
-    let store = ChStore::new(clickhouse_url);
+    let store = ChStore::new(clickhouse_url).with_env_credentials();
     store
         .rebuild_rollups(org)
         .await

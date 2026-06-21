@@ -15,11 +15,13 @@ import type {
   WebhookDelivery,
 } from "./types"
 
+import { getResult, requestOrThrow, type Result } from "./http"
+
+export type { Result } from "./http"
+
 const BASE_URL = process.env.METER_CONTROL_PLANE_URL ?? "http://127.0.0.1:8090"
 
-export type Result<T> =
-  | { readonly ok: true; readonly data: T }
-  | { readonly ok: false; readonly error: string }
+const LABEL = "control plane"
 
 /** Read a result's data, or a fallback when the control plane was unreachable. */
 export function unwrapOr<T>(result: Result<T>, fallback: T): T {
@@ -27,13 +29,6 @@ export function unwrapOr<T>(result: Result<T>, fallback: T): T {
     return result.data
   }
   return fallback
-}
-
-function describe(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message
-  }
-  return "control plane unreachable"
 }
 
 /** Bearer auth header when a control-plane API key is configured (server-side env). */
@@ -45,43 +40,31 @@ function authHeaders(): Record<string, string> {
   return { authorization: `Bearer ${key}` }
 }
 
-async function getJson<T>(path: string): Promise<Result<T>> {
-  try {
-    const response = await fetch(`${BASE_URL}${path}`, {
-      cache: "no-store",
-      headers: authHeaders(),
-    })
-    if (!response.ok) {
-      return { ok: false, error: `control plane responded ${response.status}` }
-    }
-    return { ok: true, data: (await response.json()) as T }
-  } catch (error) {
-    return { ok: false, error: describe(error) }
+function jsonInit(method: string, body?: unknown): RequestInit {
+  if (body === undefined) {
+    return { method, headers: authHeaders() }
   }
+  return {
+    method,
+    headers: { "content-type": "application/json", ...authHeaders() },
+    body: JSON.stringify(body),
+  }
+}
+
+function getJson<T>(path: string): Promise<Result<T>> {
+  return getResult<T>(LABEL, `${BASE_URL}${path}`, { headers: authHeaders() })
 }
 
 async function post(path: string, body?: unknown): Promise<void> {
-  const response = await fetch(`${BASE_URL}${path}`, {
-    method: "POST",
-    cache: "no-store",
-    headers: { "content-type": "application/json", ...authHeaders() },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
-  if (!response.ok) {
-    throw new Error(`control plane responded ${response.status}`)
-  }
+  await requestOrThrow(LABEL, `${BASE_URL}${path}`, jsonInit("POST", body))
 }
 
 async function postJson<T>(path: string, body?: unknown): Promise<T> {
-  const response = await fetch(`${BASE_URL}${path}`, {
-    method: "POST",
-    cache: "no-store",
-    headers: { "content-type": "application/json", ...authHeaders() },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
-  if (!response.ok) {
-    throw new Error(`control plane responded ${response.status}`)
-  }
+  const response = await requestOrThrow(
+    LABEL,
+    `${BASE_URL}${path}`,
+    jsonInit("POST", body)
+  )
   return (await response.json()) as T
 }
 
@@ -202,13 +185,11 @@ export interface EvaluationSummary {
 export async function evaluateAlertRules(
   orgId: string
 ): Promise<EvaluationSummary> {
-  const response = await fetch(
+  const response = await requestOrThrow(
+    LABEL,
     `${BASE_URL}/v1/alert-rules/evaluate?orgId=${encodeURIComponent(orgId)}`,
-    { method: "POST", cache: "no-store", headers: authHeaders() }
+    jsonInit("POST")
   )
-  if (!response.ok) {
-    throw new Error(`control plane responded ${response.status}`)
-  }
   return (await response.json()) as EvaluationSummary
 }
 

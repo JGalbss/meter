@@ -92,11 +92,12 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 - [~] Event API on the engine (record/get/list/amend/void_run) done; **202-fast batch shipped**
   (`POST /v1/events/batch` → one bulk ClickHouse insert via `record_batch`, e2e-tested); per-meter
   schema validation pending
-- [~] Compose void_run with the ledger (reverse a run's holds/settles) **done** (`POST /v1/runs/:id/void`
-  reverses events + ledger, e2e-tested). **event amend → delta posting**: idempotency prerequisite done
-  (amend is now idempotent on an optional key, rollup-safe under retries — commit 5eeeafc); the delta
-  posting itself is designed in **ADR 0009 (Proposed)** — a usage-aware re-pricing amend that posts the
-  engine-computed delta — pending acceptance before implementation (it changes money-truth behaviour).
+- [~] Compose void_run with the ledger — **a void now negates a run's COMPLETE financial impact**:
+  holds released, settles refunded, AND direct `/v1/usage` charges refunded (commit faf6a59 — charges
+  carry `run_id`, reversal is remainder-based so it's idempotent and never double-refunds a charge
+  already corrected by a linked credit-note; conformance on both backends + HTTP e2e). **event amend →
+  delta posting**: amend is idempotent (5eeeafc); the re-pricing delta-posting amend is designed in
+  **ADR 0009** — next to implement now that the remainder-based reversal foundation is in place.
 - [ ] `meter-ingest`: `IngestSource` trait; Postgres-outbox default source; effectively-once consumer; dead-letter
 - [~] Reconciliation (aggregates vs raw; ledger vs invoice) — **aggregates-vs-SoR done**:
   `reconcile_rollups` diffs **every** pre-aggregated rollup against a live `events FINAL` scan — the

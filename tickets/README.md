@@ -99,11 +99,13 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
   decision, see the `amend-delta-posting-design` note.
 - [ ] `meter-ingest`: `IngestSource` trait; Postgres-outbox default source; effectively-once consumer; dead-letter
 - [~] Reconciliation (aggregates vs raw; ledger vs invoice) — **aggregates-vs-SoR done**:
-  `reconcile_model_usage` diffs the pre-aggregated `usage_rollup` against a live `events FINAL` scan per
-  model and returns per-model drift (empty = consistent), surfaced as `GET /v1/orgs/:id/reconcile` and
-  as `meterctl reconcile --org <id>` (exits non-zero on drift, so it can gate a cron/alert). Unit-tested
-  (drift detection incl. one-sided models) + e2e (zero drift after record/amend/void, over HTTP, and via
-  the CLI binary). Still to do: ledger-vs-invoice reconciliation (needs the sealed invoice from EPIC 09).
+  `reconcile_rollups` diffs **every** pre-aggregated rollup against a live `events FINAL` scan — the
+  `usage_rollup` (by model) and each promoted-field `field_usage_rollup` (by team/feature/…) — returning
+  per-group drift tagged with its scope + dimension (empty = consistent). Surfaced as
+  `GET /v1/orgs/:id/reconcile` and `meterctl reconcile --org <id>` (exits non-zero on drift, so it can
+  gate a cron/alert). Unit-tested (drift detection incl. one-sided groups) + e2e (zero drift after
+  record/amend/void, over HTTP, and via the CLI binary). Still to do: ledger-vs-invoice reconciliation
+  (needs the sealed invoice from EPIC 09).
 
 ## EPIC 07 — Analytics store (ClickHouse)
 - [x] `meter-store-ch`: usage analytics (`usage_by_model`, `usage_by_day`, `event_count`) derived

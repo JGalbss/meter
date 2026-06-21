@@ -56,5 +56,5 @@ async fn reconcile_reports_consistent_rollup() {
         "reconcile failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(String::from_utf8_lossy(&output.stdout).contains("rollup consistent"));
+    assert!(String::from_utf8_lossy(&output.stdout).contains("rollups consistent"));
 }

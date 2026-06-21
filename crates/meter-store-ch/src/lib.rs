@@ -48,23 +48,25 @@ pub struct FieldUsage {
     pub credits: f64,
 }
 
-/// One model's drift between the pre-aggregated `usage_rollup` and the live `events` system of record.
-/// Returned only when the two disagree, so an empty result means the rollup faithfully tracks the SoR.
+/// One group's drift between a pre-aggregated rollup and the live `events` system of record. `scope` is
+/// which rollup (`model`, or a promoted custom field like `team`) and `dimension` is the group value.
+/// Returned only when the two disagree, so an empty result means every rollup faithfully tracks the SoR.
 /// `*_events`/`*_credits` are the two sides; a non-empty list flags a rollup that needs rebuilding
 /// (e.g. a materialized view added after data already existed, or a merge/ingest anomaly).
 #[derive(clickhouse::Row, Serialize, Deserialize, Debug, Clone, PartialEq, utoipa::ToSchema)]
 pub struct RollupDrift {
-    pub model: String,
+    pub scope: String,
+    pub dimension: String,
     pub rollup_events: i64,
     pub scan_events: i64,
     pub rollup_credits: f64,
     pub scan_credits: f64,
 }
 
-/// One model's aggregate, used internally to reconcile the rollup against the scan.
+/// One group's aggregate (`key`, events, credits), used internally to reconcile a rollup against a scan.
 #[derive(clickhouse::Row, Deserialize)]
-struct ModelAgg {
-    model: String,
+struct Aggregate {
+    key: String,
     events: i64,
     credits: f64,
 }
@@ -104,18 +106,18 @@ fn is_promoted_field(field: &str) -> bool {
     schema::PROMOTED_FIELDS.contains(&field)
 }
 
-/// Per-model drift between the rollup aggregate and the scan aggregate. A model on only one side
-/// (missing from the other) is itself drift — its absent side reads as zero. Credits compare with a
-/// small epsilon (`Float64` accumulation); event counts compare exactly.
-fn diff_model_aggregates(rollup: Vec<ModelAgg>, scan: Vec<ModelAgg>) -> Vec<RollupDrift> {
+/// Drift between a rollup aggregate and the scan aggregate, within one `scope` (`model` or a promoted
+/// field). A group on only one side (missing from the other) is itself drift — its absent side reads as
+/// zero. Credits compare with a small epsilon (`Float64` accumulation); event counts compare exactly.
+fn diff_aggregates(scope: &str, rollup: Vec<Aggregate>, scan: Vec<Aggregate>) -> Vec<RollupDrift> {
     let mut sides: BTreeMap<String, (i64, f64, i64, f64)> = BTreeMap::new();
     for row in rollup {
-        let entry = sides.entry(row.model).or_default();
+        let entry = sides.entry(row.key).or_default();
         entry.0 = row.events;
         entry.1 = row.credits;
     }
     for row in scan {
-        let entry = sides.entry(row.model).or_default();
+        let entry = sides.entry(row.key).or_default();
         entry.2 = row.events;
         entry.3 = row.credits;
     }
@@ -123,8 +125,9 @@ fn diff_model_aggregates(rollup: Vec<ModelAgg>, scan: Vec<ModelAgg>) -> Vec<Roll
         .into_iter()
         .filter(|(_, (re, rc, se, sc))| re != se || (rc - sc).abs() > 1e-6)
         .map(
-            |(model, (rollup_events, rollup_credits, scan_events, scan_credits))| RollupDrift {
-                model,
+            |(dimension, (rollup_events, rollup_credits, scan_events, scan_credits))| RollupDrift {
+                scope: scope.to_owned(),
+                dimension,
                 rollup_events,
                 scan_events,
                 rollup_credits,
@@ -453,36 +456,81 @@ impl ChStore {
         Ok(rows)
     }
 
-    /// Reconcile the pre-aggregated `usage_rollup` against the live `events` system of record for an
-    /// org, per model. Returns one [`RollupDrift`] for each model where the rollup's sign-weighted
-    /// totals disagree with a direct `FINAL` scan; an empty result means the rollup is consistent. This
-    /// is an operational safety net — the rollup is the fast read path, the scan is ground truth, and
-    /// this surfaces any divergence (a backfilled MV, a merge anomaly) before it reaches a bill.
-    pub async fn reconcile_model_usage(&self, org_id: Uuid) -> Result<Vec<RollupDrift>, ChError> {
+    /// Reconcile every pre-aggregated rollup against the live `events` system of record for an org: the
+    /// `usage_rollup` (by model) and each promoted-field `field_usage_rollup` (by [`schema::PROMOTED_FIELDS`]).
+    /// Returns one [`RollupDrift`] per group whose rollup totals disagree with a direct `FINAL` scan; an
+    /// empty result means every rollup is consistent. This is an operational safety net — the rollups are
+    /// the fast read paths, the scan is ground truth, and this surfaces any divergence (a backfilled MV, a
+    /// merge anomaly) before it reaches a bill.
+    pub async fn reconcile_rollups(&self, org_id: Uuid) -> Result<Vec<RollupDrift>, ChError> {
+        let mut drift = self.reconcile_model_rollup(org_id).await?;
+        for field in schema::PROMOTED_FIELDS {
+            drift.extend(self.reconcile_field_rollup(org_id, field).await?);
+        }
+        Ok(drift)
+    }
+
+    /// Reconcile the `usage_rollup` (by model) against the `events` scan.
+    async fn reconcile_model_rollup(&self, org_id: Uuid) -> Result<Vec<RollupDrift>, ChError> {
         let rollup = self
             .client
             .query(
-                "SELECT model, toInt64(sum(events)) AS events, sum(credits) AS credits \
+                "SELECT model AS key, toInt64(sum(events)) AS events, sum(credits) AS credits \
                  FROM usage_rollup WHERE org_id = ? AND model != '' GROUP BY model",
             )
             .bind(org_id)
-            .fetch_all::<ModelAgg>()
+            .fetch_all::<Aggregate>()
             .await?;
         let scan = self
             .client
             .query(
-                "SELECT JSONExtractString(properties, 'model') AS model, \
+                "SELECT JSONExtractString(properties, 'model') AS key, \
                  toInt64(count()) AS events, \
                  sum(toFloat64OrZero(JSONExtractString(properties, 'credits'))) AS credits \
                  FROM events FINAL \
                  WHERE org_id = ? AND status = 'recorded' \
                  AND JSONExtractString(properties, 'model') != '' \
-                 GROUP BY model",
+                 GROUP BY key",
             )
             .bind(org_id)
-            .fetch_all::<ModelAgg>()
+            .fetch_all::<Aggregate>()
             .await?;
-        Ok(diff_model_aggregates(rollup, scan))
+        Ok(diff_aggregates("model", rollup, scan))
+    }
+
+    /// Reconcile one promoted field's `field_usage_rollup` against the `events` scan for that field.
+    async fn reconcile_field_rollup(
+        &self,
+        org_id: Uuid,
+        field: &str,
+    ) -> Result<Vec<RollupDrift>, ChError> {
+        let rollup = self
+            .client
+            .query(
+                "SELECT field_value AS key, toInt64(sum(events)) AS events, sum(credits) AS credits \
+                 FROM field_usage_rollup WHERE org_id = ? AND field_name = ? GROUP BY field_value",
+            )
+            .bind(org_id)
+            .bind(field)
+            .fetch_all::<Aggregate>()
+            .await?;
+        let scan = self
+            .client
+            .query(
+                "SELECT JSONExtractString(properties, ?) AS key, \
+                 toInt64(count()) AS events, \
+                 sum(toFloat64OrZero(JSONExtractString(properties, 'credits'))) AS credits \
+                 FROM events FINAL \
+                 WHERE org_id = ? AND status = 'recorded' \
+                 AND JSONExtractString(properties, ?) != '' \
+                 GROUP BY key",
+            )
+            .bind(field)
+            .bind(org_id)
+            .bind(field)
+            .fetch_all::<Aggregate>()
+            .await?;
+        Ok(diff_aggregates(field, rollup, scan))
     }
 
     /// Count of an organization's live events, from the pre-aggregated rollup (sign-weighted, so
@@ -535,11 +583,11 @@ impl ChStore {
 
 #[cfg(test)]
 mod tests {
-    use super::{diff_model_aggregates, ModelAgg};
+    use super::{diff_aggregates, Aggregate};
 
-    fn agg(model: &str, events: i64, credits: f64) -> ModelAgg {
-        ModelAgg {
-            model: model.to_owned(),
+    fn agg(key: &str, events: i64, credits: f64) -> Aggregate {
+        Aggregate {
+            key: key.to_owned(),
             events,
             credits,
         }
@@ -549,7 +597,7 @@ mod tests {
     fn consistent_rollup_and_scan_report_no_drift() {
         let rollup = vec![agg("opus", 2, 50.0), agg("gpt-x", 1, 40.0)];
         let scan = vec![agg("gpt-x", 1, 40.0), agg("opus", 2, 50.0)];
-        assert!(diff_model_aggregates(rollup, scan).is_empty());
+        assert!(diff_aggregates("model", rollup, scan).is_empty());
     }
 
     #[test]
@@ -565,23 +613,25 @@ mod tests {
             agg("gpt-x", 2, 40.0),
             agg("claude", 3, 9.0),
         ];
-        let drift = diff_model_aggregates(rollup, scan);
+        let drift = diff_aggregates("model", rollup, scan);
         assert_eq!(drift.len(), 2);
-        // BTreeMap orders by model: gpt-x then opus.
-        assert_eq!(drift[0].model, "gpt-x");
+        // BTreeMap orders by dimension: gpt-x then opus. The scope is carried through.
+        assert_eq!(drift[0].scope, "model");
+        assert_eq!(drift[0].dimension, "gpt-x");
         assert_eq!(drift[0].rollup_events, 1);
         assert_eq!(drift[0].scan_events, 2);
-        assert_eq!(drift[1].model, "opus");
+        assert_eq!(drift[1].dimension, "opus");
         assert_eq!(drift[1].rollup_credits, 50.0);
         assert_eq!(drift[1].scan_credits, 49.0);
     }
 
     #[test]
-    fn a_model_present_on_only_one_side_is_drift() {
-        // The rollup has a model the scan lacks (e.g. a stale rollup row) — must surface, scan side zero.
-        let drift = diff_model_aggregates(vec![agg("ghost", 5, 12.0)], vec![]);
+    fn a_group_present_on_only_one_side_is_drift() {
+        // The rollup has a value the scan lacks (e.g. a stale rollup row) — must surface, scan side zero.
+        let drift = diff_aggregates("team", vec![agg("ghost", 5, 12.0)], vec![]);
         assert_eq!(drift.len(), 1);
-        assert_eq!(drift[0].model, "ghost");
+        assert_eq!(drift[0].scope, "team");
+        assert_eq!(drift[0].dimension, "ghost");
         assert_eq!(drift[0].rollup_events, 5);
         assert_eq!(drift[0].scan_events, 0);
         assert_eq!(drift[0].scan_credits, 0.0);

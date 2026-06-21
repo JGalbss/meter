@@ -120,14 +120,14 @@ pub async fn org_usage_by_day(
     Ok(Json(days))
 }
 
-/// `GET /v1/orgs/{id}/reconcile` — reconcile the pre-aggregated rollup against the event store of
-/// record, per model. An empty array means the fast read path agrees with ground truth; any returned
-/// row is drift that warrants rebuilding the rollup.
+/// `GET /v1/orgs/{id}/reconcile` — reconcile every pre-aggregated rollup (by model, and each promoted
+/// custom field) against the event store of record. An empty array means the fast read paths agree with
+/// ground truth; any returned row is drift (scope + dimension) that warrants rebuilding that rollup.
 #[utoipa::path(
     get,
     path = "/v1/orgs/{id}/reconcile",
     params(("id" = String, Path, description = "Org id (UUID)")),
-    responses((status = 200, description = "Per-model rollup-vs-source drift; empty means consistent", body = Vec<RollupDrift>)),
+    responses((status = 200, description = "Per-group rollup-vs-source drift; empty means consistent", body = Vec<RollupDrift>)),
     tag = "analytics"
 )]
 pub async fn reconcile(
@@ -136,7 +136,7 @@ pub async fn reconcile(
 ) -> Result<Json<Vec<RollupDrift>>, ApiError> {
     let drift = state
         .events
-        .reconcile_model_usage(id)
+        .reconcile_rollups(id)
         .await
         .map_err(|error| ApiError::internal(error.to_string()))?;
     Ok(Json(drift))

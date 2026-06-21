@@ -218,18 +218,23 @@ async fn void_run(database_url: &str, run: RunId) -> anyhow::Result<()> {
 async fn reconcile(clickhouse_url: &str, org: Uuid) -> anyhow::Result<()> {
     let store = ChStore::new(clickhouse_url);
     let drift = store
-        .reconcile_model_usage(org)
+        .reconcile_rollups(org)
         .await
         .map_err(|error| anyhow::anyhow!("reconciling org {org}: {error}"))?;
     if drift.is_empty() {
-        println!("org {org}: rollup consistent with the event source of record");
+        println!("org {org}: rollups consistent with the event source of record");
         return Ok(());
     }
-    println!("org {org}: {} model(s) drifted", drift.len());
+    println!("org {org}: {} group(s) drifted", drift.len());
     for row in &drift {
         println!(
-            "  {:<24}  rollup {} events / {} credits  vs  scan {} events / {} credits",
-            row.model, row.rollup_events, row.rollup_credits, row.scan_events, row.scan_credits
+            "  [{}] {:<24}  rollup {} events / {} credits  vs  scan {} events / {} credits",
+            row.scope,
+            row.dimension,
+            row.rollup_events,
+            row.rollup_credits,
+            row.scan_events,
+            row.scan_credits
         );
     }
     anyhow::bail!("rollup drift detected for org {org}");

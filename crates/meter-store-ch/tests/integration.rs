@@ -179,7 +179,7 @@ async fn aggregates_reflect_idempotency_amends_and_voids() {
 
     // Reconciliation: the pre-aggregated rollup must agree with the live `events` scan after the
     // idempotent record, the amend, and the void above — zero drift on consistent data.
-    let drift = store.reconcile_model_usage(org).await.expect("reconcile");
+    let drift = store.reconcile_rollups(org).await.expect("reconcile");
     assert!(drift.is_empty(), "unexpected rollup drift: {drift:?}");
 }
 
@@ -293,7 +293,7 @@ async fn promoted_field_rollup_is_not_double_counted_by_idempotent_reingest() {
 
     // And the rollup still reconciles with the source of record.
     assert!(store
-        .reconcile_model_usage(org)
+        .reconcile_rollups(org)
         .await
         .expect("reconcile")
         .is_empty());

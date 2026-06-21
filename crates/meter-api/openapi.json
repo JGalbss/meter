@@ -781,8 +781,8 @@
         "tags": [
           "analytics"
         ],
-        "summary": "`GET /v1/orgs/{id}/reconcile` — reconcile the pre-aggregated rollup against the event store of",
-        "description": "record, per model. An empty array means the fast read path agrees with ground truth; any returned\nrow is drift that warrants rebuilding the rollup.",
+        "summary": "`GET /v1/orgs/{id}/reconcile` — reconcile every pre-aggregated rollup (by model, and each promoted",
+        "description": "custom field) against the event store of record. An empty array means the fast read paths agree with\nground truth; any returned row is drift (scope + dimension) that warrants rebuilding that rollup.",
         "operationId": "reconcile",
         "parameters": [
           {
@@ -798,7 +798,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Per-model rollup-vs-source drift; empty means consistent",
+            "description": "Per-group rollup-vs-source drift; empty means consistent",
             "content": {
               "application/json": {
                 "schema": {
@@ -2339,16 +2339,17 @@
       },
       "RollupDrift": {
         "type": "object",
-        "description": "One model's drift between the pre-aggregated `usage_rollup` and the live `events` system of record.\nReturned only when the two disagree, so an empty result means the rollup faithfully tracks the SoR.\n`*_events`/`*_credits` are the two sides; a non-empty list flags a rollup that needs rebuilding\n(e.g. a materialized view added after data already existed, or a merge/ingest anomaly).",
+        "description": "One group's drift between a pre-aggregated rollup and the live `events` system of record. `scope` is\nwhich rollup (`model`, or a promoted custom field like `team`) and `dimension` is the group value.\nReturned only when the two disagree, so an empty result means every rollup faithfully tracks the SoR.\n`*_events`/`*_credits` are the two sides; a non-empty list flags a rollup that needs rebuilding\n(e.g. a materialized view added after data already existed, or a merge/ingest anomaly).",
         "required": [
-          "model",
+          "scope",
+          "dimension",
           "rollup_events",
           "scan_events",
           "rollup_credits",
           "scan_credits"
         ],
         "properties": {
-          "model": {
+          "dimension": {
             "type": "string"
           },
           "rollup_credits": {
@@ -2366,6 +2367,9 @@
           "scan_events": {
             "type": "integer",
             "format": "int64"
+          },
+          "scope": {
+            "type": "string"
           }
         }
       },

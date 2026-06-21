@@ -1,6 +1,7 @@
-//! Server-side read client for the meter engine (analytics). The dashboard reads usage time series
-//! straight from the engine's authoritative data; reads degrade gracefully when the engine is down or
-//! slow (every request is timeout-bounded, see ./http).
+//! Server-side client for the meter engine. The dashboard reads usage time series straight from the
+//! engine's authoritative data, and drives a few engine operations directly (event amend/void, the
+//! pricing simulator, and the onboarding "test ping"). All money math stays in the engine (ADR 0001);
+//! these are thin RPCs. Every request is timeout-bounded, so a down/slow engine degrades gracefully.
 
 import { getResult, type Result } from "./http"
 import type {
@@ -16,6 +17,34 @@ import type {
   SimulateResult,
   UsageEvent,
 } from "./types"
+
+/** An engine ledger account, as returned by `POST /v1/accounts`. */
+export interface EngineAccount {
+  readonly id: string
+  readonly org_id: string
+  readonly scope: string
+  readonly no_overdraft: boolean
+  readonly parent_id: string | null
+}
+
+/** Token counts for one metered usage event. */
+export interface UsageDimensions {
+  readonly input_uncached?: number
+  readonly cache_read?: number
+  readonly cache_write?: number
+  readonly output?: number
+  readonly reasoning?: number
+}
+
+/** The result of metering usage (`POST /v1/usage`): what it priced to and the account balance after. */
+export interface MeterUsageResult {
+  readonly credits: string
+  readonly priced_credits: string
+  readonly event_id: string
+  readonly charged: boolean
+  readonly settled: string
+  readonly available: string
+}
 
 const ENGINE_URL = process.env.METER_ENGINE_URL ?? "http://127.0.0.1:8080"
 const LABEL = "engine"
@@ -154,4 +183,61 @@ export function fetchSimulate(
   body: SimulateInput
 ): Promise<Result<SimulateResult>> {
   return getResult(LABEL, url("/v1/simulate"), postInit(body))
+}
+
+// Open a ledger account in the engine. The engine owns the account id and all balances.
+export function openAccount(input: {
+  orgId: string
+  scope?: string
+  noOverdraft?: boolean
+  parentId?: string
+}): Promise<Result<EngineAccount>> {
+  return getResult(
+    LABEL,
+    url("/v1/accounts"),
+    postInit({
+      org_id: input.orgId,
+      scope: input.scope ?? "org",
+      no_overdraft: input.noOverdraft ?? false,
+      parent_id: input.parentId ?? null,
+    })
+  )
+}
+
+// Grant credits to an account (the engine posts the immutable double-entry transaction). Idempotent
+// per `idempotencyKey`.
+export function grantCredits(
+  accountId: string,
+  input: { amount: string; source?: string; idempotencyKey?: string }
+): Promise<Result<LedgerEntry>> {
+  return getResult(
+    LABEL,
+    url(`${account(accountId)}/grants`),
+    postInit({
+      amount: input.amount,
+      source: input.source ?? "grant",
+      idempotency_key: input.idempotencyKey,
+    })
+  )
+}
+
+// Meter a usage event: the engine prices the tokens into credits and debits the account in one call.
+export function meterUsage(input: {
+  orgId: string
+  account: string
+  model: string
+  idempotencyKey: string
+  usage: UsageDimensions
+}): Promise<Result<MeterUsageResult>> {
+  return getResult(
+    LABEL,
+    url("/v1/usage"),
+    postInit({
+      org_id: input.orgId,
+      account: input.account,
+      model: input.model,
+      idempotency_key: input.idempotencyKey,
+      usage: input.usage,
+    })
+  )
 }

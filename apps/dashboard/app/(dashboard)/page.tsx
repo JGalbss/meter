@@ -1,4 +1,5 @@
 import {
+  ArrowRight,
   Bell,
   Buildings,
   Plugs,
@@ -6,12 +7,14 @@ import {
   ShieldWarning,
 } from "@phosphor-icons/react/dist/ssr"
 import Link from "next/link"
+import { redirect } from "next/navigation"
 import type { ComponentType } from "react"
 import { Suspense } from "react"
 
 import { EmptyState } from "@/components/empty-state"
 import { PageHeader } from "@/components/page-header"
 import { RevealOnLoad, StatsSkeleton } from "@/components/section-skeleton"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   listAlertRules,
@@ -21,6 +24,7 @@ import {
 } from "@/lib/meter/client"
 import { fetchUsageByModel } from "@/lib/meter/engine"
 import { resolveOrgScope } from "@/lib/meter/org"
+import { isOnboardingDismissed } from "@/lib/onboarding"
 
 interface Stat {
   readonly label: string
@@ -46,13 +50,23 @@ export default async function OverviewPage() {
   }
 
   if (scope.activeOrg === null) {
+    // Fresh deployment: route straight into the guided setup (unless it was already skipped).
+    if (!(await isOnboardingDismissed())) {
+      redirect("/onboarding")
+    }
     return (
       <>
         <PageHeader title="Overview" description="Your metering console." />
         <EmptyState
           icon={Buildings}
           title="No organizations yet"
-          message="Create an organization in the control plane to get started."
+          message="Spin up your first workspace, agent, and key in a guided setup."
+          action={
+            <Button render={<Link href="/onboarding" />}>
+              Start setup
+              <ArrowRight />
+            </Button>
+          }
         />
       </>
     )

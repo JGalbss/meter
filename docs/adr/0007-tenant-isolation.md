@@ -22,6 +22,23 @@ Extends DECISIONS #7 (multi-tenancy via Postgres RLS) with the concrete control-
   test DB (PGlite) does **not enforce RLS** (verified), so RLS cannot be proven by the current harness
   and must not be enabled unverified. RLS is therefore its own focused change with real-PG verification,
   not an add-on to the app-layer commit.
+- **Transaction-layer options (investigated).** The per-request `SET LOCAL` needs the tenant transaction
+  and the repo queries to share one connection. Two routes were evaluated:
+  - *Effect-native (`@effect/sql` + `@effect/sql-drizzle`)* — the clean long-term design (a query becomes
+    a yieldable `Effect`, and `SqlClient.withTransaction` carries the GUC). A real-Postgres slice proved
+    the mechanism (org filtering, platform bypass, fail-closed-on-no-context all worked). **But** the
+    current `@effect/sql` line requires `@effect/platform ^0.96` (via `@effect/experimental`), while the
+    control plane runs `@effect/platform 0.72`; adopting it means a ~24-minor platform-stack upgrade that
+    rewrites the HTTP layer (HttpServer/Router/Middleware) — a control-plane-wide framework upgrade, not a
+    drop-in. Track as a dedicated effort if pursued.
+  - *Localized transaction bridge (drizzle + postgres-js)* — wrap each request's handler in a drizzle
+    transaction that sets the GUC, providing the transaction as the `Database` service; no platform
+    upgrade and existing PGlite tests keep working (RLS is a no-op there), with one real-Postgres test
+    for the RLS proof. Smaller blast radius; the trade-off is a contained runtime bridge in the auth
+    middleware.
+
+  The app-level control already closes the exploitable gap, so neither is urgent; the choice is a
+  deliberate one between a framework upgrade and a contained bridge.
 
 ## Context
 

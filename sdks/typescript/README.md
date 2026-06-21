@@ -66,6 +66,28 @@ Each maps a provider's usage object to meter's normalized token dimensions:
 plus `meterModelUsage` (price + charge), `recordModelUsage` (emit a usage event only), and
 `meteredCall` (wrap a provider call, record its usage, and return the response unchanged).
 
+## Auto-patch a provider client
+
+`patchAnthropic` / `patchOpenAI` monkey-patch a provider client so **every** call is metered
+automatically — no change to your call sites. Each returns an `Unpatch` to restore the original method.
+
+```ts
+import Anthropic from "@anthropic-ai/sdk";
+import { MeterClient, patchAnthropic } from "@meter/sdk";
+
+const meter = new MeterClient({ baseUrl: "http://localhost:8080" });
+const anthropic = new Anthropic();
+
+const unpatch = patchAnthropic(meter, anthropic, { orgId, account });
+// Priced + charged automatically; the response is returned unchanged.
+await anthropic.messages.create({ model: "claude-opus-4-8", messages, max_tokens: 1024 });
+unpatch();
+```
+
+`mode: "record"` emits a usage event without charging; `onError` makes metering fail-open (the
+provider response still returns); the per-call idempotency key and the model are derived automatically.
+The client is duck-typed, so the SDK takes no dependency on the provider package.
+
 ## `MeterClient`
 
 `openAccount`, `balance`, `grant`, `entries`, `reserve`, `settle`, `extendReservation`,

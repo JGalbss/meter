@@ -87,6 +87,28 @@ response = metered_call(
 )
 ```
 
+## Auto-patch a provider client
+
+`patch_anthropic` / `patch_openai` monkey-patch a provider client so **every** call is metered
+automatically — no change to your call sites. Each returns an `Unpatch` to restore the original method.
+
+```python
+import anthropic
+from meter import MeterClient, patch_anthropic
+
+meter = MeterClient("http://localhost:8080")
+client = anthropic.Anthropic()
+
+unpatch = patch_anthropic(meter, client, org_id=org_id, account=account)
+# Priced + charged automatically; the response is returned unchanged.
+client.messages.create(model="claude-opus-4-8", max_tokens=1024, messages=messages)
+unpatch()
+```
+
+`mode="record"` emits a usage event without charging; `on_error` makes metering fail-open (the
+provider response still returns); the per-call idempotency key and the model are derived automatically.
+The client is duck-typed (dict, pydantic, or plain-object usage), so no provider package is imported.
+
 ## `MeterClient`
 
 `open_account`, `balance`, `grant`, `entries`, `reserve`, `settle`, `extend_reservation`,

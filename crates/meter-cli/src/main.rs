@@ -13,6 +13,7 @@ use meter_ledger::{
 };
 use meter_pricing::{price_usage, ContextTier, Modality, PricingDimension, Usage};
 use meter_ratecards::rate_card_for;
+use meter_store_ch::ChStore;
 use meter_store_pg::PgLedger;
 use rust_decimal::Decimal;
 use sqlx::postgres::PgPoolOptions;
@@ -115,6 +116,16 @@ enum Command {
         #[arg(long)]
         run: Uuid,
     },
+    /// Reconcile the pre-aggregated usage rollup against the event store of record (ClickHouse), per
+    /// model. Prints any drift; exits non-zero if the rollup has diverged so it can gate a cron/alert.
+    Reconcile {
+        /// ClickHouse URL (defaults to $`METER_CLICKHOUSE_URL`, e.g. `http://127.0.0.1:8123`).
+        #[arg(long, env = "METER_CLICKHOUSE_URL")]
+        clickhouse_url: String,
+        /// The org id (UUID) to reconcile.
+        #[arg(long)]
+        org: Uuid,
+    },
 }
 
 #[tokio::main]
@@ -161,6 +172,10 @@ async fn main() -> anyhow::Result<()> {
         Command::VoidRun { database_url, run } => {
             void_run(&database_url, RunId::from_uuid(run)).await
         }
+        Command::Reconcile {
+            clickhouse_url,
+            org,
+        } => reconcile(&clickhouse_url, org).await,
     }
 }
 
@@ -198,6 +213,26 @@ async fn void_run(database_url: &str, run: RunId) -> anyhow::Result<()> {
         summary.credits_refunded.value().normalize()
     );
     Ok(())
+}
+
+async fn reconcile(clickhouse_url: &str, org: Uuid) -> anyhow::Result<()> {
+    let store = ChStore::new(clickhouse_url);
+    let drift = store
+        .reconcile_model_usage(org)
+        .await
+        .map_err(|error| anyhow::anyhow!("reconciling org {org}: {error}"))?;
+    if drift.is_empty() {
+        println!("org {org}: rollup consistent with the event source of record");
+        return Ok(());
+    }
+    println!("org {org}: {} model(s) drifted", drift.len());
+    for row in &drift {
+        println!(
+            "  {:<24}  rollup {} events / {} credits  vs  scan {} events / {} credits",
+            row.model, row.rollup_events, row.rollup_credits, row.scan_events, row.scan_credits
+        );
+    }
+    anyhow::bail!("rollup drift detected for org {org}");
 }
 
 fn price(

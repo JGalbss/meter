@@ -5,7 +5,8 @@ import { Effect, Schema } from "effect";
 
 import { Database } from "../../db/service";
 import { createProduct, listProducts } from "../../products/repository";
-import { handle } from "../errors";
+import { forbidden, handle } from "../errors";
+import { CurrentPrincipal, authorizeOrg, isAllowed } from "../tenant";
 
 export const NewProductBody = Schema.Struct({
   orgId: Schema.String,
@@ -17,15 +18,20 @@ const ProductQuery = Schema.Struct({ orgId: Schema.String });
 
 export function productRoutes<E, R>(
   base: HttpRouter.HttpRouter<E, R>,
-): HttpRouter.HttpRouter<E, R | Database> {
+): HttpRouter.HttpRouter<E, R | Database | CurrentPrincipal> {
   return base.pipe(
     HttpRouter.get(
       "/v1/products",
       handle(
         Effect.gen(function* () {
           const db = yield* Database;
+          const principal = yield* CurrentPrincipal;
           const { orgId } = yield* HttpServerRequest.schemaSearchParams(ProductQuery);
-          const items = yield* listProducts(db, orgId);
+          const access = authorizeOrg(principal, orgId);
+          if (!isAllowed(access)) {
+            return forbidden;
+          }
+          const items = yield* listProducts(db, access.orgId);
           return HttpServerResponse.unsafeJson(items);
         }),
       ),
@@ -35,8 +41,13 @@ export function productRoutes<E, R>(
       handle(
         Effect.gen(function* () {
           const db = yield* Database;
+          const principal = yield* CurrentPrincipal;
           const body = yield* HttpServerRequest.schemaBodyJson(NewProductBody);
-          const product = yield* createProduct(db, body);
+          const access = authorizeOrg(principal, body.orgId);
+          if (!isAllowed(access)) {
+            return forbidden;
+          }
+          const product = yield* createProduct(db, { ...body, orgId: access.orgId });
           return HttpServerResponse.unsafeJson(product, { status: 201 });
         }),
       ),

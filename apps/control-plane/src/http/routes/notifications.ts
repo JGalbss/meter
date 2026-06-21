@@ -11,7 +11,8 @@ import {
   markNotificationRead,
 } from "../../notifications/repository";
 import { dispatchForNotification } from "../../webhooks/dispatch";
-import { handle } from "../errors";
+import { forbidden, handle } from "../errors";
+import { CurrentPrincipal, authorizeOrg, isAllowed, orgScope } from "../tenant";
 
 const Severity = Schema.Literal("info", "warning", "critical");
 const NotificationType = Schema.Literal("budget", "credit", "invoice", "run_failure", "system");
@@ -34,15 +35,20 @@ const IdParam = Schema.Struct({ id: Schema.String });
 
 export function notificationRoutes<E, R>(
   base: HttpRouter.HttpRouter<E, R>,
-): HttpRouter.HttpRouter<E, R | Database> {
+): HttpRouter.HttpRouter<E, R | Database | CurrentPrincipal> {
   return base.pipe(
     HttpRouter.get(
       "/v1/notifications",
       handle(
         Effect.gen(function* () {
           const db = yield* Database;
+          const principal = yield* CurrentPrincipal;
           const { orgId, status } = yield* HttpServerRequest.schemaSearchParams(ListQuery);
-          const items = yield* listNotifications(db, orgId, status);
+          const access = authorizeOrg(principal, orgId);
+          if (!isAllowed(access)) {
+            return forbidden;
+          }
+          const items = yield* listNotifications(db, access.orgId, status);
           return HttpServerResponse.unsafeJson(items);
         }),
       ),
@@ -52,8 +58,13 @@ export function notificationRoutes<E, R>(
       handle(
         Effect.gen(function* () {
           const db = yield* Database;
+          const principal = yield* CurrentPrincipal;
           const body = yield* HttpServerRequest.schemaBodyJson(NewNotificationBody);
-          const notification = yield* createNotification(db, body);
+          const access = authorizeOrg(principal, body.orgId);
+          if (!isAllowed(access)) {
+            return forbidden;
+          }
+          const notification = yield* createNotification(db, { ...body, orgId: access.orgId });
           yield* dispatchForNotification(db, notification);
           return HttpServerResponse.unsafeJson(notification, { status: 201 });
         }),
@@ -64,9 +75,10 @@ export function notificationRoutes<E, R>(
       handle(
         Effect.gen(function* () {
           const db = yield* Database;
+          const principal = yield* CurrentPrincipal;
           const { id } = yield* HttpRouter.schemaPathParams(IdParam);
           const now = new Date(yield* Clock.currentTimeMillis);
-          const updated = yield* markNotificationRead(db, id, now);
+          const updated = yield* markNotificationRead(db, id, orgScope(principal), now);
           return HttpServerResponse.unsafeJson(updated);
         }),
       ),
@@ -76,9 +88,10 @@ export function notificationRoutes<E, R>(
       handle(
         Effect.gen(function* () {
           const db = yield* Database;
+          const principal = yield* CurrentPrincipal;
           const { id } = yield* HttpRouter.schemaPathParams(IdParam);
           const now = new Date(yield* Clock.currentTimeMillis);
-          const updated = yield* ackNotification(db, id, now);
+          const updated = yield* ackNotification(db, id, orgScope(principal), now);
           return HttpServerResponse.unsafeJson(updated);
         }),
       ),

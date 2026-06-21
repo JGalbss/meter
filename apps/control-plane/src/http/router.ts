@@ -14,34 +14,36 @@ import { notificationRoutes } from "./routes/notifications";
 import { organizationRoutes } from "./routes/organizations";
 import { productRoutes } from "./routes/products";
 import { webhookRoutes } from "./routes/webhooks";
+import type { CurrentPrincipal } from "./tenant";
 
-export const router: HttpRouter.HttpRouter<never, Database> = HttpRouter.empty.pipe(
-  HttpRouter.get("/health", Effect.succeed(HttpServerResponse.unsafeJson({ status: "ok" }))),
-  HttpRouter.get(
-    "/health/ready",
-    Effect.gen(function* () {
-      // Readiness gates traffic on the config database being reachable (liveness stays static so a
-      // transient blip never trips a restart). A `503` tells the load balancer to hold off.
-      const db = yield* Database;
-      const probe = yield* Effect.either(
-        Effect.tryPromise(async () => {
-          await db.execute(sql`select 1`);
-        }),
-      );
-      if (Either.isLeft(probe)) {
-        return HttpServerResponse.unsafeJson(
-          { status: "unavailable", database: false },
-          { status: 503 },
+export const router: HttpRouter.HttpRouter<never, Database | CurrentPrincipal> =
+  HttpRouter.empty.pipe(
+    HttpRouter.get("/health", Effect.succeed(HttpServerResponse.unsafeJson({ status: "ok" }))),
+    HttpRouter.get(
+      "/health/ready",
+      Effect.gen(function* () {
+        // Readiness gates traffic on the config database being reachable (liveness stays static so a
+        // transient blip never trips a restart). A `503` tells the load balancer to hold off.
+        const db = yield* Database;
+        const probe = yield* Effect.either(
+          Effect.tryPromise(async () => {
+            await db.execute(sql`select 1`);
+          }),
         );
-      }
-      return HttpServerResponse.unsafeJson({ status: "ok", database: true });
-    }),
-  ),
-  HttpRouter.get("/openapi.json", Effect.succeed(HttpServerResponse.unsafeJson(openApiDocument))),
-  organizationRoutes,
-  productRoutes,
-  notificationRoutes,
-  alertRoutes,
-  webhookRoutes,
-  apiKeyRoutes,
-);
+        if (Either.isLeft(probe)) {
+          return HttpServerResponse.unsafeJson(
+            { status: "unavailable", database: false },
+            { status: 503 },
+          );
+        }
+        return HttpServerResponse.unsafeJson({ status: "ok", database: true });
+      }),
+    ),
+    HttpRouter.get("/openapi.json", Effect.succeed(HttpServerResponse.unsafeJson(openApiDocument))),
+    organizationRoutes,
+    productRoutes,
+    notificationRoutes,
+    alertRoutes,
+    webhookRoutes,
+    apiKeyRoutes,
+  );

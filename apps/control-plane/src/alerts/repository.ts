@@ -7,6 +7,7 @@ import { Effect, Schema } from "effect";
 import type { Db } from "../db/client";
 import { alertRules } from "../db/schema";
 import { NotFound, RepoError } from "../repository/errors";
+import { byIdInOrg } from "../repository/scope";
 
 // The response Schema is the single source of truth for the `AlertRule` type + the OpenAPI contract.
 export const AlertRule = Schema.Struct({
@@ -136,10 +137,11 @@ export function listAlertRules(
   });
 }
 
-/** Enable or disable an alert rule. */
+/** Enable or disable an alert rule (confined to `orgId` unless `null`). */
 export function setAlertRuleEnabled(
   db: Db,
   id: string,
+  orgId: string | null,
   enabled: boolean,
 ): Effect.Effect<AlertRule, RepoError | NotFound> {
   return Effect.tryPromise({
@@ -147,7 +149,7 @@ export function setAlertRuleEnabled(
       const [row] = await db
         .update(alertRules)
         .set({ enabled })
-        .where(eq(alertRules.id, id))
+        .where(byIdInOrg(alertRules.id, alertRules.orgId, id, orgId))
         .returning();
       return row;
     },

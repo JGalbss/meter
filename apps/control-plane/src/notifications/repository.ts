@@ -7,6 +7,7 @@ import { Effect, Schema } from "effect";
 import type { Db } from "../db/client";
 import { notifications } from "../db/schema";
 import { NotFound, RepoError } from "../repository/errors";
+import { byIdInOrg } from "../repository/scope";
 
 // The response Schema is the single source of truth for the `Notification` type + the OpenAPI contract.
 export const Notification = Schema.Struct({
@@ -119,6 +120,7 @@ export function listNotifications(
 function updateStatus(
   db: Db,
   id: string,
+  orgId: string | null,
   values: Partial<typeof notifications.$inferInsert>,
 ): Effect.Effect<Notification, RepoError | NotFound> {
   return Effect.tryPromise({
@@ -126,7 +128,7 @@ function updateStatus(
       const [row] = await db
         .update(notifications)
         .set(values)
-        .where(eq(notifications.id, id))
+        .where(byIdInOrg(notifications.id, notifications.orgId, id, orgId))
         .returning();
       return row;
     },
@@ -137,20 +139,22 @@ function updateStatus(
   );
 }
 
-/** Mark a notification read. */
+/** Mark a notification read (confined to `orgId` unless `null`). */
 export function markNotificationRead(
   db: Db,
   id: string,
+  orgId: string | null,
   now: Date,
 ): Effect.Effect<Notification, RepoError | NotFound> {
-  return updateStatus(db, id, { status: "read", readAt: now });
+  return updateStatus(db, id, orgId, { status: "read", readAt: now });
 }
 
-/** Acknowledge a notification (also marks it read if it was not already). */
+/** Acknowledge a notification (also marks it read), confined to `orgId` unless `null`. */
 export function ackNotification(
   db: Db,
   id: string,
+  orgId: string | null,
   now: Date,
 ): Effect.Effect<Notification, RepoError | NotFound> {
-  return updateStatus(db, id, { status: "acked", readAt: now, ackedAt: now });
+  return updateStatus(db, id, orgId, { status: "acked", readAt: now, ackedAt: now });
 }

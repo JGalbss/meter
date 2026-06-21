@@ -65,6 +65,15 @@ export function canManagePlatform(principal: Principal | null): boolean {
   return isPlatform(principal);
 }
 
+/** Whether the caller may mint a key of `scope`. Only platform callers may mint platform keys (an
+ * org-scoped admin minting a platform key would escalate privilege). */
+export function canMintScope(principal: Principal | null, scope: Scope): boolean {
+  if (scope === "org") {
+    return true;
+  }
+  return canManagePlatform(principal);
+}
+
 /** The result of authorizing a request's target org against the caller. */
 export type OrgAccess =
   | { readonly allowed: true; readonly orgId: string }

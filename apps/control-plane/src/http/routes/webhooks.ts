@@ -10,7 +10,8 @@ import {
   listWebhooks,
   setWebhookEnabled,
 } from "../../webhooks/repository";
-import { handle } from "../errors";
+import { forbidden, handle } from "../errors";
+import { CurrentPrincipal, authorizeOrg, isAllowed, orgScope } from "../tenant";
 
 export const NewWebhookBody = Schema.Struct({
   orgId: Schema.String,
@@ -25,15 +26,20 @@ const IdParam = Schema.Struct({ id: Schema.String });
 
 export function webhookRoutes<E, R>(
   base: HttpRouter.HttpRouter<E, R>,
-): HttpRouter.HttpRouter<E, R | Database> {
+): HttpRouter.HttpRouter<E, R | Database | CurrentPrincipal> {
   return base.pipe(
     HttpRouter.get(
       "/v1/webhooks",
       handle(
         Effect.gen(function* () {
           const db = yield* Database;
+          const principal = yield* CurrentPrincipal;
           const { orgId } = yield* HttpServerRequest.schemaSearchParams(OrgQuery);
-          const hooks = yield* listWebhooks(db, orgId);
+          const access = authorizeOrg(principal, orgId);
+          if (!isAllowed(access)) {
+            return forbidden;
+          }
+          const hooks = yield* listWebhooks(db, access.orgId);
           return HttpServerResponse.unsafeJson(hooks);
         }),
       ),
@@ -43,8 +49,13 @@ export function webhookRoutes<E, R>(
       handle(
         Effect.gen(function* () {
           const db = yield* Database;
+          const principal = yield* CurrentPrincipal;
           const body = yield* HttpServerRequest.schemaBodyJson(NewWebhookBody);
-          const webhook = yield* createWebhook(db, body);
+          const access = authorizeOrg(principal, body.orgId);
+          if (!isAllowed(access)) {
+            return forbidden;
+          }
+          const webhook = yield* createWebhook(db, { ...body, orgId: access.orgId });
           return HttpServerResponse.unsafeJson(webhook, { status: 201 });
         }),
       ),
@@ -54,9 +65,10 @@ export function webhookRoutes<E, R>(
       handle(
         Effect.gen(function* () {
           const db = yield* Database;
+          const principal = yield* CurrentPrincipal;
           const { id } = yield* HttpRouter.schemaPathParams(IdParam);
           const { enabled } = yield* HttpServerRequest.schemaBodyJson(EnabledBody);
-          const webhook = yield* setWebhookEnabled(db, id, enabled);
+          const webhook = yield* setWebhookEnabled(db, id, orgScope(principal), enabled);
           return HttpServerResponse.unsafeJson(webhook);
         }),
       ),
@@ -66,8 +78,13 @@ export function webhookRoutes<E, R>(
       handle(
         Effect.gen(function* () {
           const db = yield* Database;
+          const principal = yield* CurrentPrincipal;
           const { orgId } = yield* HttpServerRequest.schemaSearchParams(OrgQuery);
-          const deliveries = yield* listDeliveries(db, orgId);
+          const access = authorizeOrg(principal, orgId);
+          if (!isAllowed(access)) {
+            return forbidden;
+          }
+          const deliveries = yield* listDeliveries(db, access.orgId);
           return HttpServerResponse.unsafeJson(deliveries);
         }),
       ),

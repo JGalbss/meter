@@ -11,6 +11,7 @@ import { apiKeys } from "../db/schema";
 import { type Role, toRole } from "../http/rbac";
 import { type Principal, type Scope, toScope } from "../http/tenant";
 import { NotFound, RepoError } from "../repository/errors";
+import { byIdInOrg } from "../repository/scope";
 
 export type { Principal } from "../http/tenant";
 
@@ -112,10 +113,11 @@ export function listApiKeys(db: Db, orgId: string): Effect.Effect<readonly ApiKe
   });
 }
 
-/** Revoke an API key. */
+/** Revoke an API key (confined to `orgId` unless `null`). */
 export function revokeApiKey(
   db: Db,
   id: string,
+  orgId: string | null,
   now: Date,
 ): Effect.Effect<ApiKey, RepoError | NotFound> {
   return Effect.tryPromise({
@@ -123,7 +125,7 @@ export function revokeApiKey(
       const [row] = await db
         .update(apiKeys)
         .set({ revokedAt: now })
-        .where(eq(apiKeys.id, id))
+        .where(byIdInOrg(apiKeys.id, apiKeys.orgId, id, orgId))
         .returning();
       return row;
     },

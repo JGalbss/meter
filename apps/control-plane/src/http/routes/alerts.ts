@@ -6,7 +6,8 @@ import { Clock, Effect, Schema } from "effect";
 import { evaluateOrgAlertRules } from "../../alerts/evaluate";
 import { createAlertRule, listAlertRules, setAlertRuleEnabled } from "../../alerts/repository";
 import { Database } from "../../db/service";
-import { handle } from "../errors";
+import { forbidden, handle } from "../errors";
+import { CurrentPrincipal, authorizeOrg, isAllowed, orgScope } from "../tenant";
 
 const Scope = Schema.Literal("org", "team", "user", "product");
 const Metric = Schema.Literal("budget", "credit", "spend");
@@ -38,15 +39,20 @@ function optionalNumberToString(value: number | undefined): string | undefined {
 
 export function alertRoutes<E, R>(
   base: HttpRouter.HttpRouter<E, R>,
-): HttpRouter.HttpRouter<E, R | Database> {
+): HttpRouter.HttpRouter<E, R | Database | CurrentPrincipal> {
   return base.pipe(
     HttpRouter.get(
       "/v1/alert-rules",
       handle(
         Effect.gen(function* () {
           const db = yield* Database;
+          const principal = yield* CurrentPrincipal;
           const { orgId } = yield* HttpServerRequest.schemaSearchParams(OrgQuery);
-          const rules = yield* listAlertRules(db, orgId);
+          const access = authorizeOrg(principal, orgId);
+          if (!isAllowed(access)) {
+            return forbidden;
+          }
+          const rules = yield* listAlertRules(db, access.orgId);
           return HttpServerResponse.unsafeJson(rules);
         }),
       ),
@@ -56,9 +62,14 @@ export function alertRoutes<E, R>(
       handle(
         Effect.gen(function* () {
           const db = yield* Database;
+          const principal = yield* CurrentPrincipal;
           const body = yield* HttpServerRequest.schemaBodyJson(NewAlertRuleBody);
+          const access = authorizeOrg(principal, body.orgId);
+          if (!isAllowed(access)) {
+            return forbidden;
+          }
           const rule = yield* createAlertRule(db, {
-            orgId: body.orgId,
+            orgId: access.orgId,
             name: body.name,
             scope: body.scope,
             metric: body.metric,
@@ -78,9 +89,14 @@ export function alertRoutes<E, R>(
       handle(
         Effect.gen(function* () {
           const db = yield* Database;
+          const principal = yield* CurrentPrincipal;
           const { orgId } = yield* HttpServerRequest.schemaSearchParams(OrgQuery);
+          const access = authorizeOrg(principal, orgId);
+          if (!isAllowed(access)) {
+            return forbidden;
+          }
           const now = new Date(yield* Clock.currentTimeMillis);
-          const summary = yield* evaluateOrgAlertRules(db, orgId, now);
+          const summary = yield* evaluateOrgAlertRules(db, access.orgId, now);
           return HttpServerResponse.unsafeJson(summary);
         }),
       ),
@@ -90,9 +106,10 @@ export function alertRoutes<E, R>(
       handle(
         Effect.gen(function* () {
           const db = yield* Database;
+          const principal = yield* CurrentPrincipal;
           const { id } = yield* HttpRouter.schemaPathParams(IdParam);
           const { enabled } = yield* HttpServerRequest.schemaBodyJson(EnabledBody);
-          const rule = yield* setAlertRuleEnabled(db, id, enabled);
+          const rule = yield* setAlertRuleEnabled(db, id, orgScope(principal), enabled);
           return HttpServerResponse.unsafeJson(rule);
         }),
       ),

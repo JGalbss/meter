@@ -26,12 +26,7 @@
     "schemas": {
       "Organization": {
         "type": "object",
-        "required": [
-          "id",
-          "slug",
-          "name",
-          "defaultCurrency"
-        ],
+        "required": ["id", "slug", "name", "defaultCurrency"],
         "properties": {
           "id": {
             "type": "string"
@@ -50,12 +45,7 @@
       },
       "Product": {
         "type": "object",
-        "required": [
-          "id",
-          "orgId",
-          "key",
-          "name"
-        ],
+        "required": ["id", "orgId", "key", "name"],
         "properties": {
           "id": {
             "type": "string"
@@ -97,18 +87,11 @@
           },
           "role": {
             "type": "string",
-            "enum": [
-              "viewer",
-              "member",
-              "admin"
-            ]
+            "enum": ["viewer", "member", "admin"]
           },
           "scope": {
             "type": "string",
-            "enum": [
-              "platform",
-              "org"
-            ]
+            "enum": ["platform", "org"]
           },
           "prefix": {
             "type": "string"
@@ -165,18 +148,11 @@
           },
           "role": {
             "type": "string",
-            "enum": [
-              "viewer",
-              "member",
-              "admin"
-            ]
+            "enum": ["viewer", "member", "admin"]
           },
           "scope": {
             "type": "string",
-            "enum": [
-              "platform",
-              "org"
-            ]
+            "enum": ["platform", "org"]
           },
           "prefix": {
             "type": "string"
@@ -360,14 +336,7 @@
       },
       "Webhook": {
         "type": "object",
-        "required": [
-          "id",
-          "orgId",
-          "url",
-          "eventTypes",
-          "enabled",
-          "createdAt"
-        ],
+        "required": ["id", "orgId", "url", "eventTypes", "enabled", "createdAt"],
         "properties": {
           "id": {
             "type": "string"
@@ -465,10 +434,7 @@
       },
       "NewOrganization": {
         "type": "object",
-        "required": [
-          "slug",
-          "name"
-        ],
+        "required": ["slug", "name"],
         "properties": {
           "slug": {
             "type": "string"
@@ -481,11 +447,7 @@
       },
       "NewProduct": {
         "type": "object",
-        "required": [
-          "orgId",
-          "key",
-          "name"
-        ],
+        "required": ["orgId", "key", "name"],
         "properties": {
           "orgId": {
             "type": "string"
@@ -501,10 +463,7 @@
       },
       "NewApiKey": {
         "type": "object",
-        "required": [
-          "orgId",
-          "name"
-        ],
+        "required": ["orgId", "name"],
         "properties": {
           "orgId": {
             "type": "string"
@@ -514,25 +473,18 @@
           },
           "role": {
             "type": "string",
-            "enum": [
-              "viewer",
-              "member",
-              "admin"
-            ]
+            "enum": ["viewer", "member", "admin"]
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["platform", "org"]
           }
         },
         "additionalProperties": false
       },
       "NewAlertRule": {
         "type": "object",
-        "required": [
-          "orgId",
-          "name",
-          "scope",
-          "metric",
-          "threshold",
-          "action"
-        ],
+        "required": ["orgId", "name", "scope", "metric", "threshold", "action"],
         "properties": {
           "orgId": {
             "type": "string"
@@ -542,31 +494,18 @@
           },
           "scope": {
             "type": "string",
-            "enum": [
-              "org",
-              "team",
-              "user",
-              "product"
-            ]
+            "enum": ["org", "team", "user", "product"]
           },
           "metric": {
             "type": "string",
-            "enum": [
-              "budget",
-              "credit",
-              "spend"
-            ]
+            "enum": ["budget", "credit", "spend"]
           },
           "threshold": {
             "type": "number"
           },
           "action": {
             "type": "string",
-            "enum": [
-              "notify",
-              "webhook",
-              "enforce"
-            ]
+            "enum": ["notify", "webhook", "enforce"]
           },
           "enabled": {
             "type": "boolean"
@@ -585,33 +524,18 @@
       },
       "NewNotification": {
         "type": "object",
-        "required": [
-          "orgId",
-          "type",
-          "severity",
-          "title"
-        ],
+        "required": ["orgId", "type", "severity", "title"],
         "properties": {
           "orgId": {
             "type": "string"
           },
           "type": {
             "type": "string",
-            "enum": [
-              "budget",
-              "credit",
-              "invoice",
-              "run_failure",
-              "system"
-            ]
+            "enum": ["budget", "credit", "invoice", "run_failure", "system"]
           },
           "severity": {
             "type": "string",
-            "enum": [
-              "info",
-              "warning",
-              "critical"
-            ]
+            "enum": ["info", "warning", "critical"]
           },
           "title": {
             "type": "string"
@@ -628,11 +552,7 @@
       },
       "NewWebhook": {
         "type": "object",
-        "required": [
-          "orgId",
-          "url",
-          "secret"
-        ],
+        "required": ["orgId", "url", "secret"],
         "properties": {
           "orgId": {
             "type": "string"
@@ -654,9 +574,7 @@
       },
       "Enabled": {
         "type": "object",
-        "required": [
-          "enabled"
-        ],
+        "required": ["enabled"],
         "properties": {
           "enabled": {
             "type": "boolean"
@@ -692,9 +610,7 @@
   "paths": {
     "/health": {
       "get": {
-        "tags": [
-          "Health"
-        ],
+        "tags": ["Health"],
         "summary": "Liveness probe",
         "operationId": "get:/health",
         "responses": {
@@ -725,9 +641,7 @@
     },
     "/v1/organizations": {
       "get": {
-        "tags": [
-          "Organizations"
-        ],
+        "tags": ["Organizations"],
         "summary": "List organizations",
         "operationId": "get:/v1/organizations",
         "responses": {
@@ -759,9 +673,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Organizations"
-        ],
+        "tags": ["Organizations"],
         "summary": "Create an organization",
         "operationId": "post:/v1/organizations",
         "responses": {
@@ -802,9 +714,7 @@
     },
     "/v1/products": {
       "get": {
-        "tags": [
-          "Products"
-        ],
+        "tags": ["Products"],
         "summary": "List products",
         "operationId": "get:/v1/products",
         "responses": {
@@ -846,9 +756,7 @@
         ]
       },
       "post": {
-        "tags": [
-          "Products"
-        ],
+        "tags": ["Products"],
         "summary": "Create a product",
         "operationId": "post:/v1/products",
         "responses": {
@@ -889,9 +797,7 @@
     },
     "/v1/api-keys": {
       "get": {
-        "tags": [
-          "API keys"
-        ],
+        "tags": ["API keys"],
         "summary": "List API keys",
         "operationId": "get:/v1/api-keys",
         "responses": {
@@ -933,9 +839,7 @@
         ]
       },
       "post": {
-        "tags": [
-          "API keys"
-        ],
+        "tags": ["API keys"],
         "summary": "Mint an API key (token shown once)",
         "operationId": "post:/v1/api-keys",
         "responses": {
@@ -976,9 +880,7 @@
     },
     "/v1/api-keys/{id}/revoke": {
       "post": {
-        "tags": [
-          "API keys"
-        ],
+        "tags": ["API keys"],
         "summary": "Revoke an API key",
         "operationId": "post:/v1/api-keys/{id}/revoke",
         "responses": {
@@ -1019,9 +921,7 @@
     },
     "/v1/alert-rules": {
       "get": {
-        "tags": [
-          "Alert rules"
-        ],
+        "tags": ["Alert rules"],
         "summary": "List alert rules",
         "operationId": "get:/v1/alert-rules",
         "responses": {
@@ -1063,9 +963,7 @@
         ]
       },
       "post": {
-        "tags": [
-          "Alert rules"
-        ],
+        "tags": ["Alert rules"],
         "summary": "Create an alert rule",
         "operationId": "post:/v1/alert-rules",
         "responses": {
@@ -1106,9 +1004,7 @@
     },
     "/v1/alert-rules/evaluate": {
       "post": {
-        "tags": [
-          "Alert rules"
-        ],
+        "tags": ["Alert rules"],
         "summary": "Evaluate budget rules now",
         "operationId": "post:/v1/alert-rules/evaluate",
         "responses": {
@@ -1149,9 +1045,7 @@
     },
     "/v1/alert-rules/{id}/enabled": {
       "post": {
-        "tags": [
-          "Alert rules"
-        ],
+        "tags": ["Alert rules"],
         "summary": "Enable/disable a rule",
         "operationId": "post:/v1/alert-rules/{id}/enabled",
         "responses": {
@@ -1202,9 +1096,7 @@
     },
     "/v1/notifications": {
       "get": {
-        "tags": [
-          "Notifications"
-        ],
+        "tags": ["Notifications"],
         "summary": "List notifications",
         "operationId": "get:/v1/notifications",
         "responses": {
@@ -1254,9 +1146,7 @@
         ]
       },
       "post": {
-        "tags": [
-          "Notifications"
-        ],
+        "tags": ["Notifications"],
         "summary": "Raise a notification",
         "operationId": "post:/v1/notifications",
         "responses": {
@@ -1297,9 +1187,7 @@
     },
     "/v1/notifications/{id}/read": {
       "post": {
-        "tags": [
-          "Notifications"
-        ],
+        "tags": ["Notifications"],
         "summary": "Mark read",
         "operationId": "post:/v1/notifications/{id}/read",
         "responses": {
@@ -1340,9 +1228,7 @@
     },
     "/v1/notifications/{id}/ack": {
       "post": {
-        "tags": [
-          "Notifications"
-        ],
+        "tags": ["Notifications"],
         "summary": "Acknowledge",
         "operationId": "post:/v1/notifications/{id}/ack",
         "responses": {
@@ -1383,9 +1269,7 @@
     },
     "/v1/webhooks": {
       "get": {
-        "tags": [
-          "Webhooks"
-        ],
+        "tags": ["Webhooks"],
         "summary": "List webhooks",
         "operationId": "get:/v1/webhooks",
         "responses": {
@@ -1427,9 +1311,7 @@
         ]
       },
       "post": {
-        "tags": [
-          "Webhooks"
-        ],
+        "tags": ["Webhooks"],
         "summary": "Register a webhook",
         "operationId": "post:/v1/webhooks",
         "responses": {
@@ -1470,9 +1352,7 @@
     },
     "/v1/webhooks/{id}/enabled": {
       "post": {
-        "tags": [
-          "Webhooks"
-        ],
+        "tags": ["Webhooks"],
         "summary": "Enable/disable a webhook",
         "operationId": "post:/v1/webhooks/{id}/enabled",
         "responses": {
@@ -1523,9 +1403,7 @@
     },
     "/v1/webhook-deliveries": {
       "get": {
-        "tags": [
-          "Webhooks"
-        ],
+        "tags": ["Webhooks"],
         "summary": "List webhook deliveries",
         "operationId": "get:/v1/webhook-deliveries",
         "responses": {

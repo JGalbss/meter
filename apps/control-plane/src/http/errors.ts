@@ -11,6 +11,12 @@ import type { NotFound, RepoError } from "../repository/errors";
 /** Every failure a handler can surface. */
 export type AppError = RepoError | NotFound | ParseResult.ParseError | HttpServerError.RequestError;
 
+/** A 403 for a caller acting outside its tenant scope (ADR 0007). Returned directly by handlers. */
+export const forbidden: HttpServerResponse.HttpServerResponse = HttpServerResponse.unsafeJson(
+  { error: "forbidden" },
+  { status: 403 },
+);
+
 /** Map a typed failure to a clean JSON response. A response is itself a yieldable `Effect`. */
 export function errorResponse(
   error: AppError,

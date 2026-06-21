@@ -9,11 +9,13 @@ import { describe, expect, it } from "vitest";
 import { Database } from "../src/db/service";
 import { withObservability } from "../src/http/observability";
 import { router } from "../src/http/router";
+import { CurrentPrincipalDefault } from "../src/http/tenant";
 import { type TestDb, freshDb } from "./support";
 
 function observedLayer(db: TestDb) {
   return HttpServer.serve(withObservability(router)).pipe(
     Layer.provide(Layer.succeed(Database, db)),
+    Layer.provide(CurrentPrincipalDefault),
     Layer.provideMerge(NodeHttpServer.layerTest),
   );
 }

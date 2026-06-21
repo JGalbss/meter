@@ -14,6 +14,7 @@ import { Effect, Layer } from "effect";
 import * as schema from "../src/db/schema";
 import { Database } from "../src/db/service";
 import { router } from "../src/http/router";
+import { CurrentPrincipalDefault } from "../src/http/tenant";
 
 export type TestDb = PgliteDatabase<typeof schema>;
 
@@ -26,6 +27,7 @@ export async function freshDb(): Promise<TestDb> {
 function testLayer(db: TestDb) {
   return HttpServer.serve(router).pipe(
     Layer.provide(Layer.succeed(Database, db)),
+    Layer.provide(CurrentPrincipalDefault),
     Layer.provideMerge(NodeHttpServer.layerTest),
   );
 }

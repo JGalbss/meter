@@ -11,12 +11,14 @@ import { createApiKey } from "../src/api-keys/repository";
 import { Database } from "../src/db/service";
 import { requireApiKey } from "../src/http/auth";
 import { router } from "../src/http/router";
+import { CurrentPrincipalDefault } from "../src/http/tenant";
 import { createOrganization } from "../src/organizations/repository";
 import { type TestDb, freshDb, run } from "./support";
 
 function authedLayer(db: TestDb) {
   return HttpServer.serve(requireApiKey(db, true)(router)).pipe(
     Layer.provide(Layer.succeed(Database, db)),
+    Layer.provide(CurrentPrincipalDefault),
     Layer.provideMerge(NodeHttpServer.layerTest),
   );
 }
@@ -74,7 +76,10 @@ describe("API-key enforcement", () => {
   it("allows /health, rejects unauthenticated /v1, and accepts a valid key", async () => {
     const db = await freshDb();
     const org = await Effect.runPromise(createOrganization(db, { slug: "acme", name: "Acme" }));
-    const key = await Effect.runPromise(createApiKey(db, { orgId: org.id, name: "ci" }));
+    // A platform key: /v1/organizations is platform-scoped, and this test asserts a valid key → 200.
+    const key = await Effect.runPromise(
+      createApiKey(db, { orgId: org.id, name: "ci", scope: "platform" }),
+    );
 
     const result = await runAuthed(
       db,

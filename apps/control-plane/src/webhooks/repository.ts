@@ -7,6 +7,7 @@ import { Effect, Schema } from "effect";
 import type { Db } from "../db/client";
 import { webhookDeliveries, webhooks } from "../db/schema";
 import { NotFound, RepoError } from "../repository/errors";
+import { byIdInOrg } from "../repository/scope";
 
 // The response Schema is the single source of truth for the `Webhook` type + the OpenAPI contract.
 export const Webhook = Schema.Struct({
@@ -140,6 +141,7 @@ export function enabledWebhooks(
 export function setWebhookEnabled(
   db: Db,
   id: string,
+  orgId: string | null,
   enabled: boolean,
 ): Effect.Effect<Webhook, RepoError | NotFound> {
   return Effect.tryPromise({
@@ -147,7 +149,7 @@ export function setWebhookEnabled(
       const [row] = await db
         .update(webhooks)
         .set({ enabled })
-        .where(eq(webhooks.id, id))
+        .where(byIdInOrg(webhooks.id, webhooks.orgId, id, orgId))
         .returning();
       return row;
     },

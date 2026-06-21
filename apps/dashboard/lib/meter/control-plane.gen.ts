@@ -355,6 +355,8 @@ export interface components {
             name: string;
             /** @enum {string} */
             role?: "viewer" | "member" | "admin";
+            /** @enum {string} */
+            scope?: "platform" | "org";
         };
         NewAlertRule: {
             orgId: string;

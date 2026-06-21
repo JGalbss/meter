@@ -7,6 +7,7 @@ import { Effect, Either } from "effect";
 import { verifyApiKey } from "../api-keys/repository";
 import type { Db } from "../db/client";
 import { requiredRole, roleSatisfies } from "./rbac";
+import { CurrentPrincipal } from "./tenant";
 
 const BEARER = "bearer ";
 
@@ -63,7 +64,9 @@ export function requireApiKey(db: Db, enabled: boolean) {
       if (!roleSatisfies(principal.role, requiredRole(request.method, request.url))) {
         return forbidden;
       }
-      return yield* httpApp;
+      // Publish the verified principal so handlers can authorize the target org against the caller
+      // (other paths fall through to the default `CurrentPrincipal` of `null` provided at serve time).
+      return yield* Effect.provideService(httpApp, CurrentPrincipal, principal);
     }),
   );
 }

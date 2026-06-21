@@ -14,6 +14,7 @@ import { Database } from "./db/service";
 import { requireApiKey } from "./http/auth";
 import { withObservability } from "./http/observability";
 import { router } from "./http/router";
+import { CurrentPrincipalDefault } from "./http/tenant";
 
 const port = Number.parseInt(process.env.METER_CONTROL_PLANE_PORT ?? "8090", 10);
 const databaseUrl =
@@ -38,6 +39,8 @@ await migrate(db, { migrationsFolder: "./drizzle" });
 
 const HttpLive = HttpServer.serve(withObservability(requireApiKey(db, requireAuth)(router))).pipe(
   Layer.provide(Layer.succeed(Database, db)),
+  // Default principal (null); the auth middleware overrides it per authenticated request.
+  Layer.provide(CurrentPrincipalDefault),
   Layer.provide(NodeHttpServer.layer(() => createServer(), { port })),
 );
 

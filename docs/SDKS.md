@@ -46,8 +46,25 @@ const completion = await meteredCall(
 );
 ```
 
-All adapters ship in both the TypeScript and Python SDKs. Planned: first-class per-client auto-patch
-wrappers (monkey-patch a provider client so calls are metered with no call-site changes).
+All adapters ship in both the TypeScript and Python SDKs.
+
+### Auto-patch a provider client
+
+First-class auto-patch wrappers monkey-patch a provider client so **every** call is metered with no
+call-site changes — `patchAnthropic` / `patchOpenAI` (TS) and `patch_anthropic` / `patch_openai`
+(Python). Each returns an `Unpatch` to restore the original method.
+
+```ts
+import { MeterClient, patchAnthropic } from "@meter/sdk";
+
+const meter = new MeterClient({ baseUrl: process.env.METER_URL! });
+const unpatch = patchAnthropic(meter, anthropic, { orgId, account }); // mode: "charge" | "record"
+await anthropic.messages.create({ model: "claude-opus-4-8", messages, max_tokens: 1024 });
+unpatch();
+```
+
+The model and a per-call idempotency key are derived automatically; `onError` makes metering fail-open
+(the provider response still returns); the client is duck-typed, so no provider package is imported.
 
 ## Interim note
 

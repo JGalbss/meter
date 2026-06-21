@@ -14,7 +14,7 @@ use crate::dto::{AmendUsageBody, MeterUsageBody, ReserveUsageBody, SettleUsageBo
 use crate::error::ApiError;
 use crate::AppState;
 use meter_core::{Credit, EntryId, EventId};
-use meter_event::{AmendEvent, Event, EventStatus, EventStore, RecordEvent};
+use meter_event::{AmendEvent, Event, EventError, EventStatus, EventStore, RecordEvent};
 use meter_ledger::{
     ChargeRequest, LedgerBackend, ReservationId, ReserveOutcome, ReserveRequest,
     ReverseChargeRequest, SettleRequest,
@@ -393,7 +393,12 @@ pub async fn amend_usage(
     let account = original.account_id;
     let run_id = original.run_id;
 
-    // Reverse the current charge's remainder, then post the re-priced charge: net = new − old.
+    // Reverse the current charge's remainder, then post the re-priced charge: net = new − old. The
+    // ledger postings are keyed by the *amended event id* (unique per amendment), NOT the caller's amend
+    // key — otherwise two amends of different events under the same key would collide and the second
+    // would reuse the first's postings. The amended id is content-addressed, so a true retry still keys
+    // identically (idempotent).
+    let amend_scope = amended_id.to_string();
     if let Some(charge_id) = recorded_charge_entry(&original) {
         state
             .ledger
@@ -401,7 +406,7 @@ pub async fn amend_usage(
                 account,
                 charge_entry_id: charge_id,
                 run_id,
-                idempotency_key: format!("{}::amend-reverse", body.idempotency_key),
+                idempotency_key: format!("{amend_scope}::amend-reverse"),
             })
             .await?;
     }
@@ -413,7 +418,7 @@ pub async fn amend_usage(
                     account,
                     amount: new_burned,
                     run_id,
-                    idempotency_key: Some(format!("{}::amend-charge", body.idempotency_key)),
+                    idempotency_key: Some(format!("{amend_scope}::amend-charge")),
                 })
                 .await?
                 .id
@@ -423,7 +428,7 @@ pub async fn amend_usage(
     };
 
     // Record the amended event version with the re-priced amounts + its new charge link.
-    let amended = state
+    let amend = state
         .events
         .amend(AmendEvent {
             event_id,
@@ -446,7 +451,33 @@ pub async fn amend_usage(
             }),
             idempotency_key: Some(body.idempotency_key.clone()),
         })
-        .await?;
+        .await;
+    let amended = match amend {
+        Ok(event) => event,
+        // The event was voided out from under us (a concurrent void of the run) between our checks and
+        // this write. Compensate: reverse the charge we just posted so it can't strand on a dead run.
+        // The reversal is remainder-based, so if the void already swept it this is a no-op.
+        Err(EventError::Voided(_)) => {
+            if let Some(charge_id) = new_charge_entry_id
+                .as_deref()
+                .and_then(|raw| Uuid::parse_str(raw).ok())
+            {
+                state
+                    .ledger
+                    .reverse_charge(ReverseChargeRequest {
+                        account,
+                        charge_entry_id: EntryId::from_uuid(charge_id),
+                        run_id,
+                        idempotency_key: format!("{amend_scope}::amend-compensate"),
+                    })
+                    .await?;
+            }
+            return Err(ApiError::unprocessable(
+                "event was voided concurrently; the amendment was aborted and its charge reversed",
+            ));
+        }
+        Err(other) => return Err(other.into()),
+    };
 
     let balance = state.ledger.balance(account).await?;
     let delta = new_burned.value() - old_burned.value();

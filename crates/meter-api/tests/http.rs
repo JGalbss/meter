@@ -2209,3 +2209,90 @@ async fn amend_usage_is_refused_after_void() {
     .await;
     assert_eq!(balance["settled"], "1000000");
 }
+
+/// Two different events amended with the SAME caller idempotency_key on one account must NOT collide:
+/// each amendment's ledger postings are keyed by the (unique) amended event id, so both take effect.
+/// (Regression for the adversarial-review finding that raw-key-scoped postings aliased across events.)
+#[tokio::test]
+async fn amend_with_shared_key_across_events_does_not_collide() {
+    let (_container, app, ledger, _events) = app_with_stores().await;
+    let org = "55555555-5555-5555-5555-555555555555";
+
+    let (_status, account) = call(
+        &app,
+        "POST",
+        "/v1/accounts",
+        &json!({ "org_id": org, "scope": "org", "no_overdraft": true }),
+    )
+    .await;
+    let account_id = account["id"].as_str().expect("account id").to_owned();
+    call(
+        &app,
+        "POST",
+        &format!("/v1/accounts/{account_id}/grants"),
+        &json!({ "amount": "1000000", "source": "paid" }),
+    )
+    .await;
+    let card_id = uuid::Uuid::now_v7();
+    PgConfig::new(ledger.pool().clone())
+        .put_rate_card(&RateCardRecord {
+            id: card_id,
+            version: 1,
+            kind: "provider_cost".to_owned(),
+            currency: "USD".to_owned(),
+            margin: Decimal::from(1),
+            components: json!([{
+                "dimension": "output", "modality": "text", "context_tier": "standard",
+                "unit": "token", "charge_model": "standard",
+                "unit_price": { "amount": "0.0001", "currency": "USD" }
+            }]),
+        })
+        .await
+        .expect("put card");
+
+    // Two independent metered events (each charges 100000). settled 800000.
+    let mut event_ids = Vec::new();
+    for key in ["e-a", "e-b"] {
+        let (_s, m) = call(
+            &app,
+            "POST",
+            "/v1/usage",
+            &json!({
+                "org_id": org, "account": account_id, "model": "custom-x",
+                "idempotency_key": key, "usage": { "output": 1000 },
+                "rate_card_id": card_id.to_string()
+            }),
+        )
+        .await;
+        event_ids.push(m["event_id"].as_str().expect("event id").to_owned());
+    }
+
+    // Amend BOTH with the same caller idempotency_key "shared" but to different amounts.
+    let (_s, a1) = call(
+        &app,
+        "POST",
+        &format!("/v1/usage/{}/amend", event_ids[0]),
+        &json!({ "usage": { "output": 2000 }, "idempotency_key": "shared" }),
+    )
+    .await;
+    assert_eq!(a1["credits"], "200000");
+    let (_s, a2) = call(
+        &app,
+        "POST",
+        &format!("/v1/usage/{}/amend", event_ids[1]),
+        &json!({ "usage": { "output": 3000 }, "idempotency_key": "shared" }),
+    )
+    .await;
+    assert_eq!(a2["credits"], "300000");
+
+    // Both amendments applied: 1000000 − 200000 − 300000 = 500000 (NOT 700000, which a collision would
+    // leave by reusing the first amendment's postings for the second).
+    let (_status, balance) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{account_id}/balance"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(balance["settled"], "500000");
+}

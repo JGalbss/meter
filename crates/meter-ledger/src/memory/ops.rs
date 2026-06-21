@@ -362,13 +362,22 @@ impl LedgerBackend for InMemoryLedger {
         if !state.accounts.contains_key(&req.account) {
             return Err(LedgerError::AccountNotFound(req.account));
         }
-        // Idempotent: a refund already posted under this key means this reversal happened.
-        if let Some(existing) = state
+        // Idempotent, account-scoped (matching the Postgres backend and the other money methods): a
+        // refund posted under this key *for this account* means this reversal already happened.
+        if let Some(existing) = state.entries.iter().find(|entry| {
+            entry.account_id == req.account
+                && entry.idempotency_key.as_deref() == Some(req.idempotency_key.as_str())
+        }) {
+            return Ok(Some(existing.clone()));
+        }
+        // Only reverse a charge that belongs to this account — never credit one account for another's
+        // charge.
+        let belongs = state
             .entries
             .iter()
-            .find(|entry| entry.idempotency_key.as_deref() == Some(req.idempotency_key.as_str()))
-        {
-            return Ok(Some(existing.clone()));
+            .any(|entry| entry.id == req.charge_entry_id && entry.account_id == req.account);
+        if !belongs {
+            return Ok(None);
         }
         let amount = unreversed_remainder(&state, req.charge_entry_id);
         if !amount.is_positive() {

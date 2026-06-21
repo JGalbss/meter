@@ -567,12 +567,18 @@ impl LedgerBackend for PgLedger {
         }
 
         // Lock the charge so a concurrent reversal (another amend, or void_run) serializes with us, and
-        // refund only its unreversed remainder.
-        sqlx::query("SELECT id FROM ledger_entries WHERE id = $1 FOR UPDATE")
-            .bind(req.charge_entry_id.as_uuid())
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(be)?;
+        // confirm it belongs to this account — never credit one account for another's charge.
+        let charge_account: Option<Uuid> =
+            sqlx::query_scalar("SELECT account_id FROM ledger_entries WHERE id = $1 FOR UPDATE")
+                .bind(req.charge_entry_id.as_uuid())
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(be)?;
+        if charge_account != Some(req.account.as_uuid()) {
+            tx.commit().await.map_err(be)?;
+            return Ok(None);
+        }
+        // Refund only the charge's unreversed remainder.
         let amount = unreversed_remainder(&mut tx, req.charge_entry_id.as_uuid()).await?;
         if amount <= Decimal::ZERO {
             tx.commit().await.map_err(be)?;

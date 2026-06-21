@@ -83,6 +83,60 @@ FROM (
     FROM events
 )";
 
+/// Custom event fields **promoted** into the pre-aggregated [`FIELD_USAGE_ROLLUP`]. Credit burndown
+/// grouped by one of these reads the rollup (O(rollup groups)) instead of scanning `events FINAL` and
+/// parsing JSON per row — the "even faster" path for the hot attribution dimensions. Burndown by any
+/// *other* field still works via the flexible `events`-scan path; promoting a new field is an additive
+/// migration (add it here, re-run `migrate`). Names are trusted constants, never user input, so they
+/// are safe to interpolate into the materialized-view DDL.
+pub const PROMOTED_FIELDS: &[&str] = &["team", "feature", "customer", "environment"];
+
+/// `CREATE TABLE field_usage_rollup` — the **pre-aggregated** credit-burndown read path for the
+/// [`PROMOTED_FIELDS`]. A `SummingMergeTree` keyed by `(org_id, field_name, field_value, day)`, with
+/// `events`/`credits` **sign-weighted** exactly as [`USAGE_ROLLUP`]: an `amended`/`voided` row carries
+/// the prior version's properties and contributes `-1`, so it cancels the original `+1` — even when an
+/// amend moves an event from one field value to another (the old value gets the `-1`, the new value a
+/// fresh `+1`). A `GROUP BY` `sum()` therefore equals the live (`FINAL` + `status = 'recorded'`)
+/// aggregate with no `FINAL` scan or read-time JSON parsing.
+pub const FIELD_USAGE_ROLLUP: &str = "\
+CREATE TABLE IF NOT EXISTS field_usage_rollup (
+    org_id      UUID,
+    field_name  LowCardinality(String),
+    field_value String,
+    day         Date,
+    events      Int64,
+    credits     Float64
+)
+ENGINE = SummingMergeTree
+ORDER BY (org_id, field_name, field_value, day)";
+
+/// Build the `CREATE MATERIALIZED VIEW field_usage_rollup_mv` DDL that maintains [`FIELD_USAGE_ROLLUP`]
+/// incrementally. For each inserted `events` row it `ARRAY JOIN`s over the [`PROMOTED_FIELDS`] — one
+/// emitted row per promoted field the event actually carries (empty values are filtered out) — parsing
+/// the JSON once here, off the read path, and emitting the sign-weighted `(events, credits)` contribution.
+#[must_use]
+pub fn field_usage_rollup_mv() -> String {
+    let pairs = PROMOTED_FIELDS
+        .iter()
+        .map(|field| format!("('{field}', JSONExtractString(properties, '{field}'))"))
+        .collect::<Vec<_>>()
+        .join(",\n        ");
+    format!(
+        "CREATE MATERIALIZED VIEW IF NOT EXISTS field_usage_rollup_mv TO field_usage_rollup AS
+SELECT
+    org_id,
+    field.1 AS field_name,
+    field.2 AS field_value,
+    toDate(event_time) AS day,
+    if(status = 'recorded', 1, -1) AS events,
+    if(status = 'recorded', 1, -1) * toFloat64OrZero(JSONExtractString(properties, 'credits')) AS credits
+FROM events
+ARRAY JOIN arrayFilter(x -> x.2 != '', [
+        {pairs}
+    ]) AS field"
+    )
+}
+
 /// `CREATE TABLE events_dead_letter` — events that failed validation/ingest, kept for inspection and
 /// replay (the raw payload plus the error).
 pub const EVENTS_DEAD_LETTER: &str = "\

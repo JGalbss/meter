@@ -176,3 +176,76 @@ async fn aggregates_reflect_idempotency_amends_and_voids() {
     assert_eq!(dead[0].source, "ingest");
     assert_eq!(dead[0].error, "missing account");
 }
+
+/// Credit burndown grouped by a custom field. `team` is a promoted field (served from the
+/// pre-aggregated `field_usage_rollup`); `squad` mirrors `team` on every event but is *not* promoted
+/// (served by the flexible `events`-scan path). Both must yield the identical live aggregate through
+/// amends that move an event between values and through voids — proving the rollup's sign-weighting is
+/// exactly equivalent to scanning the system of record.
+#[tokio::test]
+async fn promoted_field_rollup_equals_the_scan_path_through_amends_and_voids() {
+    let container = ClickHouse::default()
+        .start()
+        .await
+        .expect("start clickhouse");
+    let port = container.get_host_port_ipv4(8123).await.expect("http port");
+    let store = ChStore::new(&format!("http://127.0.0.1:{port}"));
+    store.migrate().await.expect("migrate");
+
+    let org = Uuid::parse_str("11111111-1111-1111-1111-111111111111").unwrap();
+    let account = Uuid::parse_str("22222222-2222-2222-2222-222222222222").unwrap();
+    let run_a = Uuid::parse_str("a0000000-0000-0000-0000-000000000000").unwrap();
+    let run_b = Uuid::parse_str("b0000000-0000-0000-0000-000000000000").unwrap();
+    let run_c = Uuid::parse_str("c0000000-0000-0000-0000-000000000000").unwrap();
+    let run_d = Uuid::parse_str("d0000000-0000-0000-0000-000000000000").unwrap();
+
+    // `squad` mirrors `team` so the promoted (rollup) and non-promoted (scan) reads compare identically.
+    let team_props = |team: &str, credits: &str| -> Value {
+        json!({ "team": team, "squad": team, "credits": credits })
+    };
+
+    // alpha: two events (10 + 5). beta: one event (20). A fourth alpha event is voided away.
+    record(&store, account, "ta", run_a, team_props("alpha", "10")).await;
+    record(&store, account, "tb", run_b, team_props("alpha", "5")).await;
+    let beta = record(&store, account, "tc", run_c, team_props("beta", "20")).await;
+    record(&store, account, "td", run_d, team_props("alpha", "100")).await;
+
+    // Amend the beta event to move it to gamma (same credits) — alpha unaffected, beta must vanish,
+    // gamma must appear: the rollup's old-value `-1` / new-value `+1` has to net out correctly.
+    store
+        .amend(AmendEvent {
+            event_id: beta,
+            properties: team_props("gamma", "20"),
+        })
+        .await
+        .expect("amend");
+
+    // Void the fourth alpha event's run — it must drop out of the burndown entirely.
+    assert_eq!(
+        store.void_run(RunId::from_uuid(run_d)).await.expect("void"),
+        1
+    );
+
+    // Promoted read (rollup) and flexible read (scan) must be byte-for-byte equal.
+    let by_team = store
+        .usage_by_field(org, "team")
+        .await
+        .expect("usage by team");
+    let by_squad = store
+        .usage_by_field(org, "squad")
+        .await
+        .expect("usage by squad");
+    assert_eq!(
+        by_team, by_squad,
+        "promoted rollup path must equal the events-scan path"
+    );
+
+    // Ordered by credits DESC: gamma (1 event, 20) then alpha (2 events, 15). beta cancelled out.
+    assert_eq!(by_team.len(), 2);
+    assert_eq!(by_team[0].dimension, "gamma");
+    assert_eq!(by_team[0].events, 1);
+    assert_eq!(by_team[0].credits, 20.0);
+    assert_eq!(by_team[1].dimension, "alpha");
+    assert_eq!(by_team[1].events, 2);
+    assert_eq!(by_team[1].credits, 15.0);
+}

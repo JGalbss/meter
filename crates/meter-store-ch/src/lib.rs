@@ -76,6 +76,12 @@ struct CountRow {
     n: u64,
 }
 
+/// Whether a burndown field is pre-aggregated into `field_usage_rollup` (the fast read path) versus
+/// served by the flexible `events`-scan path.
+fn is_promoted_field(field: &str) -> bool {
+    schema::PROMOTED_FIELDS.contains(&field)
+}
+
 /// Optional filters for [`ChStore::list_audit`]. `None` fields are unconstrained.
 #[derive(Debug, Clone, Default)]
 pub struct AuditFilter {
@@ -188,6 +194,14 @@ impl ChStore {
         self.client.query(schema::EVENTS).execute().await?;
         self.client.query(schema::USAGE_ROLLUP).execute().await?;
         self.client.query(schema::USAGE_ROLLUP_MV).execute().await?;
+        self.client
+            .query(schema::FIELD_USAGE_ROLLUP)
+            .execute()
+            .await?;
+        self.client
+            .query(&schema::field_usage_rollup_mv())
+            .execute()
+            .await?;
         self.client
             .query(schema::EVENTS_DEAD_LETTER)
             .execute()
@@ -308,13 +322,17 @@ impl ChStore {
     /// system of record (`FINAL` + `status = 'recorded'`, so amends/voids are reflected); events that
     /// recorded no `credits` contribute zero, so non-burnable usage surfaces as `credits = 0`.
     ///
-    /// This is the flexible path (any field, no pre-aggregation); for the fixed `model`/day factors the
-    /// pre-aggregated [`Self::usage_by_model`] / [`Self::usage_by_day`] rollup reads are faster.
+    /// A [`promoted`](schema::PROMOTED_FIELDS) field reads the pre-aggregated `field_usage_rollup`
+    /// (O(rollup groups), no `FINAL` scan or read-time JSON parsing); any other field uses the flexible
+    /// `events`-scan path. Both yield the identical live aggregate.
     pub async fn usage_by_field(
         &self,
         org_id: Uuid,
         field: &str,
     ) -> Result<Vec<FieldUsage>, ChError> {
+        if is_promoted_field(field) {
+            return self.usage_by_promoted_field(org_id, field).await;
+        }
         let rows = self
             .client
             .query(
@@ -329,6 +347,32 @@ impl ChStore {
             )
             .bind(field)
             .bind(org_id)
+            .fetch_all::<FieldUsage>()
+            .await?;
+        Ok(rows)
+    }
+
+    /// The pre-aggregated burndown read for a promoted field: sum the sign-weighted rollup rows for
+    /// `field`, dropping values whose contributions have fully cancelled (`events = 0`, i.e. every
+    /// event for that value was amended/voided away).
+    async fn usage_by_promoted_field(
+        &self,
+        org_id: Uuid,
+        field: &str,
+    ) -> Result<Vec<FieldUsage>, ChError> {
+        let rows = self
+            .client
+            .query(
+                "SELECT field_value AS dimension, toUInt64(events) AS events, credits FROM ( \
+                 SELECT field_value, sum(events) AS events, sum(credits) AS credits \
+                 FROM field_usage_rollup \
+                 WHERE org_id = ? AND field_name = ? \
+                 GROUP BY field_value) \
+                 WHERE events > 0 \
+                 ORDER BY credits DESC, events DESC",
+            )
+            .bind(org_id)
+            .bind(field)
             .fetch_all::<FieldUsage>()
             .await?;
         Ok(rows)

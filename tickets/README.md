@@ -101,19 +101,23 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
   scans and stay O(rollup groups) (single-digit ms at 1M; flat as events grow). The amend/void
   double-count problem is solved by sign-weighting (+1 recorded, −1 amended/voided; the reversal copies
   the prior row, so it cancels exactly); exactly-once ingest (`IngestMode`) stops duplicate `+1`s.
-- [~] **Flexible credit burndown** — group credit consumption by any custom event field (`team`,
+- [x] **Flexible credit burndown** — group credit consumption by any custom event field (`team`,
   `feature`, …) as well as `model`: `usage_by_field` over the `events` SoR, surfaced as
   `GET /v1/orgs/:id/usage-by-field?field=<name>` and the `QueryService.UsageByField` gRPC RPC (buf
-  breaking-change check passes). Implemented + unit/contract-verified (compile, clippy, fmt, OpenAPI
-  drift gate, buf lint/breaking); the two e2e tests (`credit_burndown_by_custom_field_and_model`,
-  `non_burnable_usage_records_cost_but_never_charges`) are written and compile but **await a Docker run**.
-- [~] **Burnable vs non-burnable usage** — `burnable` flag (default true) on `POST /v1/usage`:
+  breaking-change check passes). e2e-tested (Postgres + ClickHouse) via
+  `credit_burndown_by_custom_field_and_model` (HTTP) and `query_grpc_analytics_and_invoice` (gRPC).
+- [x] **Burnable vs non-burnable usage** — `burnable` flag (default true) on `POST /v1/usage`:
   non-burnable usage is priced and recorded for cost visibility but never debits the ledger, so its
   burned `credits` are zero (burndown stays truthful) while the would-be charge is kept in
-  `priced_credits`. Unit-tested (`burned_credits`, reserved-key spoof guard); e2e awaits a Docker run.
-- [ ] **Even faster:** promoted-field rollups — declare which custom fields to pre-aggregate into a
-  `SummingMergeTree` so `usage_by_field` over hot fields avoids the `events FINAL` + per-row JSON scan,
-  mirroring the existing `usage_rollup`. ClickHouse schema/MV work, **blocked on Docker** to verify.
+  `priced_credits`. Unit-tested (`burned_credits`, reserved-key spoof guard) + e2e
+  (`non_burnable_usage_records_cost_but_never_charges`: ledger untouched, burndown truthful).
+- [x] **Even faster:** promoted-field rollup shipped — a sign-weighted `field_usage_rollup`
+  `SummingMergeTree` (keyed `org_id, field_name, field_value, day`), maintained by an MV that
+  `ARRAY JOIN`s over a declared promoted-field set (`schema::PROMOTED_FIELDS`), so `usage_by_field` over
+  a hot field reads the rollup (O(rollup groups)) instead of scanning `events FINAL` + parsing JSON per
+  row. Burndown by any non-promoted field still uses the scan path. Proven byte-for-byte equivalent to
+  the scan through amends (value moves) and voids by
+  `promoted_field_rollup_equals_the_scan_path_through_amends_and_voids`.
   Correctness gate: the integration test asserts the rollup reflects idempotency, amends, and voids.
 
 ## EPIC 08 — Engine binary & CLI

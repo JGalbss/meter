@@ -18,7 +18,6 @@ import { listAlertRules, unwrapOr } from "@/lib/meter/client"
 import { resolveOrgScope } from "@/lib/meter/org"
 import { AlertToggle } from "./alert-toggle"
 import { CreateAlertRuleDialog } from "./create-alert-rule-dialog"
-import { EvaluateButton } from "./evaluate-button"
 
 const ENABLED_VARIANTS = { enabled: "default", disabled: "outline" } as const
 const STATUS_VARIANTS = {
@@ -76,13 +75,8 @@ export default async function AlertsPage() {
     <>
       <PageHeader
         title="Alert rules"
-        description="Thresholds that raise notifications and fire webhooks."
-        action={
-          <div className="flex gap-2">
-            <CreateAlertRuleDialog orgId={orgId} />
-            <EvaluateButton orgId={orgId} />
-          </div>
-        }
+        description="Thresholds that raise notifications and fire webhooks — evaluated automatically."
+        action={<CreateAlertRuleDialog orgId={orgId} />}
       />
       <Suspense fallback={<TableSkeleton />}>
         <AlertsTable orgId={orgId} />

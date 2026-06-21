@@ -24,7 +24,7 @@ Drizzle migrations apply automatically on boot. Generate a migration after a sch
 | `METER_CONTROL_PLANE_DATABASE_URL` | required | Postgres for the config schema. |
 | `METER_CONTROL_PLANE_PORT` | `8090` | HTTP listen port. |
 | `METER_ENGINE_URL` | `http://127.0.0.1:8080` | The engine, asked to classify budget usage during alert evaluation. |
-| `METER_EVALUATION_INTERVAL_SECONDS` | `0` | Alert scheduler interval; `0` disables it (evaluate on demand only). |
+| `METER_EVALUATION_INTERVAL_SECONDS` | `300` | Alert scheduler interval; alerts auto-sync every 5 min. Set `0` to disable (evaluate on demand only). |
 | `METER_REQUIRE_AUTH` | `false` | When `true`, require a Bearer key on every route except `/health`. |
 
 ## API
@@ -72,9 +72,9 @@ its `creditLimit`. The control plane computes no money — it reacts to the engi
 `ok`/`warning`/`exceeded` status. Alerts fire on *escalation* (status transitions up), so a sustained
 breach does not spam; each raised notification also dispatches matching webhooks.
 
-Set `METER_EVALUATION_INTERVAL_SECONDS` (> 0) to run the built-in scheduler, which evaluates every
-organization's budget rules on that interval. The default `0` disables it — evaluate on demand via the
-endpoint instead.
+The built-in scheduler evaluates every organization's budget rules on an interval — by default every
+300 seconds, so alerts auto-sync with no manual step. Set `METER_EVALUATION_INTERVAL_SECONDS=0` to
+disable it and evaluate on demand via the endpoint instead.
 
 ### Authentication and RBAC
 

@@ -21,7 +21,7 @@ const databaseUrl =
   process.env.METER_CONTROL_PLANE_DATABASE_URL ??
   "postgres://postgres:postgres@127.0.0.1:5432/postgres";
 const evaluationIntervalSeconds = Number.parseInt(
-  process.env.METER_EVALUATION_INTERVAL_SECONDS ?? "0",
+  process.env.METER_EVALUATION_INTERVAL_SECONDS ?? "300",
   10,
 );
 
@@ -44,7 +44,8 @@ const HttpLive = HttpServer.serve(withObservability(requireApiKey(db, requireAut
   Layer.provide(NodeHttpServer.layer(() => createServer(), { port })),
 );
 
-// Periodically evaluate budget alert rules. Disabled (interval 0) unless configured.
+// Periodically evaluate budget alert rules. Runs every 5 minutes out of the box so alerts auto-sync;
+// set METER_EVALUATION_INTERVAL_SECONDS=0 to disable and evaluate on demand only.
 const SchedulerLive = Layer.scopedDiscard(
   Effect.forkScoped(
     evaluateAllOrgs(db).pipe(

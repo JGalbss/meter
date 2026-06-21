@@ -177,22 +177,6 @@ export function setAlertRuleEnabled(
   return post(`/v1/alert-rules/${encodeURIComponent(id)}/enabled`, { enabled })
 }
 
-export interface EvaluationSummary {
-  readonly evaluated: number
-  readonly raised: number
-}
-
-export async function evaluateAlertRules(
-  orgId: string
-): Promise<EvaluationSummary> {
-  const response = await requestOrThrow(
-    LABEL,
-    `${BASE_URL}/v1/alert-rules/evaluate?orgId=${encodeURIComponent(orgId)}`,
-    jsonInit("POST")
-  )
-  return (await response.json()) as EvaluationSummary
-}
-
 export function setWebhookEnabled(id: string, enabled: boolean): Promise<void> {
   return post(`/v1/webhooks/${encodeURIComponent(id)}/enabled`, { enabled })
 }

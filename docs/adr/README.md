@@ -13,4 +13,5 @@ section of `ARCHITECTURE.md`; it says so explicitly at the top.
 | [0004](0004-audit-log-in-clickhouse.md) | Audit log lives in ClickHouse, not the money database | Accepted |
 | [0005](0005-provider-scale-throughput.md) | Scaling to provider-grade throughput | Accepted |
 | [0006](0006-wire-protocol-versioning.md) | Wire-protocol versioning policy (proto + OpenAPI) | Accepted |
-| [0007](0007-tenant-isolation.md) | Control-plane tenant isolation (platform vs org-scoped keys) | **Proposed** |
+| [0007](0007-tenant-isolation.md) | Control-plane tenant isolation (platform vs org-scoped keys) | Accepted |
+| [0008](0008-control-plane-engine-transport.md) | Control-plane → engine runtime transport is gRPC (proto) | Accepted |

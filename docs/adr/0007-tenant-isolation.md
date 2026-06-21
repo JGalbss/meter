@@ -1,8 +1,9 @@
 # ADR 0007 — Control-plane tenant isolation (platform vs org-scoped keys)
 
-Status: **proposed** — awaiting sign-off. This ADR records a decision that is *not yet implemented*;
-it exists so the tenancy model can be approved (or amended) before code lands, because the choice is
-security-critical and changes the access model.
+Status: accepted; implementation tracked in `/tickets` (EPIC 02 RLS, EPIC 12 RBAC/isolation). Approved
+as proposed — platform vs org-scoped keys, app-level `requireOrgAccess` on reads and writes, Postgres
+RLS as defense-in-depth, and a non-breaking migration (existing keys default to platform scope, new
+keys to org scope).
 
 Extends DECISIONS #7 (multi-tenancy via Postgres RLS) with the concrete control-plane model.
 

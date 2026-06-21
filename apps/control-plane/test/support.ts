@@ -13,6 +13,7 @@ import { Effect, Layer } from "effect";
 
 import * as schema from "../src/db/schema";
 import { Database } from "../src/db/service";
+import { requireApiKey } from "../src/http/auth";
 import { router } from "../src/http/router";
 import { CurrentPrincipalDefault } from "../src/http/tenant";
 
@@ -32,9 +33,26 @@ function testLayer(db: TestDb) {
   );
 }
 
+/** Like `testLayer`, but with the API-key auth middleware active (for auth + tenant-isolation tests). */
+function authedLayer(db: TestDb) {
+  return HttpServer.serve(requireApiKey(db, true)(router)).pipe(
+    Layer.provide(Layer.succeed(Database, db)),
+    Layer.provide(CurrentPrincipalDefault),
+    Layer.provideMerge(NodeHttpServer.layerTest),
+  );
+}
+
 export function run<A, E>(
   db: TestDb,
   program: Effect.Effect<A, E, HttpClient.HttpClient | Scope.Scope>,
 ): Promise<A> {
   return program.pipe(Effect.scoped, Effect.provide(testLayer(db)), Effect.runPromise);
+}
+
+/** Run a program against the server with auth enforced. */
+export function runAuthed<A, E>(
+  db: TestDb,
+  program: Effect.Effect<A, E, HttpClient.HttpClient | Scope.Scope>,
+): Promise<A> {
+  return program.pipe(Effect.scoped, Effect.provide(authedLayer(db)), Effect.runPromise);
 }

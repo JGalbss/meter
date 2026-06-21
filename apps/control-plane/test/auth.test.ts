@@ -1,34 +1,13 @@
 //! API-key auth: CRUD (mint/list/revoke, token shown once) over the normal harness, and enforcement
 //! via the auth middleware (401 without a key, 200 with one, `/health` always open).
 
-import { HttpClient, HttpClientRequest, HttpServer } from "@effect/platform";
-import { NodeHttpServer } from "@effect/platform-node";
-import type { Scope } from "effect";
-import { Effect, Layer } from "effect";
+import { HttpClient, HttpClientRequest } from "@effect/platform";
+import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 
 import { createApiKey } from "../src/api-keys/repository";
-import { Database } from "../src/db/service";
-import { requireApiKey } from "../src/http/auth";
-import { router } from "../src/http/router";
-import { CurrentPrincipalDefault } from "../src/http/tenant";
 import { createOrganization } from "../src/organizations/repository";
-import { type TestDb, freshDb, run } from "./support";
-
-function authedLayer(db: TestDb) {
-  return HttpServer.serve(requireApiKey(db, true)(router)).pipe(
-    Layer.provide(Layer.succeed(Database, db)),
-    Layer.provide(CurrentPrincipalDefault),
-    Layer.provideMerge(NodeHttpServer.layerTest),
-  );
-}
-
-function runAuthed<A, E>(
-  db: TestDb,
-  program: Effect.Effect<A, E, HttpClient.HttpClient | Scope.Scope>,
-): Promise<A> {
-  return program.pipe(Effect.scoped, Effect.provide(authedLayer(db)), Effect.runPromise);
-}
+import { freshDb, run, runAuthed } from "./support";
 
 describe("API-key CRUD", () => {
   it("mints (token once), lists without the token, and revokes", async () => {

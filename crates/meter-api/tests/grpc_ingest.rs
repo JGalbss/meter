@@ -63,6 +63,7 @@ async fn ingest_grpc_record_amend_void_flow() {
         .amend_event(Request::new(v1::AmendEventRequest {
             event_id: id1.clone(),
             properties: r#"{"input":11}"#.to_owned(),
+            idempotency_key: String::new(),
         }))
         .await
         .expect("amend_event")

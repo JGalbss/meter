@@ -1321,6 +1321,11 @@
           "properties"
         ],
         "properties": {
+          "idempotency_key": {
+            "type": "string",
+            "description": "Optional idempotency key: a retried amend with the same key resolves to the same new version\ninstead of stacking a second one.",
+            "nullable": true
+          },
           "properties": {
             "type": "object",
             "description": "Replacement customer JSON (the amend records a new version)."

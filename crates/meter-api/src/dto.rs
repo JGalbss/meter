@@ -150,6 +150,10 @@ pub struct AmendBody {
     /// Replacement customer JSON (the amend records a new version).
     #[schema(value_type = Object)]
     pub properties: Value,
+    /// Optional idempotency key: a retried amend with the same key resolves to the same new version
+    /// instead of stacking a second one.
+    #[serde(default)]
+    pub idempotency_key: Option<String>,
 }
 
 /// Token counts for a metered usage event.

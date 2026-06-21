@@ -97,6 +97,7 @@ async fn aggregates_reflect_idempotency_amends_and_voids() {
         .amend(AmendEvent {
             event_id: a,
             properties: corrected,
+            idempotency_key: None,
         })
         .await
         .expect("amend");
@@ -221,6 +222,7 @@ async fn promoted_field_rollup_equals_the_scan_path_through_amends_and_voids() {
         .amend(AmendEvent {
             event_id: beta,
             properties: team_props("gamma", "20"),
+            idempotency_key: None,
         })
         .await
         .expect("amend");

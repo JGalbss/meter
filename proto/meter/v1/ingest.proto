@@ -32,6 +32,9 @@ message AmendEventRequest {
   string event_id = 1;
   // Replacement customer JSON.
   string properties = 2;
+  // Optional idempotency key: a retried amend with the same key resolves to the same new version
+  // instead of stacking a second one. Empty means "no key" (each call mints a distinct version).
+  string idempotency_key = 3;
 }
 
 message AmendEventResponse {

@@ -249,25 +249,21 @@ impl EventStore for ChStore {
         if original.status == EventStatus::Voided {
             return Err(EventError::Voided(req.event_id));
         }
+        let amended = req.into_amended_event(&original);
+        // Idempotent (keyed amends): if this exact amendment was already applied, don't re-run the two
+        // writes — replaying the supersede + new-version inserts would post a second -1/+1 pair into the
+        // sign-weighted rollups and corrupt the totals. A retry returns the existing version.
+        let already_applied = self
+            .existing_ids(std::slice::from_ref(&amended))
+            .await?
+            .contains(&amended.id.as_uuid());
+        if already_applied {
+            return self.get(amended.id).await;
+        }
         // Supersede the original: same id, status `amended`, a higher version.
         let mut superseded = original.clone();
         superseded.status = EventStatus::Amended;
         self.insert_event(&superseded).await?;
-
-        let new_id = EventId::new();
-        let amended = Event {
-            id: new_id,
-            org_id: original.org_id,
-            idempotency_key: format!("{}::amend::{new_id}", original.idempotency_key),
-            event_time: original.event_time,
-            meter: original.meter,
-            account_id: original.account_id,
-            run_id: original.run_id,
-            properties: req.properties,
-            status: EventStatus::Recorded,
-            supersedes: Some(original.id),
-            created_at: OffsetDateTime::now_utc(),
-        };
         self.insert_event(&amended).await?;
         Ok(amended)
     }

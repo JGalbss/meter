@@ -4,7 +4,6 @@ use std::sync::{Mutex, MutexGuard};
 
 use async_trait::async_trait;
 use meter_core::{AccountId, EventId, RunId};
-use time::OffsetDateTime;
 
 use crate::error::EventError;
 use crate::event::{Event, EventStatus};
@@ -81,21 +80,14 @@ impl EventStore for InMemoryEventStore {
         if original.status == EventStatus::Voided {
             return Err(EventError::Voided(req.event_id));
         }
-        let new_id = EventId::new();
-        let amended = Event {
-            id: new_id,
-            org_id: original.org_id,
-            idempotency_key: format!("{}::amend::{new_id}", original.idempotency_key),
-            event_time: original.event_time,
-            meter: original.meter,
-            account_id: original.account_id,
-            run_id: original.run_id,
-            properties: req.properties,
-            status: EventStatus::Recorded,
-            supersedes: Some(original.id),
-            created_at: OffsetDateTime::now_utc(),
-        };
-        if let Some(existing) = events.iter_mut().find(|event| event.id == req.event_id) {
+        let original_id = original.id;
+        let amended = req.into_amended_event(&original);
+        // Idempotent: a retried amend (same key) resolves to the same id — return it unchanged rather
+        // than stacking a second version.
+        if let Some(existing) = events.iter().find(|event| event.id == amended.id) {
+            return Ok(existing.clone());
+        }
+        if let Some(existing) = events.iter_mut().find(|event| event.id == original_id) {
             existing.status = EventStatus::Amended;
         }
         events.push(amended.clone());

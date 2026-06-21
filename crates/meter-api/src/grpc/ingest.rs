@@ -101,11 +101,17 @@ impl v1::ingest_service_server::IngestService for IngestGrpc {
         request: Request<v1::AmendEventRequest>,
     ) -> Result<Response<v1::AmendEventResponse>, Status> {
         let req = request.into_inner();
+        // proto3 has no optional string: an empty key means "no idempotency key".
+        let idempotency_key = match req.idempotency_key.is_empty() {
+            true => None,
+            false => Some(req.idempotency_key),
+        };
         let amended = self
             .events
             .amend(AmendEvent {
                 event_id: EventId::from_uuid(parse_uuid(&req.event_id, "event_id")?),
                 properties: properties(&req.properties)?,
+                idempotency_key,
             })
             .await
             .map_err(|error| status_from_event(&error))?;

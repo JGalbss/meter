@@ -303,6 +303,42 @@ async fn event_flow_over_http() {
     assert_eq!(list.as_array().expect("array").len(), 1);
     assert_eq!(list[0]["id"], amended["id"]);
 
+    // A keyed amend is idempotent: re-issuing it resolves to the same new version (a safe retry), and
+    // the account still lists exactly one current event. Amend the current version (not the superseded
+    // original).
+    let latest_id = amended["id"].as_str().expect("amended id").to_owned();
+    let keyed_amend = json!({
+        "properties": { "input": 1800, "output": 400 },
+        "idempotency_key": "amend-evt-1"
+    });
+    let (_status, keyed) = call(
+        &app,
+        "POST",
+        &format!("/v1/events/{latest_id}/amend"),
+        &keyed_amend,
+    )
+    .await;
+    let (_status, keyed_retry) = call(
+        &app,
+        "POST",
+        &format!("/v1/events/{latest_id}/amend"),
+        &keyed_amend,
+    )
+    .await;
+    assert_eq!(
+        keyed["id"], keyed_retry["id"],
+        "retried amend must be idempotent"
+    );
+    let (_status, list) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{account}/events"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(list.as_array().expect("array").len(), 1);
+    assert_eq!(list[0]["id"], keyed["id"]);
+
     // Voiding the run reverses the run's current event; the list empties. No holds were placed for
     // this run, so the ledger half reverses nothing.
     let (status, voided) = call(&app, "POST", &format!("/v1/runs/{run}/void"), &Value::Null).await;

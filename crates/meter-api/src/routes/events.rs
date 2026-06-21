@@ -114,6 +114,7 @@ pub async fn amend(
         .amend(AmendEvent {
             event_id: EventId::from_uuid(id),
             properties: body.properties,
+            idempotency_key: body.idempotency_key,
         })
         .await?;
     Ok(Json(event))

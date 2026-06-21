@@ -104,6 +104,21 @@ pub struct ChargeRequest {
     pub idempotency_key: Option<String>,
 }
 
+/// Reverse a prior charge by its still-unreversed remainder — its original magnitude minus every refund
+/// already referencing it. Posts a single linked, idempotent refund (or nothing if the charge is
+/// already whole). The primitive behind amendment delta-postings and a run void's charge reversal:
+/// reversing "the remainder" is what keeps repeated corrections conservation-exact.
+#[derive(Debug, Clone)]
+pub struct ReverseChargeRequest {
+    pub account: AccountId,
+    /// The charge (or settle) entry being reversed.
+    pub charge_entry_id: EntryId,
+    /// The run this reversal belongs to, carried onto the refund for traceability.
+    pub run_id: Option<RunId>,
+    /// Idempotency key for the refund; a retry resolves to the same posting.
+    pub idempotency_key: String,
+}
+
 /// Lease `amount` credits from a parent pool into a fresh per-session sub-balance, to keep hot-account
 /// contention off the parent. The session then reserves/settles against the lease; `close_lease`
 /// returns the unused remainder to the parent.

@@ -19,9 +19,9 @@ use meter_store_ch::{DayUsage as EventDayUsage, FieldUsage, ModelUsage, RollupDr
 use meter_store_pg::DayUsage;
 
 use crate::dto::{
-    AmendBody, ExtendBody, GrantBody, MeterUsageBody, OpenAccountBody, OpenLeaseBody,
-    RecordBatchBody, RecordEventBody, RefundBody, ReserveBody, ReserveUsageBody, SettleBody,
-    SettleUsageBody, SimulateBody, UsageDimensions,
+    AmendBody, AmendUsageBody, ExtendBody, GrantBody, MeterUsageBody, OpenAccountBody,
+    OpenLeaseBody, RecordBatchBody, RecordEventBody, RefundBody, ReserveBody, ReserveUsageBody,
+    SettleBody, SettleUsageBody, SimulateBody, UsageDimensions,
 };
 
 /// The engine's OpenAPI 3.1 description. The version tracks the crate version.
@@ -53,6 +53,7 @@ use crate::dto::{
         super::events::amend,
         super::events::void_run,
         super::usage::meter_usage,
+        super::usage::amend_usage,
         super::usage::reserve_usage,
         super::usage::settle_usage,
         super::simulate::simulate,
@@ -83,6 +84,7 @@ use crate::dto::{
         AmendBody,
         UsageDimensions,
         MeterUsageBody,
+        AmendUsageBody,
         ReserveUsageBody,
         SettleUsageBody,
         SimulateBody,
@@ -115,6 +117,7 @@ use crate::dto::{
         super::invoices::InvoiceResponse,
         super::budgets::BudgetStatusResponse,
         super::usage::MeterUsageResult,
+        super::usage::AmendUsageResult,
         super::usage::SettleUsageResult,
         super::usage::ReserveUsageResult,
         super::analytics::EventCountResponse

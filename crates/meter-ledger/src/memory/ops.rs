@@ -11,7 +11,7 @@ use crate::model::{
 };
 use crate::request::{
     ChargeRequest, GrantRequest, LeaseRequest, NewAccount, RefundRequest, ReserveOutcome,
-    ReserveRequest, RunVoidSummary, SettleRequest,
+    ReserveRequest, ReverseChargeRequest, RunVoidSummary, SettleRequest,
 };
 
 use super::state::{AccountRow, Hold, HoldStatus, State};
@@ -352,6 +352,56 @@ impl LedgerBackend for InMemoryLedger {
         };
         state.entries.push(entry.clone());
         Ok(entry)
+    }
+
+    async fn reverse_charge(
+        &self,
+        req: ReverseChargeRequest,
+    ) -> Result<Option<LedgerEntry>, LedgerError> {
+        let mut state = self.lock();
+        if !state.accounts.contains_key(&req.account) {
+            return Err(LedgerError::AccountNotFound(req.account));
+        }
+        // Idempotent: a refund already posted under this key means this reversal happened.
+        if let Some(existing) = state
+            .entries
+            .iter()
+            .find(|entry| entry.idempotency_key.as_deref() == Some(req.idempotency_key.as_str()))
+        {
+            return Ok(Some(existing.clone()));
+        }
+        let amount = unreversed_remainder(&state, req.charge_entry_id);
+        if !amount.is_positive() {
+            return Ok(None);
+        }
+        if let Some(system) = state.accounts.get_mut(&self.system) {
+            system.settled -= amount;
+        }
+        let balance_after = {
+            let row = state
+                .accounts
+                .get_mut(&req.account)
+                .expect("existence checked above");
+            row.settled += amount;
+            row.settled
+        };
+        let entry = LedgerEntry {
+            id: EntryId::new(),
+            account_id: req.account,
+            paired_account_id: self.system,
+            entry_type: EntryType::Refund,
+            delta_credits: amount,
+            balance_after,
+            source: None,
+            revenue_recognizable: false,
+            reverses_entry_id: Some(req.charge_entry_id),
+            reservation_id: None,
+            run_id: req.run_id,
+            idempotency_key: Some(req.idempotency_key),
+            created_at: OffsetDateTime::now_utc(),
+        };
+        state.entries.push(entry.clone());
+        Ok(Some(entry))
     }
 
     async fn void(&self, reservation: ReservationId) -> Result<(), LedgerError> {

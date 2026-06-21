@@ -8,7 +8,7 @@ use crate::error::LedgerError;
 use crate::model::{Balance, LedgerAccount, LedgerEntry, ReservationId};
 use crate::request::{
     ChargeRequest, GrantRequest, LeaseRequest, NewAccount, RefundRequest, ReserveOutcome,
-    ReserveRequest, RunVoidSummary, SettleRequest,
+    ReserveRequest, ReverseChargeRequest, RunVoidSummary, SettleRequest,
 };
 
 /// The idempotency key a [`void_run`](LedgerBackend::void_run) refund posts for one settled
@@ -56,6 +56,15 @@ pub trait LedgerBackend: Send + Sync {
 
     /// Charge usage directly (post-hoc, no prior reservation). Always posts; idempotent on its key.
     async fn charge(&self, req: ChargeRequest) -> Result<LedgerEntry, LedgerError>;
+
+    /// Reverse a prior charge by its still-unreversed remainder, posting one linked, idempotent refund.
+    /// Returns the refund, or `None` when the charge is already whole (nothing to reverse). The shared
+    /// primitive behind amendment delta-postings: reversing the remainder (not a fixed amount) keeps
+    /// repeated corrections and run voids conservation-exact and never double-refunds.
+    async fn reverse_charge(
+        &self,
+        req: ReverseChargeRequest,
+    ) -> Result<Option<LedgerEntry>, LedgerError>;
 
     /// Release an open reservation without charging it (e.g. a failed or abandoned run).
     async fn void(&self, reservation: ReservationId) -> Result<(), LedgerError>;

@@ -262,6 +262,23 @@ pub struct ReserveUsageBody {
     pub run_id: Option<RunId>,
 }
 
+/// `POST /v1/usage/{event_id}/amend` — correct a priced usage event's token counts and post the
+/// ledger delta. The engine re-prices (the caller never supplies credits) and adjusts the ledger by the
+/// difference; `model`/`rate_card_id` default to the original event's. Idempotent on `idempotency_key`.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct AmendUsageBody {
+    /// The corrected token counts (the engine re-prices these).
+    pub usage: UsageDimensions,
+    /// Override the model to re-price against; defaults to the original event's model.
+    #[serde(default)]
+    pub model: Option<String>,
+    /// Override the synced rate-card id; defaults to the original event's.
+    #[serde(default)]
+    pub rate_card_id: Option<String>,
+    /// Idempotency key for the amendment (its event version + ledger postings derive from it).
+    pub idempotency_key: String,
+}
+
 /// `POST /v1/usage/reservations/{id}/settle` — price the actual usage against a catalog model and
 /// settle the reservation. Idempotent on the reservation id.
 #[derive(Debug, Deserialize, ToSchema)]

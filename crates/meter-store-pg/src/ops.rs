@@ -11,7 +11,7 @@ use meter_ledger::{
     run_void_charge_refund_key, run_void_refund_key, AccountScope, Balance, ChargeRequest,
     EntryType, GrantRequest, LeaseRequest, LedgerAccount, LedgerBackend, LedgerEntry, LedgerError,
     LimitClass, NewAccount, RefundRequest, ReservationId, ReserveOutcome, ReserveRequest,
-    RunVoidSummary, SettleRequest, SYSTEM_ACCOUNT,
+    ReverseChargeRequest, RunVoidSummary, SettleRequest, SYSTEM_ACCOUNT,
 };
 
 use crate::mapping::{
@@ -535,6 +535,77 @@ impl LedgerBackend for PgLedger {
         insert_entry(&mut tx, &entry, org_id).await?;
         tx.commit().await.map_err(be)?;
         Ok(entry)
+    }
+
+    async fn reverse_charge(
+        &self,
+        req: ReverseChargeRequest,
+    ) -> Result<Option<LedgerEntry>, LedgerError> {
+        let mut tx = self.begin_hot().await?;
+        let account_row =
+            sqlx::query("SELECT org_id FROM ledger_accounts WHERE id = $1 FOR UPDATE")
+                .bind(req.account.as_uuid())
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(be)?
+                .ok_or(LedgerError::AccountNotFound(req.account))?;
+        let org_id: Uuid = account_row.try_get("org_id").map_err(be)?;
+
+        // Idempotent: a refund already posted under this key means this reversal happened.
+        let existing = sqlx::query(
+            "SELECT * FROM ledger_entries WHERE account_id = $1 AND idempotency_key = $2",
+        )
+        .bind(req.account.as_uuid())
+        .bind(&req.idempotency_key)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(be)?;
+        if let Some(row) = existing {
+            let entry = entry_from_row(&row)?;
+            tx.commit().await.map_err(be)?;
+            return Ok(Some(entry));
+        }
+
+        // Lock the charge so a concurrent reversal (another amend, or void_run) serializes with us, and
+        // refund only its unreversed remainder.
+        sqlx::query("SELECT id FROM ledger_entries WHERE id = $1 FOR UPDATE")
+            .bind(req.charge_entry_id.as_uuid())
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(be)?;
+        let amount = unreversed_remainder(&mut tx, req.charge_entry_id.as_uuid()).await?;
+        if amount <= Decimal::ZERO {
+            tx.commit().await.map_err(be)?;
+            return Ok(None);
+        }
+        let updated = sqlx::query(
+            "UPDATE ledger_accounts SET settled_credits = settled_credits + $2 \
+             WHERE id = $1 RETURNING settled_credits",
+        )
+        .bind(req.account.as_uuid())
+        .bind(amount)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(be)?;
+        let balance_after: Decimal = updated.try_get("settled_credits").map_err(be)?;
+        let entry = LedgerEntry {
+            id: EntryId::new(),
+            account_id: req.account,
+            paired_account_id: SYSTEM_ACCOUNT,
+            entry_type: EntryType::Refund,
+            delta_credits: credit_from_db(amount),
+            balance_after: credit_from_db(balance_after),
+            source: None,
+            revenue_recognizable: false,
+            reverses_entry_id: Some(req.charge_entry_id),
+            reservation_id: None,
+            run_id: req.run_id,
+            idempotency_key: Some(req.idempotency_key),
+            created_at: now_micros(),
+        };
+        insert_entry(&mut tx, &entry, org_id).await?;
+        tx.commit().await.map_err(be)?;
+        Ok(Some(entry))
     }
 
     async fn void(&self, reservation: ReservationId) -> Result<(), LedgerError> {

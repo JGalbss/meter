@@ -2038,3 +2038,174 @@ async fn void_run_reverses_direct_usage_charges_over_http() {
     assert_eq!(again["charges_refunded"], json!(0));
     assert_eq!(again["credits_refunded"], "0");
 }
+
+/// Amending a usage event re-prices in the engine and posts the ledger delta: an up-amend charges the
+/// difference, a down-amend refunds it, the amend is idempotent on its key, and voiding the run still
+/// restores the balance exactly — proving the reverse-and-recharge chain stays conservation-correct.
+#[tokio::test]
+async fn amend_usage_reprices_posts_delta_and_void_restores() {
+    let (_container, app, ledger, _events) = app_with_stores().await;
+    let org = "11111111-1111-1111-1111-111111111111";
+    let run = "cccccccc-cccc-cccc-cccc-cccccccccccc";
+
+    let (_status, account) = call(
+        &app,
+        "POST",
+        "/v1/accounts",
+        &json!({ "org_id": org, "scope": "org", "no_overdraft": true }),
+    )
+    .await;
+    let account_id = account["id"].as_str().expect("account id").to_owned();
+    call(
+        &app,
+        "POST",
+        &format!("/v1/accounts/{account_id}/grants"),
+        &json!({ "amount": "1000000", "source": "paid" }),
+    )
+    .await;
+
+    // Synced card: output @ $0.0001/token -> 1000 output = 100000 credits.
+    let card_id = uuid::Uuid::now_v7();
+    PgConfig::new(ledger.pool().clone())
+        .put_rate_card(&RateCardRecord {
+            id: card_id,
+            version: 1,
+            kind: "provider_cost".to_owned(),
+            currency: "USD".to_owned(),
+            margin: Decimal::from(1),
+            components: json!([{
+                "dimension": "output", "modality": "text", "context_tier": "standard",
+                "unit": "token", "charge_model": "standard",
+                "unit_price": { "amount": "0.0001", "currency": "USD" }
+            }]),
+        })
+        .await
+        .expect("put card");
+
+    // Meter 1000 output (charge 100000). settled 900000.
+    let (_status, metered) = call(
+        &app,
+        "POST",
+        "/v1/usage",
+        &json!({
+            "org_id": org, "account": account_id, "model": "custom-x",
+            "idempotency_key": "u1", "usage": { "output": 1000 },
+            "rate_card_id": card_id.to_string(), "run_id": run
+        }),
+    )
+    .await;
+    let e1 = metered["event_id"].as_str().expect("event id").to_owned();
+    assert_eq!(metered["credits"], "100000");
+
+    // Amend UP to 2000 output (200000): delta +100000, settled 800000.
+    let up = json!({ "usage": { "output": 2000 }, "idempotency_key": "am1" });
+    let (status, a1) = call(&app, "POST", &format!("/v1/usage/{e1}/amend"), &up).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(a1["credits"], "200000");
+    assert_eq!(a1["delta"], "100000");
+    assert_eq!(a1["settled"], "800000");
+    let e2 = a1["event_id"].as_str().expect("amended id").to_owned();
+    assert_ne!(e2, e1);
+
+    // Idempotent: replaying the same amend returns the same version and the same balance.
+    let (_status, a1b) = call(&app, "POST", &format!("/v1/usage/{e1}/amend"), &up).await;
+    assert_eq!(a1b["event_id"], a1["event_id"]);
+    assert_eq!(a1b["settled"], "800000");
+
+    // Amend the current version DOWN to 500 output (50000): delta -150000, settled 950000.
+    let (_status, a2) = call(
+        &app,
+        "POST",
+        &format!("/v1/usage/{e2}/amend"),
+        &json!({ "usage": { "output": 500 }, "idempotency_key": "am2" }),
+    )
+    .await;
+    assert_eq!(a2["credits"], "50000");
+    assert_eq!(a2["delta"], "-150000");
+    assert_eq!(a2["settled"], "950000");
+
+    // Void the run: every charge in the amend chain nets out -> balance fully restored.
+    let (status, _voided) = call(&app, "POST", &format!("/v1/runs/{run}/void"), &Value::Null).await;
+    assert_eq!(status, StatusCode::OK);
+    let (_status, balance) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{account_id}/balance"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(balance["settled"], "1000000");
+    assert_eq!(balance["held"], "0");
+}
+
+/// Amending a voided run's event is refused — a void already reversed its billing; re-charging a dead
+/// run must never happen.
+#[tokio::test]
+async fn amend_usage_is_refused_after_void() {
+    let (_container, app, ledger, _events) = app_with_stores().await;
+    let org = "22222222-2222-2222-2222-222222222222";
+    let run = "dddddddd-dddd-dddd-dddd-dddddddddddd";
+
+    let (_status, account) = call(
+        &app,
+        "POST",
+        "/v1/accounts",
+        &json!({ "org_id": org, "scope": "org", "no_overdraft": true }),
+    )
+    .await;
+    let account_id = account["id"].as_str().expect("account id").to_owned();
+    call(
+        &app,
+        "POST",
+        &format!("/v1/accounts/{account_id}/grants"),
+        &json!({ "amount": "1000000", "source": "paid" }),
+    )
+    .await;
+    let card_id = uuid::Uuid::now_v7();
+    PgConfig::new(ledger.pool().clone())
+        .put_rate_card(&RateCardRecord {
+            id: card_id,
+            version: 1,
+            kind: "provider_cost".to_owned(),
+            currency: "USD".to_owned(),
+            margin: Decimal::from(1),
+            components: json!([{
+                "dimension": "output", "modality": "text", "context_tier": "standard",
+                "unit": "token", "charge_model": "standard",
+                "unit_price": { "amount": "0.0001", "currency": "USD" }
+            }]),
+        })
+        .await
+        .expect("put card");
+    let (_status, metered) = call(
+        &app,
+        "POST",
+        "/v1/usage",
+        &json!({
+            "org_id": org, "account": account_id, "model": "custom-x",
+            "idempotency_key": "v1", "usage": { "output": 1000 },
+            "rate_card_id": card_id.to_string(), "run_id": run
+        }),
+    )
+    .await;
+    let e1 = metered["event_id"].as_str().expect("event id").to_owned();
+    call(&app, "POST", &format!("/v1/runs/{run}/void"), &Value::Null).await;
+
+    let (status, _body) = call(
+        &app,
+        "POST",
+        &format!("/v1/usage/{e1}/amend"),
+        &json!({ "usage": { "output": 5000 }, "idempotency_key": "after-void" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    // The void's restoration stands; no re-charge happened.
+    let (_status, balance) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{account_id}/balance"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(balance["settled"], "1000000");
+}

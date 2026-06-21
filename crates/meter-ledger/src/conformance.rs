@@ -14,7 +14,7 @@ use crate::error::LedgerError;
 use crate::model::{AccountScope, CreditSource, LimitClass, ReservationId};
 use crate::request::{
     ChargeRequest, GrantRequest, LeaseRequest, NewAccount, RefundRequest, ReserveOutcome,
-    ReserveRequest, SettleRequest,
+    ReserveRequest, ReverseChargeRequest, SettleRequest,
 };
 
 /// A whole-credit amount.
@@ -1073,10 +1073,115 @@ pub async fn void_run_ignores_unlinked_credit_notes<L: LedgerBackend>(ledger: &L
     );
 }
 
+/// `reverse_charge` posts a charge's unreversed remainder once and is idempotent: a re-reverse under
+/// the same key returns the same refund, and after the charge is whole it returns `None`. With a prior
+/// partial credit-note it reverses only what remains. This is the primitive amendments build on.
+pub async fn reverse_charge_reverses_remainder_once<L: LedgerBackend>(ledger: &L) {
+    let account = open_no_overdraft_org(ledger).await;
+    ledger
+        .grant(GrantRequest {
+            account,
+            amount: credits(100),
+            source: CreditSource::Paid,
+            idempotency_key: None,
+        })
+        .await
+        .expect("grant");
+    let run = RunId::new();
+
+    // A whole charge of 40: reverse_charge returns the full 40, idempotently.
+    let charge = ledger
+        .charge(ChargeRequest {
+            account,
+            amount: credits(40),
+            run_id: Some(run),
+            idempotency_key: Some("c".to_owned()),
+        })
+        .await
+        .expect("charge");
+    let first = ledger
+        .reverse_charge(ReverseChargeRequest {
+            account,
+            charge_entry_id: charge.id,
+            run_id: Some(run),
+            idempotency_key: "rc".to_owned(),
+        })
+        .await
+        .expect("reverse")
+        .expect("a remainder to reverse");
+    assert_eq!(first.delta_credits, credits(40));
+    assert_eq!(
+        ledger.balance(account).await.expect("balance").settled,
+        credits(100)
+    );
+    // Same key -> same posting (idempotent).
+    let retry = ledger
+        .reverse_charge(ReverseChargeRequest {
+            account,
+            charge_entry_id: charge.id,
+            run_id: Some(run),
+            idempotency_key: "rc".to_owned(),
+        })
+        .await
+        .expect("reverse retry");
+    assert_eq!(retry.map(|entry| entry.id), Some(first.id));
+    // A different key now finds nothing left to reverse.
+    let none = ledger
+        .reverse_charge(ReverseChargeRequest {
+            account,
+            charge_entry_id: charge.id,
+            run_id: Some(run),
+            idempotency_key: "rc-2".to_owned(),
+        })
+        .await
+        .expect("reverse again");
+    assert!(none.is_none());
+    assert_eq!(
+        ledger.balance(account).await.expect("balance").settled,
+        credits(100)
+    );
+
+    // A partially credit-noted charge: reverse_charge reverses only the remainder.
+    let charge2 = ledger
+        .charge(ChargeRequest {
+            account,
+            amount: credits(50),
+            run_id: Some(run),
+            idempotency_key: Some("c2".to_owned()),
+        })
+        .await
+        .expect("charge2");
+    ledger
+        .refund(RefundRequest {
+            account,
+            amount: credits(20),
+            reverses_entry_id: Some(charge2.id),
+            idempotency_key: Some("manual".to_owned()),
+        })
+        .await
+        .expect("partial refund");
+    let remainder = ledger
+        .reverse_charge(ReverseChargeRequest {
+            account,
+            charge_entry_id: charge2.id,
+            run_id: Some(run),
+            idempotency_key: "rc-c2".to_owned(),
+        })
+        .await
+        .expect("reverse c2")
+        .expect("a remainder");
+    assert_eq!(remainder.delta_credits, credits(30));
+    assert_eq!(
+        ledger.balance(account).await.expect("balance").settled,
+        credits(100)
+    );
+}
+
 pub async fn run_all_scenarios<L: LedgerBackend>(ledger: &L) {
     grant_increases_balance(ledger).await;
     reserve_denies_when_insufficient(ledger).await;
     refund_credits_back(ledger).await;
+    reverse_charge_reverses_remainder_once(ledger).await;
     void_run_reverses_holds_and_settles(ledger).await;
     void_run_reverses_direct_charges(ledger).await;
     void_run_does_not_double_refund_corrected_charges(ledger).await;

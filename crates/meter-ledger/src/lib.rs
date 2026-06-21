@@ -28,5 +28,5 @@ pub use model::{
 };
 pub use request::{
     ChargeRequest, GrantRequest, LeaseRequest, NewAccount, RefundRequest, ReserveOutcome,
-    ReserveRequest, RunVoidSummary, SettleRequest,
+    ReserveRequest, ReverseChargeRequest, RunVoidSummary, SettleRequest,
 };

@@ -7,7 +7,7 @@
   "description": "meter documentation site (Next.js + MDX)",
   "scripts": {
     "dev": "next dev",
-    "build": "next build && pagefind --site out",
+    "build": "node scripts/sync-openapi.mjs && next build && pagefind --site out",
     "search:index": "pagefind --site out",
     "start": "npx --yes serve out",
     "typecheck": "tsc --noEmit",

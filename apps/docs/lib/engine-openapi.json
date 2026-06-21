@@ -776,6 +776,43 @@
         }
       }
     },
+    "/v1/orgs/{id}/reconcile": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "`GET /v1/orgs/{id}/reconcile` — reconcile every pre-aggregated rollup (by model, and each promoted",
+        "description": "custom field) against the event store of record. An empty array means the fast read paths agree with\nground truth; any returned row is drift (scope + dimension) that warrants rebuilding that rollup.",
+        "operationId": "reconcile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Org id (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Per-group rollup-vs-source drift; empty means consistent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RollupDrift"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/orgs/{id}/usage-by-day": {
       "get": {
         "tags": [
@@ -804,6 +841,51 @@
                   "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/EventDayUsage"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orgs/{id}/usage-by-field": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "`GET /v1/orgs/{id}/usage-by-field?field=<name>` — flexible credit burndown grouped by any factor.",
+        "operationId": "usage_by_field",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Org id (UUID)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "field",
+            "in": "query",
+            "description": "Factor to group by: a custom event field (e.g. team, feature, customer) or a built-in like model",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Credit burndown per value of the factor, highest spend first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FieldUsage"
                   }
                 }
               }
@@ -1239,6 +1321,11 @@
           "properties"
         ],
         "properties": {
+          "idempotency_key": {
+            "type": "string",
+            "description": "Optional idempotency key: a retried amend with the same key resolves to the same new version\ninstead of stacking a second one.",
+            "nullable": true
+          },
           "properties": {
             "type": "object",
             "description": "Replacement customer JSON (the amend records a new version)."
@@ -1536,6 +1623,29 @@
           }
         }
       },
+      "FieldUsage": {
+        "type": "object",
+        "description": "Credit burndown for one value of an arbitrary grouping factor — a custom event field (e.g.\n`team`, `feature`, `customer`) or a built-in like `model`. `dimension` is the field's value;\n`credits` is the burnable spend attributed to it (events that recorded no credits contribute 0,\nso non-burnable usage shows up as `events > 0` with `credits = 0`).",
+        "required": [
+          "dimension",
+          "events",
+          "credits"
+        ],
+        "properties": {
+          "credits": {
+            "type": "number",
+            "format": "double"
+          },
+          "dimension": {
+            "type": "string"
+          },
+          "events": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "GrantBody": {
         "type": "object",
         "description": "`POST /v1/accounts/{id}/grants`",
@@ -1708,6 +1818,10 @@
             "type": "string",
             "format": "uuid"
           },
+          "burnable": {
+            "type": "boolean",
+            "description": "Whether this usage burns credits. `true` (the default) prices and debits the ledger as usual.\n`false` records the event with its real provider cost for visibility but never touches the\nledger — its burned `credits` are zero, so burndown stays truthful while you keep flexible,\nnon-charging usage (free tiers, internal traffic, trials). The would-be charge is preserved in\nthe event's `priced_credits` property."
+          },
           "idempotency_key": {
             "type": "string"
           },
@@ -1728,6 +1842,10 @@
             "format": "uuid",
             "nullable": true
           },
+          "tags": {
+            "type": "object",
+            "description": "Optional custom fields recorded on the event for flexible credit burndown (e.g.\n`{\"team\":\"alpha\",\"feature\":\"chat\"}`). Reserved keys (model, the token dimensions, credits, …)\ncan't be overridden. Slice spend by any of these via `GET /v1/orgs/{id}/usage-by-field`."
+          },
           "usage": {
             "$ref": "#/components/schemas/UsageDimensions"
           }
@@ -1738,6 +1856,7 @@
         "description": "`POST /v1/usage` result: the priced amounts, the recorded event id, and the resulting balance.\nCredit/USD amounts are exact decimal strings.",
         "required": [
           "credits",
+          "priced_credits",
           "cogs_usd",
           "customer_price_usd",
           "event_id",
@@ -1756,7 +1875,8 @@
             "type": "string"
           },
           "credits": {
-            "type": "string"
+            "type": "string",
+            "description": "Credits actually burned (debited from the ledger). Zero for non-burnable usage."
           },
           "customer_price_usd": {
             "type": "string"
@@ -1764,6 +1884,10 @@
           "event_id": {
             "type": "string",
             "format": "uuid"
+          },
+          "priced_credits": {
+            "type": "string",
+            "description": "What the usage priced to, whether or not it burned. Equals `credits` for burnable usage."
           },
           "settled": {
             "type": "string"
@@ -2212,6 +2336,42 @@
           }
         ],
         "description": "`POST /v1/usage/reserve` result: the reserve outcome (flattened) plus the engine-computed credits\nthat were held."
+      },
+      "RollupDrift": {
+        "type": "object",
+        "description": "One group's drift between a pre-aggregated rollup and the live `events` system of record. `scope` is\nwhich rollup (`model`, or a promoted custom field like `team`) and `dimension` is the group value.\nReturned only when the two disagree, so an empty result means every rollup faithfully tracks the SoR.\n`*_events`/`*_credits` are the two sides; a non-empty list flags a rollup that needs rebuilding\n(e.g. a materialized view added after data already existed, or a merge/ingest anomaly).",
+        "required": [
+          "scope",
+          "dimension",
+          "rollup_events",
+          "scan_events",
+          "rollup_credits",
+          "scan_credits"
+        ],
+        "properties": {
+          "dimension": {
+            "type": "string"
+          },
+          "rollup_credits": {
+            "type": "number",
+            "format": "double"
+          },
+          "rollup_events": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "scan_credits": {
+            "type": "number",
+            "format": "double"
+          },
+          "scan_events": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "scope": {
+            "type": "string"
+          }
+        }
       },
       "SettleBody": {
         "type": "object",

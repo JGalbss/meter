@@ -1,7 +1,9 @@
 import { PlugsConnected } from "@phosphor-icons/react/dist/ssr"
+import { Suspense } from "react"
 
 import { EmptyState } from "@/components/empty-state"
 import { PageHeader } from "@/components/page-header"
+import { RevealOnLoad, TableSkeleton } from "@/components/section-skeleton"
 import { ValueBadge } from "@/components/value-badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -20,8 +22,6 @@ import {
 import { resolveOrgScope } from "@/lib/meter/org"
 import { RegisterWebhookDialog } from "./register-webhook-dialog"
 import { WebhookToggle } from "./webhook-toggle"
-
-export const dynamic = "force-dynamic"
 
 const ENABLED_VARIANTS = { enabled: "default", disabled: "outline" } as const
 const DELIVERY_VARIANTS = {
@@ -50,13 +50,8 @@ function dash(value: number | null): string {
   return String(value)
 }
 
-export default async function WebhooksPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ org?: string }>
-}) {
-  const { org } = await searchParams
-  const scope = await resolveOrgScope(org)
+export default async function WebhooksPage() {
+  const scope = await resolveOrgScope()
 
   if (scope.error !== null) {
     return (
@@ -85,12 +80,6 @@ export default async function WebhooksPage({
   }
 
   const orgId = scope.activeOrg.id
-  const [webhooks, deliveries] = await Promise.all([
-    listWebhooks(orgId),
-    listWebhookDeliveries(orgId),
-  ])
-  const endpoints = unwrapOr(webhooks, [])
-  const log = unwrapOr(deliveries, [])
 
   return (
     <>
@@ -99,7 +88,23 @@ export default async function WebhooksPage({
         description="Signed, retried event delivery with a dead-letter log."
         action={<RegisterWebhookDialog orgId={orgId} />}
       />
+      <Suspense fallback={<TableSkeleton />}>
+        <WebhooksSections orgId={orgId} />
+      </Suspense>
+    </>
+  )
+}
 
+async function WebhooksSections({ orgId }: { orgId: string }) {
+  const [webhooks, deliveries] = await Promise.all([
+    listWebhooks(orgId),
+    listWebhookDeliveries(orgId),
+  ])
+  const endpoints = unwrapOr(webhooks, [])
+  const log = unwrapOr(deliveries, [])
+
+  return (
+    <RevealOnLoad>
       <Card>
         <CardHeader>
           <CardTitle>Endpoints</CardTitle>
@@ -201,6 +206,6 @@ export default async function WebhooksPage({
           </Table>
         </CardContent>
       </Card>
-    </>
+    </RevealOnLoad>
   )
 }

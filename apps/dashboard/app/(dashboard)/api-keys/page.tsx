@@ -1,9 +1,11 @@
 import { Key, PlugsConnected } from "@phosphor-icons/react/dist/ssr"
+import { Suspense } from "react"
 
 import { EmptyState } from "@/components/empty-state"
 import { PageHeader } from "@/components/page-header"
+import { RevealOnLoad, TableSkeleton } from "@/components/section-skeleton"
 import { ValueBadge } from "@/components/value-badge"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import {
   Table,
   TableBody,
@@ -16,8 +18,6 @@ import { listApiKeys, unwrapOr } from "@/lib/meter/client"
 import { resolveOrgScope } from "@/lib/meter/org"
 import { CreateApiKeyDialog } from "./create-api-key-dialog"
 import { RevokeApiKeyButton } from "./revoke-api-key-button"
-
-export const dynamic = "force-dynamic"
 
 const STATUS_VARIANTS = { active: "default", revoked: "outline" } as const
 const ROLE_VARIANTS = {
@@ -41,13 +41,8 @@ function whenOrNever(at: string | null): string {
   return new Date(at).toLocaleString()
 }
 
-export default async function ApiKeysPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ org?: string }>
-}) {
-  const { org } = await searchParams
-  const scope = await resolveOrgScope(org)
+export default async function ApiKeysPage() {
+  const scope = await resolveOrgScope()
 
   if (scope.error !== null) {
     return (
@@ -76,7 +71,6 @@ export default async function ApiKeysPage({
   }
 
   const orgId = scope.activeOrg.id
-  const keys = unwrapOr(await listApiKeys(orgId), [])
 
   return (
     <>
@@ -85,67 +79,75 @@ export default async function ApiKeysPage({
         description="Bearer tokens that authenticate control-plane requests."
         action={<CreateApiKeyDialog orgId={orgId} />}
       />
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Scope</TableHead>
-                <TableHead>Prefix</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead>Last used</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {keys.length === 0 && (
-                <TableRow>
-                  <TableCell
-                    colSpan={8}
-                    className="py-10 text-center text-sm text-muted-foreground"
-                  >
-                    No API keys.
-                  </TableCell>
-                </TableRow>
-              )}
-              {keys.map((key) => (
-                <TableRow key={key.id}>
-                  <TableCell className="font-medium">{key.name}</TableCell>
-                  <TableCell>
-                    <ValueBadge value={key.role} variants={ROLE_VARIANTS} />
-                  </TableCell>
-                  <TableCell>
-                    <ValueBadge value={key.scope} variants={SCOPE_VARIANTS} />
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
-                    {key.prefix}…
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {new Date(key.createdAt).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {whenOrNever(key.lastUsedAt)}
-                  </TableCell>
-                  <TableCell>
-                    <ValueBadge
-                      value={keyStatus(key.revokedAt)}
-                      variants={STATUS_VARIANTS}
-                    />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {key.revokedAt === null && (
-                      <RevokeApiKeyButton id={key.id} />
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <Suspense fallback={<TableSkeleton />}>
+        <ApiKeysTable orgId={orgId} />
+      </Suspense>
     </>
+  )
+}
+
+async function ApiKeysTable({ orgId }: { orgId: string }) {
+  const keys = unwrapOr(await listApiKeys(orgId), [])
+
+  return (
+    <RevealOnLoad>
+      <Card className="py-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Role</TableHead>
+              <TableHead>Scope</TableHead>
+              <TableHead>Prefix</TableHead>
+              <TableHead>Created</TableHead>
+              <TableHead>Last used</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {keys.length === 0 && (
+              <TableRow>
+                <TableCell
+                  colSpan={8}
+                  className="py-10 text-center text-sm text-muted-foreground"
+                >
+                  No API keys.
+                </TableCell>
+              </TableRow>
+            )}
+            {keys.map((key) => (
+              <TableRow key={key.id}>
+                <TableCell className="font-medium">{key.name}</TableCell>
+                <TableCell>
+                  <ValueBadge value={key.role} variants={ROLE_VARIANTS} />
+                </TableCell>
+                <TableCell>
+                  <ValueBadge value={key.scope} variants={SCOPE_VARIANTS} />
+                </TableCell>
+                <TableCell className="font-mono text-xs text-muted-foreground">
+                  {key.prefix}…
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {new Date(key.createdAt).toLocaleDateString()}
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {whenOrNever(key.lastUsedAt)}
+                </TableCell>
+                <TableCell>
+                  <ValueBadge
+                    value={keyStatus(key.revokedAt)}
+                    variants={STATUS_VARIANTS}
+                  />
+                </TableCell>
+                <TableCell className="text-right">
+                  {key.revokedAt === null && <RevokeApiKeyButton id={key.id} />}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Card>
+    </RevealOnLoad>
   )
 }

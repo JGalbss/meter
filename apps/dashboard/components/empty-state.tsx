@@ -1,13 +1,15 @@
-import type { ComponentType } from "react"
+import type { ComponentType, ReactNode } from "react"
 
 export function EmptyState({
   icon: Icon,
   title,
   message,
+  action,
 }: {
   icon: ComponentType<{ size?: number; className?: string }>
   title: string
   message: string
+  action?: ReactNode
 }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-12 text-center">
@@ -21,6 +23,7 @@ export function EmptyState({
           {message}
         </p>
       </div>
+      {action !== undefined && <div className="mt-5">{action}</div>}
     </div>
   )
 }

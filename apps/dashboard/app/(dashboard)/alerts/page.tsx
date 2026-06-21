@@ -1,9 +1,11 @@
 import { PlugsConnected, ShieldWarning } from "@phosphor-icons/react/dist/ssr"
+import { Suspense } from "react"
 
 import { EmptyState } from "@/components/empty-state"
 import { PageHeader } from "@/components/page-header"
+import { RevealOnLoad, TableSkeleton } from "@/components/section-skeleton"
 import { ValueBadge } from "@/components/value-badge"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import {
   Table,
   TableBody,
@@ -17,8 +19,6 @@ import { resolveOrgScope } from "@/lib/meter/org"
 import { AlertToggle } from "./alert-toggle"
 import { CreateAlertRuleDialog } from "./create-alert-rule-dialog"
 import { EvaluateButton } from "./evaluate-button"
-
-export const dynamic = "force-dynamic"
 
 const ENABLED_VARIANTS = { enabled: "default", disabled: "outline" } as const
 const STATUS_VARIANTS = {
@@ -41,13 +41,8 @@ function statusLabel(status: string | null): string {
   return status
 }
 
-export default async function AlertsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ org?: string }>
-}) {
-  const { org } = await searchParams
-  const scope = await resolveOrgScope(org)
+export default async function AlertsPage() {
+  const scope = await resolveOrgScope()
 
   if (scope.error !== null) {
     return (
@@ -76,7 +71,6 @@ export default async function AlertsPage({
   }
 
   const orgId = scope.activeOrg.id
-  const rules = unwrapOr(await listAlertRules(orgId), [])
 
   return (
     <>
@@ -90,68 +84,76 @@ export default async function AlertsPage({
           </div>
         }
       />
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Scope</TableHead>
-                <TableHead>Metric</TableHead>
-                <TableHead>Threshold</TableHead>
-                <TableHead>Action</TableHead>
-                <TableHead>Last status</TableHead>
-                <TableHead>Enabled</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rules.length === 0 && (
-                <TableRow>
-                  <TableCell
-                    colSpan={8}
-                    className="py-10 text-center text-sm text-muted-foreground"
-                  >
-                    No alert rules.
-                  </TableCell>
-                </TableRow>
-              )}
-              {rules.map((rule) => (
-                <TableRow key={rule.id}>
-                  <TableCell className="font-medium">{rule.name}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {rule.scope}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {rule.metric}
-                  </TableCell>
-                  <TableCell className="tabular-nums">
-                    {rule.threshold}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {rule.action}
-                  </TableCell>
-                  <TableCell>
-                    <ValueBadge
-                      value={statusLabel(rule.lastStatus)}
-                      variants={STATUS_VARIANTS}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <ValueBadge
-                      value={enabledLabel(rule.enabled)}
-                      variants={ENABLED_VARIANTS}
-                    />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <AlertToggle id={rule.id} enabled={rule.enabled} />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <Suspense fallback={<TableSkeleton />}>
+        <AlertsTable orgId={orgId} />
+      </Suspense>
     </>
+  )
+}
+
+async function AlertsTable({ orgId }: { orgId: string }) {
+  const rules = unwrapOr(await listAlertRules(orgId), [])
+
+  return (
+    <RevealOnLoad>
+      <Card className="py-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Scope</TableHead>
+              <TableHead>Metric</TableHead>
+              <TableHead>Threshold</TableHead>
+              <TableHead>Action</TableHead>
+              <TableHead>Last status</TableHead>
+              <TableHead>Enabled</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rules.length === 0 && (
+              <TableRow>
+                <TableCell
+                  colSpan={8}
+                  className="py-10 text-center text-sm text-muted-foreground"
+                >
+                  No alert rules.
+                </TableCell>
+              </TableRow>
+            )}
+            {rules.map((rule) => (
+              <TableRow key={rule.id}>
+                <TableCell className="font-medium">{rule.name}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  {rule.scope}
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {rule.metric}
+                </TableCell>
+                <TableCell className="tabular-nums">{rule.threshold}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  {rule.action}
+                </TableCell>
+                <TableCell>
+                  <ValueBadge
+                    value={statusLabel(rule.lastStatus)}
+                    variants={STATUS_VARIANTS}
+                  />
+                </TableCell>
+                <TableCell>
+                  <ValueBadge
+                    value={enabledLabel(rule.enabled)}
+                    variants={ENABLED_VARIANTS}
+                  />
+                </TableCell>
+                <TableCell className="text-right">
+                  <AlertToggle id={rule.id} enabled={rule.enabled} />
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Card>
+    </RevealOnLoad>
   )
 }

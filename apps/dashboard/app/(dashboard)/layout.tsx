@@ -11,7 +11,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { hasValidSession } from "@/lib/auth/session"
-import { listOrganizations, unwrapOr } from "@/lib/meter/client"
+import { resolveOrgScope } from "@/lib/meter/org"
 import { logoutAction } from "./actions"
 
 export default async function DashboardLayout({
@@ -23,7 +23,7 @@ export default async function DashboardLayout({
     redirect("/login")
   }
 
-  const orgs = unwrapOr(await listOrganizations(), [])
+  const scope = await resolveOrgScope()
   return (
     <SidebarProvider>
       <Suspense fallback={null}>
@@ -34,7 +34,10 @@ export default async function DashboardLayout({
           <SidebarTrigger />
           <Separator orientation="vertical" className="mr-1 h-4" />
           <Suspense fallback={null}>
-            <OrgSwitcher orgs={orgs} />
+            <OrgSwitcher
+              orgs={scope.orgs}
+              activeOrgId={scope.activeOrg?.id ?? null}
+            />
           </Suspense>
           <form action={logoutAction} className="ml-auto">
             <Button type="submit" variant="ghost" size="sm">

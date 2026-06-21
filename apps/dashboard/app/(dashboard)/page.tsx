@@ -7,9 +7,11 @@ import {
 } from "@phosphor-icons/react/dist/ssr"
 import Link from "next/link"
 import type { ComponentType } from "react"
+import { Suspense } from "react"
 
 import { EmptyState } from "@/components/empty-state"
 import { PageHeader } from "@/components/page-header"
+import { RevealOnLoad, StatsSkeleton } from "@/components/section-skeleton"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   listAlertRules,
@@ -20,8 +22,6 @@ import {
 import { fetchUsageByModel } from "@/lib/meter/engine"
 import { resolveOrgScope } from "@/lib/meter/org"
 
-export const dynamic = "force-dynamic"
-
 interface Stat {
   readonly label: string
   readonly value: number
@@ -29,13 +29,8 @@ interface Stat {
   readonly icon: ComponentType<{ size?: number; className?: string }>
 }
 
-export default async function OverviewPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ org?: string }>
-}) {
-  const { org } = await searchParams
-  const scope = await resolveOrgScope(org)
+export default async function OverviewPage() {
+  const scope = await resolveOrgScope()
 
   if (scope.error !== null) {
     return (
@@ -64,6 +59,27 @@ export default async function OverviewPage({
   }
 
   const orgId = scope.activeOrg.id
+
+  return (
+    <>
+      <PageHeader
+        title="Overview"
+        description={`Metering console for ${scope.activeOrg.name}.`}
+      />
+      <Suspense fallback={<StatsSkeleton count={4} />}>
+        <OverviewSections orgId={orgId} orgCount={scope.orgs.length} />
+      </Suspense>
+    </>
+  )
+}
+
+async function OverviewSections({
+  orgId,
+  orgCount,
+}: {
+  orgId: string
+  orgCount: number
+}) {
   const [unread, alerts, webhooks, recent, usageByModel] = await Promise.all([
     listNotifications(orgId, "unread"),
     listAlertRules(orgId),
@@ -95,7 +111,7 @@ export default async function OverviewPage({
     },
     {
       label: "Organizations",
-      value: scope.orgs.length,
+      value: orgCount,
       href: "/organizations",
       icon: Buildings,
     },
@@ -103,20 +119,12 @@ export default async function OverviewPage({
   const recentNotifications = unwrapOr(recent, []).slice(0, 5)
 
   return (
-    <>
-      <PageHeader
-        title="Overview"
-        description={`Metering console for ${scope.activeOrg.name}.`}
-      />
+    <RevealOnLoad>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => {
           const Icon = stat.icon
           return (
-            <Link
-              key={stat.label}
-              href={`${stat.href}?org=${orgId}`}
-              className="group"
-            >
+            <Link key={stat.label} href={stat.href} className="group">
               <Card className="transition-colors group-hover:border-primary/40">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -139,7 +147,7 @@ export default async function OverviewPage({
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle>Top models by spend</CardTitle>
           <Link
-            href={`/usage?org=${orgId}`}
+            href="/usage"
             className="text-sm font-normal text-muted-foreground hover:text-foreground"
           >
             View usage →
@@ -196,6 +204,6 @@ export default async function OverviewPage({
           ))}
         </CardContent>
       </Card>
-    </>
+    </RevealOnLoad>
   )
 }

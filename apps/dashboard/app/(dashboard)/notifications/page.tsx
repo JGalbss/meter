@@ -1,10 +1,12 @@
 import { Bell, PlugsConnected } from "@phosphor-icons/react/dist/ssr"
 import Link from "next/link"
+import { Suspense } from "react"
 
 import { EmptyState } from "@/components/empty-state"
 import { PageHeader } from "@/components/page-header"
+import { RevealOnLoad, TableSkeleton } from "@/components/section-skeleton"
 import { ValueBadge } from "@/components/value-badge"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import {
   Table,
   TableBody,
@@ -16,8 +18,6 @@ import {
 import { listNotifications, unwrapOr } from "@/lib/meter/client"
 import { resolveOrgScope } from "@/lib/meter/org"
 import { NotificationActions } from "./notification-actions"
-
-export const dynamic = "force-dynamic"
 
 const SEVERITY_VARIANTS = {
   info: "secondary",
@@ -37,11 +37,11 @@ const TABS: ReadonlyArray<{ label: string; value: string | undefined }> = [
   { label: "Acked", value: "acked" },
 ]
 
-function tabHref(orgId: string, value: string | undefined): string {
+function tabHref(value: string | undefined): string {
   if (value === undefined) {
-    return `/notifications?org=${orgId}`
+    return "/notifications"
   }
-  return `/notifications?org=${orgId}&status=${value}`
+  return `/notifications?status=${value}`
 }
 
 function tabClass(active: boolean): string {
@@ -54,10 +54,10 @@ function tabClass(active: boolean): string {
 export default async function NotificationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ org?: string; status?: string }>
+  searchParams: Promise<{ status?: string }>
 }) {
-  const { org, status } = await searchParams
-  const scope = await resolveOrgScope(org)
+  const { status } = await searchParams
+  const scope = await resolveOrgScope()
 
   if (scope.error !== null) {
     return (
@@ -86,7 +86,6 @@ export default async function NotificationsPage({
   }
 
   const orgId = scope.activeOrg.id
-  const notifications = unwrapOr(await listNotifications(orgId, status), [])
 
   return (
     <>
@@ -99,7 +98,7 @@ export default async function NotificationsPage({
         {TABS.map((tab) => (
           <Link
             key={tab.label}
-            href={tabHref(orgId, tab.value)}
+            href={tabHref(tab.value)}
             className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${tabClass(status === tab.value)}`}
           >
             {tab.label}
@@ -107,65 +106,81 @@ export default async function NotificationsPage({
         ))}
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Severity</TableHead>
-                <TableHead>Title</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {notifications.length === 0 && (
-                <TableRow>
-                  <TableCell
-                    colSpan={6}
-                    className="py-10 text-center text-sm text-muted-foreground"
-                  >
-                    No notifications.
-                  </TableCell>
-                </TableRow>
-              )}
-              {notifications.map((notification) => (
-                <TableRow key={notification.id}>
-                  <TableCell>
-                    <ValueBadge
-                      value={notification.severity}
-                      variants={SEVERITY_VARIANTS}
-                    />
-                  </TableCell>
-                  <TableCell className="font-medium">
-                    {notification.title}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {notification.type}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {new Date(notification.createdAt).toLocaleString()}
-                  </TableCell>
-                  <TableCell>
-                    <ValueBadge
-                      value={notification.status}
-                      variants={STATUS_VARIANTS}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <NotificationActions
-                      id={notification.id}
-                      status={notification.status}
-                    />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <Suspense fallback={<TableSkeleton />}>
+        <NotificationsList orgId={orgId} status={status} />
+      </Suspense>
     </>
+  )
+}
+
+async function NotificationsList({
+  orgId,
+  status,
+}: {
+  orgId: string
+  status: string | undefined
+}) {
+  const notifications = unwrapOr(await listNotifications(orgId, status), [])
+
+  return (
+    <RevealOnLoad>
+      <Card className="py-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Severity</TableHead>
+              <TableHead>Title</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Created</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {notifications.length === 0 && (
+              <TableRow>
+                <TableCell
+                  colSpan={6}
+                  className="py-10 text-center text-sm text-muted-foreground"
+                >
+                  No notifications.
+                </TableCell>
+              </TableRow>
+            )}
+            {notifications.map((notification) => (
+              <TableRow key={notification.id}>
+                <TableCell>
+                  <ValueBadge
+                    value={notification.severity}
+                    variants={SEVERITY_VARIANTS}
+                  />
+                </TableCell>
+                <TableCell className="font-medium">
+                  {notification.title}
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {notification.type}
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {new Date(notification.createdAt).toLocaleString()}
+                </TableCell>
+                <TableCell>
+                  <ValueBadge
+                    value={notification.status}
+                    variants={STATUS_VARIANTS}
+                  />
+                </TableCell>
+                <TableCell>
+                  <NotificationActions
+                    id={notification.id}
+                    status={notification.status}
+                  />
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Card>
+    </RevealOnLoad>
   )
 }

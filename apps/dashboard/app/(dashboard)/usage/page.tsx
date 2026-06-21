@@ -3,9 +3,11 @@ import {
   ChartLineUp,
   PlugsConnected,
 } from "@phosphor-icons/react/dist/ssr"
+import { Suspense } from "react"
 
 import { EmptyState } from "@/components/empty-state"
 import { PageHeader } from "@/components/page-header"
+import { RevealOnLoad, StatsSkeleton } from "@/components/section-skeleton"
 import {
   Card,
   CardContent,
@@ -28,8 +30,6 @@ import { resolveOrgScope } from "@/lib/meter/org"
 import { ModelUsageChartLazy } from "./model-usage-chart-lazy"
 import { UsageChartLazy } from "./usage-chart-lazy"
 
-export const dynamic = "force-dynamic"
-
 const DAY_MS = 86_400_000
 
 function thirtyDayWindow(): { start: string; end: string } {
@@ -41,10 +41,10 @@ function thirtyDayWindow(): { start: string; end: string } {
 export default async function UsagePage({
   searchParams,
 }: {
-  searchParams: Promise<{ org?: string; account?: string }>
+  searchParams: Promise<{ account?: string }>
 }) {
-  const { org, account } = await searchParams
-  const scope = await resolveOrgScope(org)
+  const { account } = await searchParams
+  const scope = await resolveOrgScope()
 
   if (scope.error !== null) {
     return (
@@ -76,6 +76,27 @@ export default async function UsagePage({
   }
 
   const orgId = scope.activeOrg.id
+
+  return (
+    <>
+      <PageHeader
+        title="Usage"
+        description={`Usage analytics for ${scope.activeOrg.name}.`}
+      />
+      <Suspense fallback={<StatsSkeleton />}>
+        <UsageData orgId={orgId} account={account} />
+      </Suspense>
+    </>
+  )
+}
+
+async function UsageData({
+  orgId,
+  account,
+}: {
+  orgId: string
+  account: string | undefined
+}) {
   const byModel = unwrapOr(await fetchUsageByModel(orgId), [])
   const hasAccount = account !== undefined && account.length > 0
   const { start, end } = thirtyDayWindow()
@@ -84,12 +105,7 @@ export default async function UsagePage({
     : []
 
   return (
-    <>
-      <PageHeader
-        title="Usage"
-        description={`Usage analytics for ${scope.activeOrg.name}.`}
-      />
-
+    <RevealOnLoad>
       <Card>
         <CardHeader>
           <CardTitle>Usage by model</CardTitle>
@@ -151,11 +167,7 @@ export default async function UsagePage({
               Credit usage over the last 30 days for a single engine account.
             </CardDescription>
           </div>
-          <AccountSearchForm
-            basePath="/usage"
-            initial={account ?? ""}
-            org={orgId}
-          />
+          <AccountSearchForm basePath="/usage" initial={account ?? ""} />
         </CardHeader>
         <CardContent>
           {!hasAccount && (
@@ -173,6 +185,6 @@ export default async function UsagePage({
           {hasAccount && series.length > 0 && <UsageChartLazy data={series} />}
         </CardContent>
       </Card>
-    </>
+    </RevealOnLoad>
   )
 }

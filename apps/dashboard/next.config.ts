@@ -6,6 +6,15 @@ import type { NextConfig } from "next"
 const nextConfig: NextConfig = {
   output: "standalone",
   outputFileTracingRoot: import.meta.dirname,
+  experimental: {
+    // Keep the client-side router cache warm so re-visiting a tab is instant instead of re-streaming a
+    // fresh server render (the "skeleton on every tab" complaint). Dynamic pages stay fresh enough for
+    // an operator console while eliminating the flash on back-and-forth navigation.
+    staleTimes: {
+      dynamic: 180,
+      static: 300,
+    },
+  },
 }
 
 export default nextConfig

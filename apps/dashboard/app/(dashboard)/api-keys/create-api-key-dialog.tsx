@@ -3,6 +3,7 @@
 import { type FormEvent, useState, useTransition } from "react"
 import { toast } from "sonner"
 
+import { CopyButton } from "@/components/copy-button"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -137,12 +138,26 @@ export function CreateApiKeyDialog({ orgId }: { orgId: string }) {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="token">Token</Label>
-              <Input
-                id="token"
-                readOnly
-                value={token}
-                className="font-mono text-xs"
-              />
+              <div className="flex items-center gap-2">
+                <Input
+                  id="token"
+                  readOnly
+                  value={token}
+                  className="font-mono text-xs"
+                />
+                <CopyButton value={token} />
+              </div>
+            </div>
+            <div className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
+              Next: send your first metered event with this key.{" "}
+              <a
+                href="https://github.com/JGalbss/meter/tree/main/docs"
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-foreground underline underline-offset-2"
+              >
+                View the quickstart →
+              </a>
             </div>
             <DialogFooter>
               <Button onClick={() => onOpenChange(false)}>Done</Button>

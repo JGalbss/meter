@@ -1,8 +1,10 @@
 "use client"
 
-import { CaretDown, Check } from "@phosphor-icons/react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { Buildings, CaretDown, Check } from "@phosphor-icons/react"
+import Link from "next/link"
+import { useTransition } from "react"
 
+import { selectActiveOrgAction } from "@/app/(dashboard)/actions"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -14,12 +16,12 @@ import {
 } from "@/components/ui/dropdown-menu"
 import type { Organization } from "@/lib/meter/types"
 
-function activeOrg(
+function findActive(
   orgs: readonly Organization[],
-  current: string | null
+  activeOrgId: string | null
 ): Organization | null {
-  if (current !== null) {
-    const match = orgs.find((org) => org.id === current)
+  if (activeOrgId !== null) {
+    const match = orgs.find((org) => org.id === activeOrgId)
     if (match !== undefined) {
       return match
     }
@@ -27,29 +29,57 @@ function activeOrg(
   return orgs[0] ?? null
 }
 
-export function OrgSwitcher({ orgs }: { orgs: readonly Organization[] }) {
-  const router = useRouter()
-  const current = useSearchParams().get("org")
-  const active = activeOrg(orgs, current)
+export function OrgSwitcher({
+  orgs,
+  activeOrgId,
+}: {
+  orgs: readonly Organization[]
+  activeOrgId: string | null
+}) {
+  const [isPending, startTransition] = useTransition()
+  const active = findActive(orgs, activeOrgId)
 
   if (active === null) {
     return (
-      <span className="text-sm text-muted-foreground">No organizations</span>
+      <Button
+        variant="outline"
+        size="sm"
+        className="gap-2"
+        render={<Link href="/organizations" />}
+      >
+        <Buildings size={14} />
+        Set up organization
+      </Button>
     )
   }
 
-  // Read the path inside the handler so the component doesn't re-render on every URL change.
   const select = (orgId: string) => {
-    router.push(`${window.location.pathname}?org=${orgId}`)
+    if (orgId === active.id) {
+      return
+    }
+    startTransition(() => {
+      void selectActiveOrgAction(orgId)
+    })
   }
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        render={<Button variant="outline" size="sm" className="gap-2" />}
+        render={
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            disabled={isPending}
+          />
+        }
       >
-        <span className="max-w-40 truncate">{active.name}</span>
-        <CaretDown size={14} />
+        <Buildings size={14} className="text-muted-foreground" />
+        {/* transitions.dev "text states swap": the org name swaps in place while switching. */}
+        <span className="max-w-40 truncate" data-pending={isPending}>
+          {active.name}
+        </span>
+        <CaretDown size={14} className="text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-56">
         <DropdownMenuLabel>Organizations</DropdownMenuLabel>
@@ -64,6 +94,11 @@ export function OrgSwitcher({ orgs }: { orgs: readonly Organization[] }) {
             {org.id === active.id && <Check size={14} />}
           </DropdownMenuItem>
         ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem render={<Link href="/organizations" />}>
+          <Buildings size={14} />
+          Manage organizations
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

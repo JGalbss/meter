@@ -210,3 +210,63 @@
     opacity: 1;
   }
 }
+
+/* Skeleton reveal (content side, mount variant): a section's real content streams in over its pulsing
+   skeleton fallback (a React Suspense boundary, so the two never share the DOM). This is the content
+   half of the transitions.dev skeleton-reveal — the fade-in + un-blur — driven by a one-shot mount
+   animation instead of the JS class toggle, the same adaptation used for the texts-reveal mount variant
+   above. The skeleton half pulses via the design-system Skeleton's own animate-pulse. */
+@keyframes t-reveal-in {
+  from {
+    opacity: 0;
+    filter: blur(var(--reveal-blur));
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+.t-reveal {
+  animation: t-reveal-in var(--reveal-dur) var(--reveal-ease) both;
+  will-change: opacity, filter;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-reveal {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* Icon swap — cross-fade two icons stacked in one slot (copy ↔ check on a copy button). Pure CSS,
+   driven by data-state. Pasted verbatim from the transitions.dev catalog. */
+.t-icon-swap {
+  position: relative;
+  display: inline-grid;
+}
+.t-icon-swap .t-icon {
+  grid-area: 1 / 1;
+  transition:
+    opacity var(--icon-swap-dur) var(--icon-swap-ease),
+    filter var(--icon-swap-dur) var(--icon-swap-ease),
+    transform var(--icon-swap-dur) var(--icon-swap-ease);
+  will-change: opacity, filter, transform;
+}
+.t-icon-swap[data-state="a"] .t-icon[data-icon="a"],
+.t-icon-swap[data-state="b"] .t-icon[data-icon="b"] {
+  opacity: 1;
+  filter: blur(0);
+  transform: scale(1);
+}
+.t-icon-swap[data-state="a"] .t-icon[data-icon="b"],
+.t-icon-swap[data-state="b"] .t-icon[data-icon="a"] {
+  opacity: 0;
+  filter: blur(var(--icon-swap-blur));
+  transform: scale(var(--icon-swap-start-scale));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-icon-swap .t-icon {
+    transition: none !important;
+  }
+}

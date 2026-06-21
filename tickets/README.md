@@ -86,7 +86,11 @@ Conventions: `[ ]` todo · `[~]` in progress · `[x]` done. Every shipped item i
 - [~] Event API on the engine (record/get/list/amend/void_run) done; **202-fast batch shipped**
   (`POST /v1/events/batch` → one bulk ClickHouse insert via `record_batch`, e2e-tested); per-meter
   schema validation pending
-- [ ] Compose void_run with the ledger (reverse a run's holds/settles); event amend → delta posting
+- [~] Compose void_run with the ledger (reverse a run's holds/settles) **done** (`POST /v1/runs/:id/void`
+  reverses events + ledger, e2e-tested). **event amend → delta posting**: idempotency prerequisite done
+  (amend is now idempotent on an optional key, rollup-safe under retries — commit 5eeeafc); the delta
+  posting itself still needs event↔ledger linkage (charges aren't keyed by `event_id`) — a money-model
+  decision, see the `amend-delta-posting-design` note.
 - [ ] `meter-ingest`: `IngestSource` trait; Postgres-outbox default source; effectively-once consumer; dead-letter
 - [~] Reconciliation (aggregates vs raw; ledger vs invoice) — **aggregates-vs-SoR done**:
   `reconcile_model_usage` diffs the pre-aggregated `usage_rollup` against a live `events FINAL` scan per

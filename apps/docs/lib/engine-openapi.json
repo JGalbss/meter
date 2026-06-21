@@ -1293,6 +1293,53 @@
           }
         }
       }
+    },
+    "/v1/usage/{event_id}/amend": {
+      "post": {
+        "tags": [
+          "usage"
+        ],
+        "summary": "`POST /v1/usage/{event_id}/amend` — correct a priced usage event and post the ledger delta.",
+        "description": "The engine re-prices the corrected token counts (the caller never supplies credits, ADR 0001),\nhonouring the original event's immutable `burnable` flag, then adjusts the ledger to the new amount\nby reversing the original charge's remainder and posting the re-priced charge (net = the delta —\nADR 0009). It records a new event version. Idempotent on `idempotency_key`.",
+        "operationId": "amend_usage",
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "description": "The priced usage event id (UUID) to amend",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AmendUsageBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Re-priced; the ledger delta posted and a new event version recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AmendUsageResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Not an engine-priced usage event, or it is voided/superseded"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1329,6 +1376,69 @@
           "properties": {
             "type": "object",
             "description": "Replacement customer JSON (the amend records a new version)."
+          }
+        }
+      },
+      "AmendUsageBody": {
+        "type": "object",
+        "description": "`POST /v1/usage/{event_id}/amend` — correct a priced usage event's token counts and post the\nledger delta. The engine re-prices (the caller never supplies credits) and adjusts the ledger by the\ndifference; `model`/`rate_card_id` default to the original event's. Idempotent on `idempotency_key`.",
+        "required": [
+          "usage",
+          "idempotency_key"
+        ],
+        "properties": {
+          "idempotency_key": {
+            "type": "string",
+            "description": "Idempotency key for the amendment (its event version + ledger postings derive from it)."
+          },
+          "model": {
+            "type": "string",
+            "description": "Override the model to re-price against; defaults to the original event's model.",
+            "nullable": true
+          },
+          "rate_card_id": {
+            "type": "string",
+            "description": "Override the synced rate-card id; defaults to the original event's.",
+            "nullable": true
+          },
+          "usage": {
+            "$ref": "#/components/schemas/UsageDimensions"
+          }
+        }
+      },
+      "AmendUsageResult": {
+        "type": "object",
+        "description": "`POST /v1/usage/{event_id}/amend` result: the re-priced amounts, the signed credit delta posted to\nthe ledger, the new event version id, and the resulting balance.",
+        "required": [
+          "event_id",
+          "credits",
+          "priced_credits",
+          "delta",
+          "settled",
+          "available"
+        ],
+        "properties": {
+          "available": {
+            "type": "string"
+          },
+          "credits": {
+            "type": "string",
+            "description": "Credits the corrected usage burns (debited), as an exact decimal string."
+          },
+          "delta": {
+            "type": "string",
+            "description": "Signed change applied to the ledger: new burned − old burned."
+          },
+          "event_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "priced_credits": {
+            "type": "string",
+            "description": "What the corrected usage priced to, whether or not it burned."
+          },
+          "settled": {
+            "type": "string"
           }
         }
       },
@@ -1788,6 +1898,12 @@
             "type": "string",
             "format": "uuid",
             "description": "For reversals/amendments: the entry this one corrects.",
+            "nullable": true
+          },
+          "run_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The agent run this entry belongs to, when known. Tagging a direct charge with its run lets\n[`void_run`](crate::LedgerBackend::void_run) reverse a failed run's post-hoc charges, not just\nits reservations.",
             "nullable": true
           },
           "source": {

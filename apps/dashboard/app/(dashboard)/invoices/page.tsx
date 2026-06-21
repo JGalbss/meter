@@ -1,10 +1,11 @@
-import { Receipt } from "@phosphor-icons/react/dist/ssr"
+import { DownloadSimple, Receipt } from "@phosphor-icons/react/dist/ssr"
 import { Suspense } from "react"
 
 import { AccountSearchForm } from "@/components/account-search-form"
 import { EmptyState } from "@/components/empty-state"
 import { PageHeader } from "@/components/page-header"
 import { RevealOnLoad, StatsSkeleton } from "@/components/section-skeleton"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table,
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui/table"
 import { unwrapOr } from "@/lib/meter/client"
 import { fetchInvoice, fetchUsageByDay } from "@/lib/meter/engine"
+import { monthToDate } from "@/lib/meter/period"
 
 function creditDisplay(value: string): string {
   const parsed = Number(value)
@@ -23,24 +25,6 @@ function creditDisplay(value: string): string {
     return value
   }
   return parsed.toLocaleString()
-}
-
-// The billing period is month-to-date in UTC — the deterministic window the engine sums the ledger over.
-function monthToDate(): { start: string; end: string; label: string } {
-  const now = new Date()
-  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
-  const fmt = (d: Date) =>
-    d.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      timeZone: "UTC",
-    })
-  return {
-    start: start.toISOString(),
-    end: now.toISOString(),
-    label: `${fmt(start)} – ${fmt(now)}`,
-  }
 }
 
 export default async function InvoicesPage({
@@ -57,7 +41,21 @@ export default async function InvoicesPage({
         title="Invoices"
         description="A deterministic statement summed from the ledger (enforced equals billed)."
         action={
-          <AccountSearchForm basePath="/invoices" initial={account ?? ""} />
+          <div className="flex items-center gap-2">
+            {hasAccount && (
+              <Button
+                variant="outline"
+                size="sm"
+                render={
+                  <a href={`/invoices/${encodeURIComponent(account)}/pdf`} />
+                }
+              >
+                <DownloadSimple />
+                Download PDF
+              </Button>
+            )}
+            <AccountSearchForm basePath="/invoices" initial={account ?? ""} />
+          </div>
         }
       />
 

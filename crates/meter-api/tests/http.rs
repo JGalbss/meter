@@ -1947,3 +1947,94 @@ async fn void_run_reverses_events_and_ledger_over_http() {
     assert_eq!(again["charges_refunded"], json!(0));
     assert_eq!(again["credits_refunded"], "0");
 }
+
+/// The agent-failure path the product cares about: a run does several **direct** `/v1/usage` charges
+/// (priced + charged on the spot, no reservation), then fails. Voiding the run must negate that
+/// billing — refund every direct charge and void the events — restoring the balance exactly.
+#[tokio::test]
+async fn void_run_reverses_direct_usage_charges_over_http() {
+    let (_container, app, ledger, _events) = app_with_stores().await;
+    let org = "11111111-1111-1111-1111-111111111111";
+    let run = "cccccccc-cccc-cccc-cccc-cccccccccccc";
+
+    let (_status, account) = call(
+        &app,
+        "POST",
+        "/v1/accounts",
+        &json!({ "org_id": org, "scope": "org", "no_overdraft": true }),
+    )
+    .await;
+    let account_id = account["id"].as_str().expect("account id").to_owned();
+    call(
+        &app,
+        "POST",
+        &format!("/v1/accounts/{account_id}/grants"),
+        &json!({ "amount": "1000000", "source": "paid" }),
+    )
+    .await;
+
+    // Synced card: output @ $0.0001/token -> 1000 output = 100000 credits.
+    let card_id = uuid::Uuid::now_v7();
+    PgConfig::new(ledger.pool().clone())
+        .put_rate_card(&RateCardRecord {
+            id: card_id,
+            version: 1,
+            kind: "provider_cost".to_owned(),
+            currency: "USD".to_owned(),
+            margin: Decimal::from(1),
+            components: json!([{
+                "dimension": "output", "modality": "text", "context_tier": "standard",
+                "unit": "token", "charge_model": "standard",
+                "unit_price": { "amount": "0.0001", "currency": "USD" }
+            }]),
+        })
+        .await
+        .expect("put card");
+
+    // The run meters twice (direct charges of 100000 each) — settled drops to 800000.
+    for key in ["u1", "u2"] {
+        let (status, _body) = call(
+            &app,
+            "POST",
+            "/v1/usage",
+            &json!({
+                "org_id": org, "account": account_id, "model": "custom-x",
+                "idempotency_key": key, "usage": { "output": 1000 },
+                "rate_card_id": card_id.to_string(), "run_id": run
+            }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+    }
+    let (_status, balance) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{account_id}/balance"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(balance["settled"], "800000");
+
+    // Kill the failed run: its events are voided AND its direct charges refunded.
+    let (status, voided) = call(&app, "POST", &format!("/v1/runs/{run}/void"), &Value::Null).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(voided["events_voided"], json!(2));
+    assert_eq!(voided["charges_refunded"], json!(2));
+    assert_eq!(voided["credits_refunded"], "200000");
+
+    // Billing fully negated: balance back to the original grant.
+    let (_status, balance) = call(
+        &app,
+        "GET",
+        &format!("/v1/accounts/{account_id}/balance"),
+        &Value::Null,
+    )
+    .await;
+    assert_eq!(balance["settled"], "1000000");
+    assert_eq!(balance["held"], "0");
+
+    // Idempotent: voiding again refunds nothing new.
+    let (_status, again) = call(&app, "POST", &format!("/v1/runs/{run}/void"), &Value::Null).await;
+    assert_eq!(again["charges_refunded"], json!(0));
+    assert_eq!(again["credits_refunded"], "0");
+}

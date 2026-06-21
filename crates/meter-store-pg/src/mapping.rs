@@ -6,7 +6,7 @@ use sqlx::Row;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use meter_core::{AccountId, Credit, EntryId};
+use meter_core::{AccountId, Credit, EntryId, RunId};
 use meter_ledger::{
     AccountScope, CreditSource, EntryType, LedgerEntry, LedgerError, ReservationId,
 };
@@ -116,6 +116,7 @@ pub fn entry_from_row(row: &PgRow) -> Result<LedgerEntry, LedgerError> {
     let source = source.map(|value| source_from_str(&value)).transpose()?;
     let reverses: Option<Uuid> = col(row, "reverses_entry_id")?;
     let reservation: Option<Uuid> = col(row, "reservation_id")?;
+    let run: Option<Uuid> = col(row, "run_id")?;
     Ok(LedgerEntry {
         id: EntryId::from_uuid(col::<Uuid>(row, "id")?),
         account_id: AccountId::from_uuid(col::<Uuid>(row, "account_id")?),
@@ -127,6 +128,7 @@ pub fn entry_from_row(row: &PgRow) -> Result<LedgerEntry, LedgerError> {
         revenue_recognizable: col::<bool>(row, "revenue_recognizable")?,
         reverses_entry_id: reverses.map(EntryId::from_uuid),
         reservation_id: reservation.map(ReservationId::from_uuid),
+        run_id: run.map(RunId::from_uuid),
         idempotency_key: col::<Option<String>>(row, "idempotency_key")?,
         created_at: col::<OffsetDateTime>(row, "created_at")?,
     })

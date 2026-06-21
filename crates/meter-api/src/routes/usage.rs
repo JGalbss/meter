@@ -148,6 +148,8 @@ pub async fn meter_usage(
             .charge(ChargeRequest {
                 account: body.account,
                 amount: burned,
+                // Tag the charge with its run so POST /v1/runs/{id}/void can reverse it if the run fails.
+                run_id: body.run_id,
                 idempotency_key: Some(format!("{}::charge", body.idempotency_key)),
             })
             .await?;

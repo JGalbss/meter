@@ -1790,6 +1790,12 @@
             "description": "For reversals/amendments: the entry this one corrects.",
             "nullable": true
           },
+          "run_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The agent run this entry belongs to, when known. Tagging a direct charge with its run lets\n[`void_run`](crate::LedgerBackend::void_run) reverse a failed run's post-hoc charges, not just\nits reservations.",
+            "nullable": true
+          },
           "source": {
             "allOf": [
               {

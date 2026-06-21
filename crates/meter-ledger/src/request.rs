@@ -98,6 +98,9 @@ pub struct SettleRequest {
 pub struct ChargeRequest {
     pub account: AccountId,
     pub amount: Credit,
+    /// The agent run this charge belongs to, if any. Tagging it lets
+    /// [`void_run`](crate::LedgerBackend::void_run) reverse a failed run's direct charges.
+    pub run_id: Option<RunId>,
     pub idempotency_key: Option<String>,
 }
 

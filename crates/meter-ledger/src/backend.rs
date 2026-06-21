@@ -1,7 +1,7 @@
 //! The ledger backend trait — the seam every storage backend implements.
 
 use async_trait::async_trait;
-use meter_core::{AccountId, Credit, RunId};
+use meter_core::{AccountId, Credit, EntryId, RunId};
 use time::OffsetDateTime;
 
 use crate::error::LedgerError;
@@ -17,6 +17,14 @@ use crate::request::{
 #[must_use]
 pub fn run_void_refund_key(run: RunId, reservation: ReservationId) -> String {
     format!("void-run:{run}:{reservation}")
+}
+
+/// The idempotency key a [`void_run`](LedgerBackend::void_run) refund posts when reversing one direct
+/// charge (a post-hoc `charge` tagged with the run, not tied to a reservation). Keyed by the charge
+/// entry so re-voiding never double-refunds; distinct namespace from [`run_void_refund_key`].
+#[must_use]
+pub fn run_void_charge_refund_key(run: RunId, charge_entry: EntryId) -> String {
+    format!("void-run:{run}:charge:{charge_entry}")
 }
 
 /// A pluggable double-entry credit ledger.

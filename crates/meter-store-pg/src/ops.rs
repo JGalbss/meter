@@ -8,10 +8,10 @@ use uuid::Uuid;
 
 use meter_core::{AccountId, Credit, EntryId, OrgId, RunId};
 use meter_ledger::{
-    run_void_refund_key, AccountScope, Balance, ChargeRequest, EntryType, GrantRequest,
-    LeaseRequest, LedgerAccount, LedgerBackend, LedgerEntry, LedgerError, LimitClass, NewAccount,
-    RefundRequest, ReservationId, ReserveOutcome, ReserveRequest, RunVoidSummary, SettleRequest,
-    SYSTEM_ACCOUNT,
+    run_void_charge_refund_key, run_void_refund_key, AccountScope, Balance, ChargeRequest,
+    EntryType, GrantRequest, LeaseRequest, LedgerAccount, LedgerBackend, LedgerEntry, LedgerError,
+    LimitClass, NewAccount, RefundRequest, ReservationId, ReserveOutcome, ReserveRequest,
+    RunVoidSummary, SettleRequest, SYSTEM_ACCOUNT,
 };
 
 use crate::mapping::{
@@ -47,8 +47,9 @@ async fn insert_entry(
     sqlx::query(
         "INSERT INTO ledger_entries \
          (id, org_id, account_id, paired_account_id, entry_type, delta_credits, balance_after, \
-          source, revenue_recognizable, reverses_entry_id, reservation_id, idempotency_key, created_at) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
+          source, revenue_recognizable, reverses_entry_id, reservation_id, run_id, idempotency_key, \
+          created_at) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
     )
     .bind(entry.id.as_uuid())
     .bind(org_id)
@@ -61,12 +62,42 @@ async fn insert_entry(
     .bind(entry.revenue_recognizable)
     .bind(entry.reverses_entry_id.map(|id| id.as_uuid()))
     .bind(entry.reservation_id.map(meter_ledger::ReservationId::as_uuid))
+    .bind(entry.run_id.map(|run| run.as_uuid()))
     .bind(entry.idempotency_key.as_deref())
     .bind(entry.created_at)
     .execute(conn)
     .await
     .map_err(be)?;
     Ok(())
+}
+
+/// The still-unreversed magnitude of a charge/settle entry: its original spend (`-delta_credits`,
+/// positive) minus every refund that **references it** via `reverses_entry_id`. Zero or negative means
+/// it is fully reversed, so `void_run` posts nothing — making a re-void idempotent and never
+/// double-refunding a charge already corrected by a *linked* credit-note or (later) an amendment delta.
+/// An *unlinked* credit-note (`reverses_entry_id` = NULL — a free-standing goodwill credit) is an
+/// independent posting and intentionally does not offset the charge: to cancel a specific charge, the
+/// credit-note must reference it.
+async fn unreversed_remainder(
+    conn: &mut sqlx::PgConnection,
+    entry_id: Uuid,
+) -> Result<Decimal, LedgerError> {
+    let charged: Decimal =
+        sqlx::query_scalar("SELECT delta_credits FROM ledger_entries WHERE id = $1")
+            .bind(entry_id)
+            .fetch_one(&mut *conn)
+            .await
+            .map_err(be)?;
+    let reversed: Decimal = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(delta_credits), 0) FROM ledger_entries WHERE reverses_entry_id = $1",
+    )
+    .bind(entry_id)
+    .fetch_one(&mut *conn)
+    .await
+    .map_err(be)?;
+    // `charged` is negative (a spend); `-charged` is its positive magnitude; `reversed` sums the
+    // positive refunds already applied to it.
+    Ok(-charged - reversed)
 }
 
 /// Post a conserving double-entry transfer between two accounts within an open transaction. Both
@@ -108,6 +139,7 @@ async fn post_transfer(
         revenue_recognizable: false,
         reverses_entry_id: None,
         reservation_id: None,
+        run_id: None,
         idempotency_key: None,
         created_at: now_micros(),
     };
@@ -123,6 +155,7 @@ async fn post_transfer(
         revenue_recognizable: false,
         reverses_entry_id: None,
         reservation_id: None,
+        run_id: None,
         idempotency_key: None,
         created_at: now_micros(),
     };
@@ -228,6 +261,7 @@ impl LedgerBackend for PgLedger {
             revenue_recognizable: false,
             reverses_entry_id: None,
             reservation_id: None,
+            run_id: None,
             idempotency_key: req.idempotency_key.clone(),
             created_at: now_micros(),
         };
@@ -287,6 +321,7 @@ impl LedgerBackend for PgLedger {
             revenue_recognizable: false,
             reverses_entry_id: req.reverses_entry_id,
             reservation_id: None,
+            run_id: None,
             idempotency_key: req.idempotency_key.clone(),
             created_at: now_micros(),
         };
@@ -424,6 +459,7 @@ impl LedgerBackend for PgLedger {
             revenue_recognizable: true,
             reverses_entry_id: None,
             reservation_id: Some(req.reservation_id),
+            run_id: None,
             idempotency_key: None,
             created_at: now_micros(),
         };
@@ -492,6 +528,7 @@ impl LedgerBackend for PgLedger {
             revenue_recognizable: true,
             reverses_entry_id: None,
             reservation_id: None,
+            run_id: req.run_id,
             idempotency_key: req.idempotency_key.clone(),
             created_at: now_micros(),
         };
@@ -597,31 +634,14 @@ impl LedgerBackend for PgLedger {
                     summary.holds_released += 1;
                 }
                 "settled" => {
-                    let key = run_void_refund_key(run, ReservationId::from_uuid(reservation));
-                    // Idempotent: a refund already posted for this run+reservation means a prior
-                    // void_run handled it; skip so we never double-refund.
-                    let already: Option<Uuid> = sqlx::query_scalar(
-                        "SELECT id FROM ledger_entries \
-                         WHERE account_id = $1 AND idempotency_key = $2",
-                    )
-                    .bind(account_id)
-                    .bind(&key)
-                    .fetch_optional(&mut *tx)
-                    .await
-                    .map_err(be)?;
-                    if already.is_some() {
-                        continue;
-                    }
                     let settle_entry_id: Uuid = row.try_get("settle_entry_id").map_err(be)?;
-                    // The settle posted `-actual`; refund the same magnitude back.
-                    let settle_delta: Decimal = sqlx::query_scalar(
-                        "SELECT delta_credits FROM ledger_entries WHERE id = $1",
-                    )
-                    .bind(settle_entry_id)
-                    .fetch_one(&mut *tx)
-                    .await
-                    .map_err(be)?;
-                    let amount = -settle_delta;
+                    let key = run_void_refund_key(run, ReservationId::from_uuid(reservation));
+                    // Reverse only the settle's *unreversed remainder*: its original magnitude minus any
+                    // refunds that already reverse it (a prior void_run, kept idempotent, OR a manual
+                    // credit-note). This never double-refunds a charge corrected out-of-band, and a
+                    // re-void sees its own refund and refunds zero. `FOR UPDATE` on the holds serializes
+                    // concurrent voids, so the remainder read is consistent.
+                    let amount = unreversed_remainder(&mut tx, settle_entry_id).await?;
                     if amount <= Decimal::ZERO {
                         continue;
                     }
@@ -647,6 +667,7 @@ impl LedgerBackend for PgLedger {
                         revenue_recognizable: false,
                         reverses_entry_id: Some(EntryId::from_uuid(settle_entry_id)),
                         reservation_id: Some(ReservationId::from_uuid(reservation)),
+                        run_id: Some(run),
                         idempotency_key: Some(key),
                         created_at: now_micros(),
                     };
@@ -656,6 +677,57 @@ impl LedgerBackend for PgLedger {
                 }
                 _ => {}
             }
+        }
+
+        // Reverse the run's *direct* charges (post-hoc /v1/usage metering tagged with the run, not tied
+        // to a reservation). Lock them for the reversal; we refund only each charge's unreversed
+        // remainder, so a re-void or a prior manual credit-note never double-refunds.
+        let charge_rows = sqlx::query(
+            "SELECT id, account_id FROM ledger_entries \
+             WHERE run_id = $1 AND entry_type = 'usage' \
+             ORDER BY created_at, id FOR UPDATE",
+        )
+        .bind(run.as_uuid())
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(be)?;
+        for row in charge_rows {
+            let charge_id: Uuid = row.try_get("id").map_err(be)?;
+            let account_id: Uuid = row.try_get("account_id").map_err(be)?;
+            let key = run_void_charge_refund_key(run, EntryId::from_uuid(charge_id));
+            let amount = unreversed_remainder(&mut tx, charge_id).await?;
+            if amount <= Decimal::ZERO {
+                continue;
+            }
+            let updated = sqlx::query(
+                "UPDATE ledger_accounts SET settled_credits = settled_credits + $2 \
+                 WHERE id = $1 RETURNING settled_credits, org_id",
+            )
+            .bind(account_id)
+            .bind(amount)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(be)?;
+            let balance_after: Decimal = updated.try_get("settled_credits").map_err(be)?;
+            let org_id: Uuid = updated.try_get("org_id").map_err(be)?;
+            let entry = LedgerEntry {
+                id: EntryId::new(),
+                account_id: AccountId::from_uuid(account_id),
+                paired_account_id: SYSTEM_ACCOUNT,
+                entry_type: EntryType::Refund,
+                delta_credits: credit_from_db(amount),
+                balance_after: credit_from_db(balance_after),
+                source: None,
+                revenue_recognizable: false,
+                reverses_entry_id: Some(EntryId::from_uuid(charge_id)),
+                reservation_id: None,
+                run_id: Some(run),
+                idempotency_key: Some(key),
+                created_at: now_micros(),
+            };
+            insert_entry(&mut tx, &entry, org_id).await?;
+            summary.charges_refunded += 1;
+            summary.credits_refunded += entry.delta_credits;
         }
         tx.commit().await.map_err(be)?;
         Ok(summary)

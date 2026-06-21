@@ -397,6 +397,7 @@ pub async fn charge_records_usage<L: LedgerBackend>(ledger: &L) {
     let charge = ChargeRequest {
         account,
         amount: credits(30),
+        run_id: None,
         idempotency_key: Some("charge-1".to_owned()),
     };
     ledger.charge(charge.clone()).await.expect("charge");
@@ -867,11 +868,219 @@ pub async fn void_run_reverses_holds_and_settles<L: LedgerBackend>(ledger: &L) {
     );
 }
 
+/// Voiding a failed run reverses its **direct** charges (post-hoc `charge` tagged with the run), not
+/// just its reservations — and only that run's, idempotently.
+pub async fn void_run_reverses_direct_charges<L: LedgerBackend>(ledger: &L) {
+    let account = open_no_overdraft_org(ledger).await;
+    ledger
+        .grant(GrantRequest {
+            account,
+            amount: credits(100),
+            source: CreditSource::Paid,
+            idempotency_key: None,
+        })
+        .await
+        .expect("grant");
+
+    let run = RunId::new();
+    let other_run = RunId::new();
+    // Two direct charges in the failed run, plus one in a different run that must survive.
+    ledger
+        .charge(ChargeRequest {
+            account,
+            amount: credits(30),
+            run_id: Some(run),
+            idempotency_key: Some("c-run-1".to_owned()),
+        })
+        .await
+        .expect("charge 1");
+    ledger
+        .charge(ChargeRequest {
+            account,
+            amount: credits(25),
+            run_id: Some(run),
+            idempotency_key: Some("c-run-2".to_owned()),
+        })
+        .await
+        .expect("charge 2");
+    ledger
+        .charge(ChargeRequest {
+            account,
+            amount: credits(10),
+            run_id: Some(other_run),
+            idempotency_key: Some("c-other".to_owned()),
+        })
+        .await
+        .expect("charge other");
+
+    // settled = 100 − 30 − 25 − 10 = 35.
+    assert_eq!(
+        ledger.balance(account).await.expect("balance").settled,
+        credits(35)
+    );
+
+    let summary = ledger.void_run(run).await.expect("void run");
+    assert_eq!(summary.charges_refunded, 2);
+    assert_eq!(summary.credits_refunded, credits(55));
+
+    // The failed run's 55 is returned; the other run's 10 charge stays. settled = 35 + 55 = 90.
+    assert_eq!(
+        ledger.balance(account).await.expect("balance").settled,
+        credits(90)
+    );
+
+    // Idempotent: a second void refunds nothing new and never double-credits.
+    let again = ledger.void_run(run).await.expect("void run again");
+    assert_eq!(again.charges_refunded, 0);
+    assert_eq!(again.credits_refunded, credits(0));
+    assert_eq!(
+        ledger.balance(account).await.expect("balance").settled,
+        credits(90)
+    );
+}
+
+/// Voiding a run reverses only each charge's **unreversed remainder**, so a charge already corrected
+/// out-of-band (a manual credit-note, full or partial) is never double-refunded — and a re-void is a
+/// no-op. This is the conservation guard the adversarial review demanded.
+pub async fn void_run_does_not_double_refund_corrected_charges<L: LedgerBackend>(ledger: &L) {
+    let account = open_no_overdraft_org(ledger).await;
+    ledger
+        .grant(GrantRequest {
+            account,
+            amount: credits(100),
+            source: CreditSource::Paid,
+            idempotency_key: None,
+        })
+        .await
+        .expect("grant");
+
+    let run = RunId::new();
+    // C1: charged 30, then fully credit-noted out-of-band -> already whole; void must add nothing.
+    let c1 = ledger
+        .charge(ChargeRequest {
+            account,
+            amount: credits(30),
+            run_id: Some(run),
+            idempotency_key: Some("c1".to_owned()),
+        })
+        .await
+        .expect("charge c1");
+    ledger
+        .refund(RefundRequest {
+            account,
+            amount: credits(30),
+            reverses_entry_id: Some(c1.id),
+            idempotency_key: Some("manual-c1".to_owned()),
+        })
+        .await
+        .expect("manual refund c1");
+    // C2: charged 40, partially credit-noted by 10 -> void must reverse only the remaining 30.
+    let c2 = ledger
+        .charge(ChargeRequest {
+            account,
+            amount: credits(40),
+            run_id: Some(run),
+            idempotency_key: Some("c2".to_owned()),
+        })
+        .await
+        .expect("charge c2");
+    ledger
+        .refund(RefundRequest {
+            account,
+            amount: credits(10),
+            reverses_entry_id: Some(c2.id),
+            idempotency_key: Some("manual-c2".to_owned()),
+        })
+        .await
+        .expect("manual partial refund c2");
+
+    // settled = 100 − 30 + 30 − 40 + 10 = 70.
+    assert_eq!(
+        ledger.balance(account).await.expect("balance").settled,
+        credits(70)
+    );
+
+    // Void reverses only C2's remaining 30 (C1 is already whole). settled = 70 + 30 = 100.
+    let summary = ledger.void_run(run).await.expect("void run");
+    assert_eq!(summary.charges_refunded, 1);
+    assert_eq!(summary.credits_refunded, credits(30));
+    assert_eq!(
+        ledger.balance(account).await.expect("balance").settled,
+        credits(100)
+    );
+
+    // Idempotent: both charges are now whole, so a re-void refunds nothing and the balance holds.
+    let again = ledger.void_run(run).await.expect("void run again");
+    assert_eq!(again.charges_refunded, 0);
+    assert_eq!(again.credits_refunded, credits(0));
+    assert_eq!(
+        ledger.balance(account).await.expect("balance").settled,
+        credits(100)
+    );
+}
+
+/// An *unlinked* credit-note (a free-standing goodwill credit, `reverses_entry_id = None`) is an
+/// independent posting: it does NOT offset a run's charge, so voiding the run still reverses that charge
+/// in full. (To cancel a specific charge, a credit-note must reference it — see
+/// [`void_run_does_not_double_refund_corrected_charges`].) This pins the deliberate semantic so it can't
+/// silently regress into either a double-refund or a swallowed goodwill credit.
+pub async fn void_run_ignores_unlinked_credit_notes<L: LedgerBackend>(ledger: &L) {
+    let account = open_no_overdraft_org(ledger).await;
+    ledger
+        .grant(GrantRequest {
+            account,
+            amount: credits(100),
+            source: CreditSource::Paid,
+            idempotency_key: None,
+        })
+        .await
+        .expect("grant");
+
+    let run = RunId::new();
+    ledger
+        .charge(ChargeRequest {
+            account,
+            amount: credits(30),
+            run_id: Some(run),
+            idempotency_key: Some("c".to_owned()),
+        })
+        .await
+        .expect("charge");
+    // A goodwill credit unrelated to the charge (no reverses_entry_id).
+    ledger
+        .refund(RefundRequest {
+            account,
+            amount: credits(30),
+            reverses_entry_id: None,
+            idempotency_key: Some("goodwill".to_owned()),
+        })
+        .await
+        .expect("goodwill credit");
+    // settled = 100 − 30 (charge) + 30 (goodwill) = 100.
+    assert_eq!(
+        ledger.balance(account).await.expect("balance").settled,
+        credits(100)
+    );
+
+    // Voiding the run reverses its charge regardless of the independent goodwill credit:
+    // settled = 100 + 30 = 130. The goodwill stands; the run's billing is negated.
+    let summary = ledger.void_run(run).await.expect("void run");
+    assert_eq!(summary.charges_refunded, 1);
+    assert_eq!(summary.credits_refunded, credits(30));
+    assert_eq!(
+        ledger.balance(account).await.expect("balance").settled,
+        credits(130)
+    );
+}
+
 pub async fn run_all_scenarios<L: LedgerBackend>(ledger: &L) {
     grant_increases_balance(ledger).await;
     reserve_denies_when_insufficient(ledger).await;
     refund_credits_back(ledger).await;
     void_run_reverses_holds_and_settles(ledger).await;
+    void_run_reverses_direct_charges(ledger).await;
+    void_run_does_not_double_refund_corrected_charges(ledger).await;
+    void_run_ignores_unlinked_credit_notes(ledger).await;
     expired_holds_are_swept(ledger).await;
     extend_hold_keeps_it_alive(ledger).await;
     reserve_hold_then_settle_charges_actual(ledger).await;

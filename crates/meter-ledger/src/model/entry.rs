@@ -1,6 +1,6 @@
 //! Ledger entries — the immutable, append-only postings.
 
-use meter_core::{AccountId, Credit, EntryId};
+use meter_core::{AccountId, Credit, EntryId, RunId};
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use utoipa::ToSchema;
@@ -78,6 +78,11 @@ pub struct LedgerEntry {
     /// The reservation this entry belongs to, when part of a reserve→settle flow.
     #[schema(value_type = Option<String>, format = "uuid")]
     pub reservation_id: Option<ReservationId>,
+    /// The agent run this entry belongs to, when known. Tagging a direct charge with its run lets
+    /// [`void_run`](crate::LedgerBackend::void_run) reverse a failed run's post-hoc charges, not just
+    /// its reservations.
+    #[schema(value_type = Option<String>, format = "uuid")]
+    pub run_id: Option<RunId>,
     /// The client idempotency key that produced this entry, when applicable.
     pub idempotency_key: Option<String>,
     #[serde(with = "time::serde::rfc3339")]

@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use meter_core::{AccountId, Credit, EntryId, RunId};
 use time::OffsetDateTime;
 
-use crate::backend::{run_void_refund_key, LedgerBackend};
+use crate::backend::{run_void_charge_refund_key, run_void_refund_key, LedgerBackend};
 use crate::error::LedgerError;
 use crate::model::{
     AccountScope, Balance, EntryType, LedgerAccount, LedgerEntry, LimitClass, ReservationId,
@@ -16,6 +16,25 @@ use crate::request::{
 
 use super::state::{AccountRow, Hold, HoldStatus, State};
 use super::InMemoryLedger;
+
+/// The still-unreversed magnitude of a charge/settle entry: its original spend minus every refund that
+/// **references it** via `reverses_entry_id`. Zero or negative means fully reversed, so `void_run` posts
+/// nothing — keeping a re-void idempotent and never double-refunding a charge corrected by a *linked*
+/// credit-note. An unlinked credit-note is an independent posting and does not offset the charge.
+/// Mirrors the Postgres `unreversed_remainder`.
+fn unreversed_remainder(state: &State, entry_id: EntryId) -> Credit {
+    let charged = state
+        .entries
+        .iter()
+        .find(|entry| entry.id == entry_id)
+        .map_or(Credit::ZERO, |entry| entry.delta_credits);
+    let reversed = state
+        .entries
+        .iter()
+        .filter(|entry| entry.reverses_entry_id == Some(entry_id))
+        .fold(Credit::ZERO, |acc, entry| acc + entry.delta_credits);
+    -charged - reversed
+}
 
 /// Post a conserving double-entry transfer between two existing accounts (both must be present).
 fn post_transfer(state: &mut State, from: AccountId, to: AccountId, amount: Credit) {
@@ -47,6 +66,7 @@ fn post_transfer(state: &mut State, from: AccountId, to: AccountId, amount: Cred
         revenue_recognizable: false,
         reverses_entry_id: None,
         reservation_id: None,
+        run_id: None,
         idempotency_key: None,
         created_at: now,
     });
@@ -61,6 +81,7 @@ fn post_transfer(state: &mut State, from: AccountId, to: AccountId, amount: Cred
         revenue_recognizable: false,
         reverses_entry_id: None,
         reservation_id: None,
+        run_id: None,
         idempotency_key: None,
         created_at: now,
     });
@@ -130,6 +151,7 @@ impl LedgerBackend for InMemoryLedger {
             revenue_recognizable: false,
             reverses_entry_id: None,
             reservation_id: None,
+            run_id: None,
             idempotency_key: req.idempotency_key,
             created_at: OffsetDateTime::now_utc(),
         };
@@ -174,6 +196,7 @@ impl LedgerBackend for InMemoryLedger {
             revenue_recognizable: false,
             reverses_entry_id: req.reverses_entry_id,
             reservation_id: None,
+            run_id: None,
             idempotency_key: req.idempotency_key,
             created_at: OffsetDateTime::now_utc(),
         };
@@ -274,6 +297,7 @@ impl LedgerBackend for InMemoryLedger {
             revenue_recognizable: true,
             reverses_entry_id: None,
             reservation_id: Some(req.reservation_id),
+            run_id: None,
             idempotency_key: None,
             created_at: OffsetDateTime::now_utc(),
         };
@@ -322,6 +346,7 @@ impl LedgerBackend for InMemoryLedger {
             revenue_recognizable: true,
             reverses_entry_id: None,
             reservation_id: None,
+            run_id: req.run_id,
             idempotency_key: req.idempotency_key,
             created_at: OffsetDateTime::now_utc(),
         };
@@ -398,21 +423,11 @@ impl LedgerBackend for InMemoryLedger {
                     summary.holds_released += 1;
                 }
                 HoldStatus::Settled => {
-                    let key = run_void_refund_key(run, reservation);
-                    let already_refunded = state
-                        .entries
-                        .iter()
-                        .any(|entry| entry.idempotency_key.as_deref() == Some(key.as_str()));
-                    if already_refunded {
-                        continue;
-                    }
                     let settle_id = settle_entry.expect("a settled hold records its settle entry");
-                    let amount = -state
-                        .entries
-                        .iter()
-                        .find(|entry| entry.id == settle_id)
-                        .expect("the settle entry exists")
-                        .delta_credits;
+                    let key = run_void_refund_key(run, reservation);
+                    // Reverse only the settle's unreversed remainder (idempotent on re-void; never
+                    // double-refunds a settle already corrected by a manual credit-note).
+                    let amount = unreversed_remainder(&state, settle_id);
                     if !amount.is_positive() {
                         continue;
                     }
@@ -438,6 +453,7 @@ impl LedgerBackend for InMemoryLedger {
                         revenue_recognizable: false,
                         reverses_entry_id: Some(settle_id),
                         reservation_id: Some(reservation),
+                        run_id: Some(run),
                         idempotency_key: Some(key),
                         created_at: OffsetDateTime::now_utc(),
                     });
@@ -445,6 +461,50 @@ impl LedgerBackend for InMemoryLedger {
                     summary.credits_refunded += amount;
                 }
             }
+        }
+
+        // Reverse the run's *direct* charges (post-hoc /v1/usage metering, not tied to a reservation),
+        // each by its unreversed remainder. Snapshot the run's usage entries before mutating.
+        let charges: Vec<(EntryId, AccountId)> = state
+            .entries
+            .iter()
+            .filter(|entry| entry.run_id == Some(run) && entry.entry_type == EntryType::Usage)
+            .map(|entry| (entry.id, entry.account_id))
+            .collect();
+        for (charge_id, account) in charges {
+            let key = run_void_charge_refund_key(run, charge_id);
+            let amount = unreversed_remainder(&state, charge_id);
+            if !amount.is_positive() {
+                continue;
+            }
+            if let Some(system) = state.accounts.get_mut(&self.system) {
+                system.settled -= amount;
+            }
+            let balance_after = {
+                let row = state
+                    .accounts
+                    .get_mut(&account)
+                    .expect("the charge's account exists");
+                row.settled += amount;
+                row.settled
+            };
+            state.entries.push(LedgerEntry {
+                id: EntryId::new(),
+                account_id: account,
+                paired_account_id: self.system,
+                entry_type: EntryType::Refund,
+                delta_credits: amount,
+                balance_after,
+                source: None,
+                revenue_recognizable: false,
+                reverses_entry_id: Some(charge_id),
+                reservation_id: None,
+                run_id: Some(run),
+                idempotency_key: Some(key),
+                created_at: OffsetDateTime::now_utc(),
+            });
+            summary.charges_refunded += 1;
+            summary.credits_refunded += amount;
         }
         Ok(summary)
     }

@@ -1,0 +1,41 @@
+# Auto-generate the multi-language base SDK clients with Stainless whenever the engine's API contract
+# changes. The engine OpenAPI (`crates/meter-api/openapi.json`) is the source of truth; this pushes it
+# plus the SDK config (`sdks/stainless/openapi.stainless.yml`) to Stainless, which regenerates and
+# publishes the TS / Python / Go / Java / Kotlin / Ruby clients.
+#
+# Inert until configured: the job is skipped unless a `STAINLESS_TOKEN` secret is present, so the repo
+# builds fine before the Stainless org exists. To enable: create a Stainless project, then add the
+# `STAINLESS_TOKEN` secret (and confirm `project_name` below matches the project).
+name: stainless
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "crates/meter-api/openapi.json"
+      - "sdks/stainless/openapi.stainless.yml"
+      - ".github/workflows/stainless.yml"
+  workflow_dispatch: {}
+
+jobs:
+  generate:
+    name: stainless — regenerate base clients
+    runs-on: ubuntu-latest
+    # Map the secret to job env so a step `if` can gate on it — `secrets` is not available in a job `if`.
+    env:
+      STAINLESS_TOKEN: ${{ secrets.STAINLESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ env.STAINLESS_TOKEN != '' }}
+
+      # Push the spec + config to Stainless; this triggers generation of every configured language
+      # target. Confirm the action version + input names against the current Stainless docs when wiring.
+      - name: Upload spec + config to Stainless
+        if: ${{ env.STAINLESS_TOKEN != '' }}
+        uses: stainless-api/upload-openapi-spec-action@main
+        with:
+          stainless_api_key: ${{ env.STAINLESS_TOKEN }}
+          input_path: crates/meter-api/openapi.json
+          config_path: sdks/stainless/openapi.stainless.yml
+          project_name: meter
+          commit_message: "chore: sync engine OpenAPI (${{ github.sha }})"

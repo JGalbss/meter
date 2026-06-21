@@ -15,6 +15,7 @@ from .adapters import (
 )
 from .client import MeterClient, Transport
 from .errors import MeterError
+from .patch import Unpatch, patch_anthropic, patch_openai
 from .run import with_run, with_run_usage
 
 __all__ = [
@@ -22,6 +23,7 @@ __all__ = [
     "MeterError",
     "TokenUsage",
     "Transport",
+    "Unpatch",
     "anthropic_usage",
     "bedrock_usage",
     "gemini_usage",
@@ -29,6 +31,8 @@ __all__ = [
     "meter_model_usage",
     "metered_call",
     "openai_usage",
+    "patch_anthropic",
+    "patch_openai",
     "record_model_usage",
     "with_run",
     "with_run_usage",
